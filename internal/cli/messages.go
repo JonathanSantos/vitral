@@ -12,6 +12,9 @@ Comandos:
   vitral setup             configura o VS Code nesta pasta
   vitral setup --global    configura o VS Code para todos os projetos
   vitral doctor            confere se está tudo pronto
+  vitral install-browser   baixa agora o navegador do Vitral
+  vitral install-browser --from arquivo.zip
+                           instala o navegador a partir de um zip baixado à mão
   vitral version           mostra a versão
 `
 
@@ -45,25 +48,61 @@ const (
 	msgDoctorAllGood    = "\nTudo pronto.\n"
 	msgDoctorSomeFailed = "\nAlgo precisa de atenção (veja as setas acima).\n"
 
-	msgCheckBrowserOK      = "navegador encontrado: %s"
-	msgCheckBrowserMissing = "nenhum Chrome ou Chromium encontrado"
-	msgFixBrowser          = "instale o Google Chrome, ou deixe o Vitral baixar o Chromium na primeira vez (precisa de internet)"
-	msgCheckProfileOK      = "perfil do navegador pode ser gravado: %s"
-	msgCheckProfileFail    = "não consigo gravar no perfil %s"
-	msgFixProfile          = "confira as permissões da pasta, ou use outra com --profile-dir"
-	msgCheckLaunchOK       = "o navegador abre e fecha normalmente"
-	msgCheckLaunchFail     = "o navegador não abriu: %v"
-	msgFixLaunch           = "feche outras janelas do Vitral e tente de novo; se continuar, reinstale o Chrome"
-	msgCheckInstalledOK    = "Vitral instalado em %s (versão %s)"
-	msgCheckInstalledMiss  = "Vitral não está instalado em %s"
-	msgCheckInstalledOld   = "a versão instalada em %s (%s) é diferente desta (%s)"
-	msgFixInstall          = "rode: vitral setup"
-	msgCheckMCPOK          = "%s aponta para %s"
-	msgCheckMCPMissing     = "%s não tem o servidor \"vitral\""
-	msgCheckMCPBadPath     = "%s aponta para %s, que não existe"
-	msgCheckMCPOldVersion  = "%s aponta para %s (versão %s), mas a instalada é %s"
-	msgCheckMCPNone        = "nenhuma configuração do VS Code com o Vitral encontrada"
-	msgFixMCP              = "rode: vitral setup (ou vitral setup --global)"
+	msgCheckBrowserOK       = "navegador: %s %s (%s)"
+	msgCheckBrowserPending  = "o Chrome for Testing %s do Vitral ainda não foi baixado; ele será baixado no primeiro uso (cerca de 150 MB)"
+	msgCheckBrowserFallback = "; se o download falhar, o Vitral usa: %s %s"
+	msgCheckBrowserMissing  = "nenhum navegador disponível"
+	msgCheckDownloadOK      = "o download do navegador está acessível (%s)"
+	msgCheckDownloadBlocked = "a rede bloqueou o download do navegador (%v)"
+	msgFixDownload          = "use um mirror interno (VITRAL_BROWSER_MIRROR ou --browser-mirror) ou baixe o zip em outro computador e rode: vitral install-browser --from arquivo.zip"
+	msgCheckDownloadSkip    = "não há Chrome for Testing para este sistema; o Vitral usa um Chromium do Puppeteer/Playwright ou o navegador do sistema"
+	msgCheckLaunchSkipped   = "não testei abrir o navegador: nenhum está disponível ainda"
+	msgFixLaunchMissing     = "rode: vitral install-browser"
+
+	msgSourceExplicit = "definido em --browser-path"
+	msgSourceManaged  = "Chrome for Testing do Vitral"
+	msgSourceCache    = "Chromium do cache do Puppeteer/Playwright"
+	msgSourceSystem   = "navegador do sistema, permitido por --allow-system-browser"
+
+	msgNotFoundTitle       = "O Vitral não encontrou um navegador para usar.\n"
+	msgNotFoundExplicit    = "  O navegador definido em --browser-path (ou VITRAL_BROWSER_PATH) não abriu: %s (%v)\n"
+	msgNotFoundUnsupported = "  - Não existe Chrome for Testing para este sistema.\n"
+	msgNotFoundDownload    = "  - O download do Chrome for Testing falhou: %v\n"
+	msgNotFoundPending     = "  - O Chrome for Testing ainda não foi baixado.\n"
+	msgNotFoundCaches      = "  - Nenhum Chromium do Puppeteer ou do Playwright funcionou neste computador.\n"
+	msgNotFoundNoSystem    = "  - O Chrome/Edge do sistema não é usado sem permissão.\n"
+	msgNotFoundSystemNone  = "  - Não achei Chrome nem Edge instalados.\n"
+	msgNotFoundWays        = `Saídas:
+  1. Mirror interno da empresa: defina VITRAL_BROWSER_MIRROR (ou --browser-mirror) com o endereço do espelho do Chrome for Testing.
+  2. Zip baixado à mão: baixe %s
+     em outro computador e rode: vitral install-browser --from arquivo.zip
+  3. Usar o Chrome ou o Edge já instalado: adicione "--allow-system-browser" em "args" no mcp.json
+     (o Vitral continua usando um perfil separado do seu).
+Para conferir tudo: vitral doctor
+`
+
+	msgInstallBrowserOK          = "✓ navegador instalado: %s (versão %s)\n"
+	msgInstallBrowserAlready     = "✓ o navegador do Vitral já está instalado: %s (versão %s)\n"
+	msgInstallBrowserUnsupported = "não existe Chrome for Testing para este sistema. Use --browser-path, um Chromium do Puppeteer/Playwright ou --allow-system-browser"
+	msgInstallBrowserFailed      = "não consegui instalar o navegador: %v"
+	msgInstallBrowserNeedsFile   = "informe o arquivo: vitral install-browser --from arquivo.zip"
+
+	msgCheckProfileOK     = "perfil do navegador pode ser gravado: %s"
+	msgCheckProfileFail   = "não consigo gravar no perfil %s"
+	msgFixProfile         = "confira as permissões da pasta, ou use outra com --profile-dir"
+	msgCheckLaunchOK      = "o navegador abre e fecha normalmente"
+	msgCheckLaunchFail    = "o navegador não abriu: %v"
+	msgFixLaunch          = "feche outras janelas do Vitral e tente de novo; se continuar, reinstale o Chrome"
+	msgCheckInstalledOK   = "Vitral instalado em %s (versão %s)"
+	msgCheckInstalledMiss = "Vitral não está instalado em %s"
+	msgCheckInstalledOld  = "a versão instalada em %s (%s) é diferente desta (%s)"
+	msgFixInstall         = "rode: vitral setup"
+	msgCheckMCPOK         = "%s aponta para %s"
+	msgCheckMCPMissing    = "%s não tem o servidor \"vitral\""
+	msgCheckMCPBadPath    = "%s aponta para %s, que não existe"
+	msgCheckMCPOldVersion = "%s aponta para %s (versão %s), mas a instalada é %s"
+	msgCheckMCPNone       = "nenhuma configuração do VS Code com o Vitral encontrada"
+	msgFixMCP             = "rode: vitral setup (ou vitral setup --global)"
 
 	msgDownloadStart    = "Baixando o navegador do Vitral (só na primeira vez)…\n"
 	msgDownloadProgress = "Baixando o navegador do Vitral (só na primeira vez)… %s\n"

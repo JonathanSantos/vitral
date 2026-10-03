@@ -20,9 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-rod/rod/lib/launcher"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/JonathanSantos/vitral/internal/app"
+	"github.com/JonathanSantos/vitral/internal/browser"
 	"github.com/JonathanSantos/vitral/internal/config"
 )
 
@@ -58,6 +60,8 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	cfg.ProfileDir = profile
 	cfg.StabilityTimeout = 5 * time.Second
 	cfg.FlowsDir = filepath.Join(profile, "flows")
+	// Testes usam um navegador explícito para o CI padrão não baixar o Chrome for Testing.
+	cfg.BrowserPath = testBrowserPath()
 	if tweak != nil {
 		tweak(&cfg)
 	}
@@ -89,6 +93,22 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 
 // renameSubmit simula uma mudança na tela: o botão "Enviar" do form.html vira "Confirmar".
 var renameSubmit atomic.Bool
+
+// testBrowserPath escolhe o navegador dos testes: VITRAL_BROWSER_PATH, o Chrome for Testing
+// gerenciado se já estiver baixado, ou o Chrome instalado na máquina.
+func testBrowserPath() string {
+	if p := os.Getenv(config.EnvBrowserPath); p != "" {
+		return p
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		inst, _ := browser.NewInstaller(config.Defaults(home), nil)
+		if _, err := os.Stat(inst.Executable()); err == nil {
+			return inst.Executable()
+		}
+	}
+	p, _ := launcher.LookPath()
+	return p
+}
 
 // fixtureMux serve testdata/pages e uma API fake usada pelas fixtures.
 func fixtureMux() *http.ServeMux {

@@ -16,8 +16,8 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
-	"github.com/go-rod/rod/lib/utils"
 
+	"github.com/JonathanSantos/vitral/internal/browser/install"
 	"github.com/JonathanSantos/vitral/internal/config"
 )
 
@@ -31,8 +31,10 @@ type Manager struct {
 	log   *slog.Logger
 	hooks []PageHook
 
-	// download recebe o progresso do download do Chromium (a CLI traduz para PT-BR).
-	download utils.Logger
+	// progress recebe o progresso do download do Chrome for Testing (a CLI traduz para PT-BR).
+	progress install.Logger
+	// onNotFound mostra para a pessoa, em PT-BR, as saídas quando nenhum navegador serve.
+	onNotFound func(error)
 
 	mu       sync.Mutex
 	launched *launcher.Launcher
@@ -46,8 +48,11 @@ func New(cfg config.Config, logger *slog.Logger) *Manager {
 	return &Manager{cfg: cfg, log: logger}
 }
 
-// SetDownloadLogger define quem mostra o progresso do download do Chromium (padrão: stderr cru).
-func (m *Manager) SetDownloadLogger(l utils.Logger) { m.download = l }
+// SetDownloadLogger define quem mostra o progresso do download do navegador (padrão: stderr cru).
+func (m *Manager) SetDownloadLogger(l install.Logger) { m.progress = l }
+
+// SetNotFoundReporter define quem explica para a pessoa quando nenhum navegador foi encontrado.
+func (m *Manager) SetNotFoundReporter(fn func(error)) { m.onNotFound = fn }
 
 // OnNewPage registra um preparo executado em toda página nova. Chamar antes do primeiro uso.
 func (m *Manager) OnNewPage(h PageHook) {
@@ -141,26 +146,22 @@ func (m *Manager) launch() (string, error) {
 	return u, nil
 }
 
-// browserBin prefere o binário configurado, depois o Chrome instalado e por fim baixa o Chromium.
+// browserBin escolhe o navegador: explícito, Chrome for Testing gerenciado, cache do
+// Puppeteer/Playwright e, só com --allow-system-browser, o do sistema.
 func (m *Manager) browserBin() (string, error) {
-	if m.cfg.BrowserBin != "" {
-		return m.cfg.BrowserBin, nil
+	progress := m.progress
+	if progress == nil {
+		progress = stderrProgress
 	}
-	if bin, ok := launcher.LookPath(); ok {
-		return bin, nil
-	}
-	m.log.Info("no Chrome found, downloading Chromium (first run only)")
-	dl := launcher.NewBrowser()
-	// O logger padrão do rod escreve em stdout, que é reservado ao protocolo MCP.
-	dl.Logger = log.New(os.Stderr, "[download] ", log.LstdFlags)
-	if m.download != nil {
-		dl.Logger = m.download
-	}
-	bin, err := dl.Get()
+	res, err := Resolve(m.cfg, progress, false)
 	if err != nil {
-		return "", fmt.Errorf("download Chromium: %w", err)
+		if m.onNotFound != nil {
+			m.onNotFound(err)
+		}
+		return "", err
 	}
-	return bin, nil
+	m.log.Info("browser selected", "source", res.Source, "version", res.Version, "path", res.Path, "reason", res.Reason)
+	return res.Path, nil
 }
 
 func (m *Manager) chromeLogWriter() io.Writer {

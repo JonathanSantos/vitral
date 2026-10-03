@@ -29,6 +29,16 @@ func Main(args []string, e Env, loadConfig func([]string) (config.Config, error)
 			err = Setup(e, opts)
 		}
 		return true, report(e, err)
+	case "install-browser":
+		zipPath, rest, err := parseInstallBrowser(args[1:])
+		if err != nil {
+			return true, report(e, err)
+		}
+		cfg, err := loadConfig(rest)
+		if err == nil {
+			err = InstallBrowser(e, cfg, zipPath)
+		}
+		return true, report(e, err)
 	case "doctor":
 		cfg, err := loadConfig(args[1:])
 		if err != nil {

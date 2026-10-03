@@ -71,9 +71,23 @@ examples/vscode/      mcp.json, prompt files, CHECKLIST.md
 
 ## 6. Browser
 
-Modos: `launch` (padrão, visível, perfil persistente em `~/.vitral/profile`, usa o Chrome
-instalado ou baixa o Chromium), `headless` e `attach` (`--attach ws://...` ou `--attach-port 9222`;
-o Chrome precisa de `--user-data-dir` separado).
+Modos: `launch` (padrão, visível, perfil persistente em `~/.vitral/profile`), `headless` e `attach`
+(`--attach ws://...` ou `--attach-port 9222`; o Chrome precisa de `--user-data-dir` separado).
+
+Navegador (o do usuário nunca é usado sem opt-in):
+
+1. `--browser-path` / `VITRAL_BROWSER_PATH`;
+2. Chrome for Testing gerenciado, versão fixada, em `~/.vitral/browsers/<versão>` (download com progresso
+   em PT-BR, extração em pasta temporária, validação com `--version`, rename atômico; mantém a versão
+   atual e a anterior). Plataformas: as que o JSON oficial lista para a versão (hoje linux64, linux-arm64,
+   mac-arm64, mac-x64, win64);
+3. se o download falhar ou não houver build: Chromium dos caches do Puppeteer/Playwright (o mais novo que
+   roda; Firefox e WebKit ignorados);
+4. Chrome/Edge do sistema só com `--allow-system-browser`, sempre com o perfil do Vitral;
+5. senão, erro amigável em PT-BR com as saídas (mirror, zip manual, `--allow-system-browser`).
+
+Redes corporativas: `VITRAL_BROWSER_MIRROR`/`--browser-mirror`, proxy do ambiente e
+`vitral install-browser --from <zip>`.
 
 Regras: subida preguiçosa; CDP só em `127.0.0.1`; ao encerrar fecha o browser lançado (nunca no
 `attach`); se a aba for fechada, abre outra.

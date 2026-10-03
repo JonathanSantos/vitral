@@ -35,8 +35,8 @@ type installResult struct {
 	Copied     bool
 }
 
-// install copia o binário atual para ~/.vitral/bin, substituindo uma versão anterior.
-func install(e Env) (installResult, error) {
+// installBinary copia o binário atual para ~/.vitral/bin, substituindo uma versão anterior.
+func installBinary(e Env) (installResult, error) {
 	dst := InstalledPath(e)
 	res := installResult{Path: dst}
 	if _, err := os.Stat(dst); err == nil {

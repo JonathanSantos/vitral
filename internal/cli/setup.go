@@ -35,7 +35,7 @@ func parseSetup(args []string) (SetupOptions, error) {
 
 // Setup instala o binário em ~/.vitral/bin e configura o VS Code (pasta atual ou usuário).
 func Setup(e Env, o SetupOptions) error {
-	res, err := install(e)
+	res, err := installBinary(e)
 	if err != nil {
 		return fmt.Errorf(msgInstallFailed, res.Path, err)
 	}

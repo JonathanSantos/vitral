@@ -48,6 +48,7 @@ func run() error {
 
 	a := app.Build(cfg, logger)
 	a.Browser.SetDownloadLogger(cli.DownloadLogger{W: os.Stderr})
+	a.Browser.SetNotFoundReporter(cli.NotFoundReporter(os.Stderr, cfg))
 	defer a.Close()
 
 	logger.Info("server ready", "version", config.Version)
@@ -60,7 +61,7 @@ func run() error {
 
 func loadConfig(home string) func([]string) (config.Config, error) {
 	return func(args []string) (config.Config, error) {
-		return config.Load(args, home, config.ReadFile)
+		return config.Load(args, home, config.ReadFile, os.Getenv)
 	}
 }
 

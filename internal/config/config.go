@@ -27,8 +27,15 @@ type Config struct {
 	Attach     string `yaml:"attach"`
 	AttachPort int    `yaml:"attachPort"`
 	ProfileDir string `yaml:"profileDir"`
-	BrowserBin string `yaml:"browserBin"`
-	WindowSize string `yaml:"windowSize"`
+	// BrowserPath força um executável específico (--browser-path / VITRAL_BROWSER_PATH).
+	BrowserPath string `yaml:"browserPath"`
+	// AllowSystemBrowser permite usar o Chrome/Edge do sistema como último recurso (sempre com o perfil do Vitral).
+	AllowSystemBrowser bool `yaml:"allowSystemBrowser"`
+	// BrowserMirror é a base URL alternativa para baixar o Chrome for Testing (mesmo layout de paths).
+	BrowserMirror string `yaml:"browserMirror"`
+	// BrowsersDir guarda os Chrome for Testing baixados pelo Vitral.
+	BrowsersDir string `yaml:"browsersDir"`
+	WindowSize  string `yaml:"windowSize"`
 
 	AllowEval    bool     `yaml:"allowEval"`
 	AllowedHosts []string `yaml:"allowedHosts"`
@@ -54,6 +61,7 @@ type Config struct {
 func Defaults(homeDir string) Config {
 	return Config{
 		ProfileDir:       filepath.Join(homeDir, "."+Name, "profile"),
+		BrowsersDir:      filepath.Join(homeDir, "."+Name, "browsers"),
 		WindowSize:       "1280,800",
 		NavTimeout:       15 * time.Second,
 		StabilityTimeout: 10 * time.Second,
@@ -68,8 +76,8 @@ func Defaults(homeDir string) Config {
 // DefaultConfigFile é o arquivo lido automaticamente quando existe no diretório de trabalho.
 const DefaultConfigFile = Name + ".yaml"
 
-// Load aplica, nesta ordem: defaults, arquivo yaml e flags (flags vencem).
-func Load(args []string, homeDir string, readFile func(string) ([]byte, error)) (Config, error) {
+// Load aplica, nesta ordem: defaults, arquivo yaml, variáveis de ambiente e flags (flags vencem).
+func Load(args []string, homeDir string, readFile func(string) ([]byte, error), getenv func(string) string) (Config, error) {
 	cfg := Defaults(homeDir)
 
 	path, explicit := configPath(args)
@@ -83,10 +91,13 @@ func Load(args []string, homeDir string, readFile func(string) ([]byte, error)) 
 		}
 	}
 
+	applyEnv(&cfg, getenv)
 	if err := parseFlags(&cfg, args); err != nil {
 		return cfg, err
 	}
 	cfg.ProfileDir = expandHome(cfg.ProfileDir, homeDir)
+	cfg.BrowsersDir = expandHome(cfg.BrowsersDir, homeDir)
+	cfg.BrowserPath = expandHome(cfg.BrowserPath, homeDir)
 	return cfg, validate(cfg)
 }
 
@@ -107,6 +118,24 @@ func configPath(args []string) (string, bool) {
 	return DefaultConfigFile, false
 }
 
+// Variáveis de ambiente úteis em redes corporativas e instalações gerenciadas.
+const (
+	EnvBrowserPath   = "VITRAL_BROWSER_PATH"
+	EnvBrowserMirror = "VITRAL_BROWSER_MIRROR"
+)
+
+func applyEnv(cfg *Config, getenv func(string) string) {
+	if getenv == nil {
+		return
+	}
+	if v := getenv(EnvBrowserPath); v != "" {
+		cfg.BrowserPath = v
+	}
+	if v := getenv(EnvBrowserMirror); v != "" {
+		cfg.BrowserMirror = v
+	}
+}
+
 func parseFlags(cfg *Config, args []string) error {
 	fset := flag.NewFlagSet(Name, flag.ContinueOnError)
 	fset.SetOutput(io.Discard)
@@ -116,7 +145,10 @@ func parseFlags(cfg *Config, args []string) error {
 	fset.StringVar(&cfg.Attach, "attach", cfg.Attach, "attach to a running Chrome by websocket URL (ws://...)")
 	fset.IntVar(&cfg.AttachPort, "attach-port", cfg.AttachPort, "attach to a running Chrome by remote debugging port")
 	fset.StringVar(&cfg.ProfileDir, "profile-dir", cfg.ProfileDir, "dedicated browser profile directory")
-	fset.StringVar(&cfg.BrowserBin, "browser-bin", cfg.BrowserBin, "path to the Chrome/Chromium binary")
+	fset.StringVar(&cfg.BrowserPath, "browser-path", cfg.BrowserPath, "use this Chrome/Chromium executable (env "+EnvBrowserPath+")")
+	fset.BoolVar(&cfg.AllowSystemBrowser, "allow-system-browser", cfg.AllowSystemBrowser, "allow the installed Chrome/Edge as a last resort (always with the Vitral profile)")
+	fset.StringVar(&cfg.BrowserMirror, "browser-mirror", cfg.BrowserMirror, "base URL of a Chrome for Testing mirror (env "+EnvBrowserMirror+")")
+	fset.StringVar(&cfg.BrowsersDir, "browsers-dir", cfg.BrowsersDir, "where Vitral keeps its Chrome for Testing")
 	fset.StringVar(&cfg.WindowSize, "window-size", cfg.WindowSize, "browser window size as W,H")
 	fset.BoolVar(&cfg.AllowEval, "allow-eval", cfg.AllowEval, "register the eval_js tool")
 	fset.Func("allowed-hosts", "comma separated host globs allowed for navigation and mocks", func(v string) error {

@@ -39,6 +39,7 @@ func TestLoad(t *testing.T) {
 		name    string
 		args    []string
 		files   map[string]string
+		env     map[string]string
 		check   func(t *testing.T, c Config)
 		wantErr bool
 	}{
@@ -80,13 +81,32 @@ func TestLoad(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "env then flags",
+			args: []string{"--browser-mirror", "https://flag/"},
+			env:  map[string]string{EnvBrowserPath: "~/chrome/chrome", EnvBrowserMirror: "https://env/"},
+			check: func(t *testing.T, c Config) {
+				if c.BrowserPath != "/home/u/chrome/chrome" || c.BrowserMirror != "https://flag/" || c.BrowsersDir != "/home/u/.vitral/browsers" {
+					t.Fatalf("unexpected: %+v", c)
+				}
+			},
+		},
+		{
+			name:  "system browser opt-in by yaml",
+			files: map[string]string{DefaultConfigFile: "allowSystemBrowser: true"},
+			check: func(t *testing.T, c Config) {
+				if !c.AllowSystemBrowser {
+					t.Fatal("allowSystemBrowser from yaml")
+				}
+			},
+		},
 		{name: "attach conflict", args: []string{"--attach", "ws://x", "--attach-port", "9222"}, wantErr: true},
 		{name: "bad window", args: []string{"--window-size", "big"}, wantErr: true},
 		{name: "unknown flag", args: []string{"--nope"}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := Load(tt.args, "/home/u", fakeFS(tt.files))
+			c, err := Load(tt.args, "/home/u", fakeFS(tt.files), func(k string) string { return tt.env[k] })
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error")

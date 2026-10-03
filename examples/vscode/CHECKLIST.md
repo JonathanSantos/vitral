@@ -108,3 +108,19 @@ copiado para `.vscode/mcp.json`, com o caminho do binário em `command`).
 7. Rode um fluxo salvo e veja "Executando fluxo: nome · passo i de n". Pause no meio: o fluxo para
    antes do próximo passo e a IA avisa onde parou.
 8. Rode com `"--no-overlay"` em `args`: sem destaque e sem texto de status, mas o botão de pausa continua.
+
+## Navegador do Vitral (Chrome for Testing)
+
+1. Com `~/.vitral/browsers` vazio, rode `vitral doctor`: ele diz que o Chrome for Testing ainda não foi
+   baixado, mostra o plano B (se houver) e confirma se o download está acessível.
+2. Peça qualquer ação no Copilot: o painel de saída do servidor mostra "Baixando o navegador do Vitral
+   (só na primeira vez)… NN%" e depois abre um Chrome que **não** é o seu (ícone "Chrome for Testing").
+3. Rode `vitral doctor` de novo: "navegador: Chrome for Testing do Vitral <versão> (<caminho>)".
+4. Rede bloqueada: defina `VITRAL_BROWSER_MIRROR` para um endereço inválido e rode `vitral doctor`:
+   o item do download aparece com ✗ e a sugestão de mirror ou zip manual.
+5. Zip manual: baixe a URL que o doctor mostra, apague `~/.vitral/browsers` e rode
+   `vitral install-browser --from <arquivo.zip>`.
+6. Sem navegador nenhum (mirror inválido, sem caches, sem `--allow-system-browser`): uma ação no Copilot
+   falha e o painel de saída explica as três saídas em português.
+7. Com `"--allow-system-browser"` em `args` e sem Chrome for Testing nem caches, o Vitral abre o seu
+   Chrome, mas com o perfil separado (sem seus logins).

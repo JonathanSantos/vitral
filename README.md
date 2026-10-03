@@ -40,7 +40,8 @@ Ou peça do seu jeito: *"Abra o portal de pedidos e busque o pedido 1023."*
 
 ## É seguro?
 
-- **A IA usa um navegador separado do seu**, com perfil próprio. Seus logins do dia a dia não são usados.
+- **A IA usa um navegador próprio do Vitral**, baixado na primeira vez, com perfil separado. O seu
+  Chrome não é usado, a menos que você permita.
 - **Quem digita senhas é você.** Quando aparece um campo de senha, o Vitral pausa e mostra "Sua vez".
 - **Você pode pausar a qualquer momento** pelo botão "⏸ Pausar IA" no canto da janela do navegador.
 - **Nada sai do seu computador** além do que a IA já vê no chat.
@@ -76,8 +77,25 @@ As ações devolvem só o que mudou na tela. Enquanto a pessoa pausa, as ferrame
 vitral                   # no terminal: ajuda; sem terminal (VS Code): servidor MCP
 vitral setup [--global] [--yes]
 vitral doctor
+vitral install-browser [--from chrome.zip]
 vitral version
 ```
+
+### Navegador
+
+O Vitral usa o próprio Chrome for Testing, em versão fixada (`install.PinnedVersion`), instalado em
+`~/.vitral/browsers/<versão>` (mantém só a atual e a anterior). A escolha segue esta ordem, e o motivo
+aparece no log (stderr) e no `vitral doctor`:
+
+1. `--browser-path` ou `VITRAL_BROWSER_PATH`;
+2. Chrome for Testing gerenciado (baixa se faltar, validando com `--version` antes de instalar);
+3. se o download falhar ou não houver build para a plataforma: o Chromium mais novo do cache do
+   Puppeteer ou do Playwright (só o executável; nada de Node);
+4. Chrome ou Edge do sistema, **só com `--allow-system-browser`**, sempre com o perfil do Vitral.
+
+Redes corporativas: `VITRAL_BROWSER_MIRROR` (ou `--browser-mirror`) aponta para um mirror com o mesmo layout
+de paths do Chrome for Testing, `HTTPS_PROXY`/`HTTP_PROXY` são respeitados, e
+`vitral install-browser --from chrome.zip` instala um zip baixado à mão.
 
 O `setup` instala o binário em `~/.vitral/bin` e aponta o `.vscode/mcp.json` (ou o do usuário, com
 `--global`) para ele, preservando comentários. Rodar de novo com um binário novo é a forma de atualizar.
@@ -89,6 +107,10 @@ Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
 | `--headless` | `false` | Navegador sem janela. |
 | `--attach ws://…` / `--attach-port 9222` | | Conecta num Chrome aberto com `--remote-debugging-port` e um `--user-data-dir` separado. Nunca o fecha. |
 | `--profile-dir` | `~/.vitral/profile` | Perfil dedicado do navegador. |
+| `--browser-path` | | Usa este executável (env `VITRAL_BROWSER_PATH`). |
+| `--browser-mirror` | | Mirror do Chrome for Testing (env `VITRAL_BROWSER_MIRROR`). |
+| `--allow-system-browser` | `false` | Permite o Chrome/Edge instalado como último recurso. |
+| `--browsers-dir` | `~/.vitral/browsers` | Onde ficam os Chrome for Testing baixados. |
 | `--allowed-hosts` | | Hosts permitidos para navegação e mock (globs, separados por vírgula). |
 | `--allow-eval` | `false` | Registra `eval_js`. |
 | `--disable-mock` | `false` | Remove as ferramentas de mock. |
@@ -131,6 +153,7 @@ tools/brandgen      gera os PNGs da marca (não entra no binário)
 ```bash
 make test          # unitários
 make integration   # integração com Chromium headless e páginas de testdata/
+make network       # download real do Chrome for Testing (≈150 MB, fora do CI padrão)
 make lint          # go vet + staticcheck
 make build         # bin/vitral
 make dist          # binários para Windows, macOS e Linux em dist/

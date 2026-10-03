@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,10 +9,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-
-	"github.com/go-rod/rod/lib/launcher"
+	"time"
 
 	"github.com/JonathanSantos/vitral/internal/browser"
+	"github.com/JonathanSantos/vitral/internal/browser/install"
 	"github.com/JonathanSantos/vitral/internal/config"
 )
 
@@ -25,7 +26,8 @@ type Check struct {
 // Doctor confere o ambiente e devolve false se algo precisa de atenção.
 func Doctor(e Env, cfg config.Config) bool {
 	fmt.Fprintf(e.Stdout, msgDoctorTitle, config.Version)
-	checks := []Check{checkBrowser(), checkProfile(cfg.ProfileDir), checkLaunch(cfg)}
+	res, resErr := browser.Resolve(cfg, nil, true)
+	checks := []Check{checkBrowser(cfg, res, resErr), checkDownload(cfg), checkProfile(cfg.ProfileDir), checkLaunch(cfg, res, resErr)}
 	checks = append(checks, checkInstalled(e))
 	checks = append(checks, checkMCP(e)...)
 	allOK := true
@@ -45,16 +47,39 @@ func Doctor(e Env, cfg config.Config) bool {
 	return allOK
 }
 
-func checkBrowser() Check {
-	if bin, ok := launcher.LookPath(); ok {
-		return Check{OK: true, Text: fmt.Sprintf(msgCheckBrowserOK, bin)}
+// checkBrowser mostra qual navegador será usado, sem baixar nada. Se o Chrome for Testing
+// ainda não foi baixado, é ele que o Vitral vai baixar primeiro; o resultado da consulta é o plano B.
+func checkBrowser(cfg config.Config, res install.Resolution, err error) Check {
+	inst, supported := browser.NewInstaller(cfg, nil)
+	_, statErr := os.Stat(inst.Executable())
+	pending := cfg.BrowserPath == "" && supported && statErr != nil
+	switch {
+	case pending && err == nil:
+		text := fmt.Sprintf(msgCheckBrowserPending, install.PinnedVersion) +
+			fmt.Sprintf(msgCheckBrowserFallback, SourceLabel(res.Source), res.Version)
+		return Check{OK: true, Text: text}
+	case pending:
+		// Sem plano B: tudo depende do download (o checkDownload diz se a rede deixa).
+		return Check{OK: true, Text: fmt.Sprintf(msgCheckBrowserPending, install.PinnedVersion)}
+	case err == nil:
+		return Check{OK: true, Text: fmt.Sprintf(msgCheckBrowserOK, SourceLabel(res.Source), res.Version, res.Path)}
 	}
-	downloaded := launcher.NewBrowser()
-	downloaded.Logger = quietLogger{}
-	if _, err := os.Stat(downloaded.BinPath()); err == nil {
-		return Check{OK: true, Text: fmt.Sprintf(msgCheckBrowserOK, downloaded.BinPath())}
+	return Check{Text: msgCheckBrowserMissing, Fix: FormatNotFound(err, inst.Platform)}
+}
+
+// checkDownload faz só um HEAD na URL do zip para saber se a rede deixa baixar.
+func checkDownload(cfg config.Config) Check {
+	inst, ok := browser.NewInstaller(cfg, nil)
+	if !ok {
+		return Check{OK: true, Text: msgCheckDownloadSkip}
 	}
-	return Check{Text: msgCheckBrowserMissing, Fix: msgFixBrowser}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	url, err := inst.Probe(ctx)
+	if err != nil {
+		return Check{Text: fmt.Sprintf(msgCheckDownloadBlocked, err), Fix: msgFixDownload}
+	}
+	return Check{OK: true, Text: fmt.Sprintf(msgCheckDownloadOK, url)}
 }
 
 func checkProfile(dir string) Check {
@@ -71,15 +96,19 @@ func checkProfile(dir string) Check {
 	return Check{OK: true, Text: fmt.Sprintf(msgCheckProfileOK, dir)}
 }
 
-// checkLaunch abre e fecha um navegador headless com perfil temporário, para não disputar
-// o perfil com um Vitral que o VS Code já esteja usando.
-func checkLaunch(cfg config.Config) Check {
+// checkLaunch abre e fecha o navegador escolhido em headless, com perfil temporário para não
+// disputar o perfil com um Vitral que o VS Code já esteja usando. Não baixa nada.
+func checkLaunch(cfg config.Config, res install.Resolution, resErr error) Check {
+	if resErr != nil {
+		return Check{Text: msgCheckLaunchSkipped, Fix: msgFixLaunchMissing}
+	}
 	tmp, err := os.MkdirTemp("", config.Name+"-doctor-*")
 	if err != nil {
 		return Check{Text: fmt.Sprintf(msgCheckLaunchFail, err), Fix: msgFixLaunch}
 	}
 	defer os.RemoveAll(tmp)
 	cfg.Headless, cfg.ProfileDir, cfg.Attach, cfg.AttachPort = true, tmp, "", 0
+	cfg.BrowserPath = res.Path
 	m := browser.New(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	defer m.Close()
 	if _, err := m.Page(); err != nil {
@@ -135,7 +164,3 @@ func checkEntry(e Env, file string, entry ServerEntry, installed string) Check {
 	}
 	return Check{OK: true, Text: fmt.Sprintf(msgCheckMCPOK, file, entry.Command)}
 }
-
-type quietLogger struct{}
-
-func (quietLogger) Println(...any) {}
