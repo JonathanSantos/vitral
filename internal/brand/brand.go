@@ -62,8 +62,16 @@ func CSSVars() string {
 		name string
 		c    color.RGBA
 	}{
-		{"ink", Ink}, {"primary", Sapphire}, {"mark1", Sapphire}, {"mark2", Ruby}, {"mark3", Emerald},
-		{"mark4", Amber}, {"mark5", Amethyst}, {"paper", Paper}, {"muted", Muted}, {"white", White},
+		{"ink", Ink},
+		{"primary", Sapphire},
+		{"mark1", Sapphire},
+		{"mark2", Ruby},
+		{"mark3", Emerald},
+		{"mark4", Amber},
+		{"mark5", Amethyst},
+		{"paper", Paper},
+		{"muted", Muted},
+		{"white", White},
 	}
 	var b strings.Builder
 	for _, v := range vars {

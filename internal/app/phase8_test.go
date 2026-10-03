@@ -146,8 +146,10 @@ func TestFlowProgressAndPauseBetweenSteps(t *testing.T) {
 	t.Cleanup(func() { h.resume(t); h.ok(t, "mock_clear", nil) })
 	snap := h.ok(t, "open", map[string]any{"url": h.url("/pages/api.html")})
 	first := stepNumber(t, snap)
-	h.ok(t, "mock_add", map[string]any{"urlPattern": "/api/orders", "delayMs": 2500,
-		"body": `{"orders":[{"id":9,"status":"Lento","total":1}]}`})
+	h.ok(t, "mock_add", map[string]any{
+		"urlPattern": "/api/orders", "delayMs": 2500,
+		"body": `{"orders":[{"id":9,"status":"Lento","total":1}]}`,
+	})
 	h.ok(t, "click", map[string]any{"ref": ref(t, snap, "button", "Carregar pedidos")})
 	h.ok(t, "wait_for", map[string]any{"text": "1 pedidos carregados", "timeoutMs": 8000})
 	h.ok(t, "wait_for", map[string]any{"text": "Lento"})

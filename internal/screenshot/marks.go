@@ -120,7 +120,7 @@ func Annotate(img image.Image, marks []Mark) *image.RGBA {
 	}
 	// Etiquetas depois dos contornos, para não serem riscadas por bordas vizinhas.
 	for i, r := range LabelRects(marks, b) {
-		drawLabel(out, marks[i].Ref, r)
+		drawLabel(out, marks[i].Ref, r) // #nosec G602 -- LabelRects devolve um item por marca
 	}
 	return out
 }

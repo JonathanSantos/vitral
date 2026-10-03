@@ -33,8 +33,10 @@ func TestMockServerError(t *testing.T) {
 func TestMockDelayShowsLoading(t *testing.T) {
 	clearMocks(t)
 	snap := h.ok(t, "open", map[string]any{"url": h.url("/pages/api.html")})
-	h.ok(t, "mock_add", map[string]any{"urlPattern": "/api/orders", "delayMs": 2500,
-		"body": `{"orders":[{"id":7,"status":"Lento","total":1}]}`})
+	h.ok(t, "mock_add", map[string]any{
+		"urlPattern": "/api/orders", "delayMs": 2500,
+		"body": `{"orders":[{"id":7,"status":"Lento","total":1}]}`,
+	})
 
 	out := h.ok(t, "click", map[string]any{"ref": ref(t, snap, "button", "Carregar pedidos")})
 	mustContain(t, out, `status "Carregando pedidos…"`)

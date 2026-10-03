@@ -61,7 +61,7 @@ func TestNormalizeURL(t *testing.T) {
 		"portal/pedidos":     "https://portal/pedidos",
 		"http://a.com":       "http://a.com",
 		"about:blank":        "about:blank",
-		" 127.0.0.1:8080 ":   "http://127.0.0.1:8080",
+		" 127.0.0.1:8080 ":   "http://127.0.0.1:8080", //nolint:gocritic // espaços de propósito: testa o TrimSpace
 		"file:///tmp/a.html": "file:///tmp/a.html",
 	}
 	for in, want := range tests {

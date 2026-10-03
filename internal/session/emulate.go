@@ -21,10 +21,14 @@ type Device struct {
 
 // Devices são os perfis aceitos por emulate. desktop volta ao normal.
 var Devices = map[string]Device{
-	"mobile": {Width: 390, Height: 844, Scale: 3, Mobile: true,
-		UserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"},
-	"tablet": {Width: 820, Height: 1180, Scale: 2, Mobile: true,
-		UserAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"},
+	"mobile": {
+		Width: 390, Height: 844, Scale: 3, Mobile: true,
+		UserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+	},
+	"tablet": {
+		Width: 820, Height: 1180, Scale: 2, Mobile: true,
+		UserAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+	},
 	"desktop": {},
 }
 

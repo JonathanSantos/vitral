@@ -1,6 +1,6 @@
 module github.com/JonathanSantos/vitral
 
-go 1.26.4
+go 1.26.6
 
 require (
 	github.com/go-rod/rod v0.116.2

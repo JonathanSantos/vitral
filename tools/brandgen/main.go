@@ -65,7 +65,7 @@ func run(dir, fontsDir string) error {
 	if err := b.Connect(); err != nil {
 		return err
 	}
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	p, err := b.Page(proto.TargetCreateTarget{})
 	if err != nil {
 		return err

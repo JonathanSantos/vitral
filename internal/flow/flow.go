@@ -195,9 +195,9 @@ func (s Step) Describe() string {
 	case "click":
 		return "click " + s.Click.Describe()
 	case "type":
-		return fmt.Sprintf("type %s = %q", s.Type.Selector.Describe(), s.Type.Text)
+		return fmt.Sprintf("type %s = %q", s.Type.Describe(), s.Type.Text)
 	case "select":
-		return fmt.Sprintf("select %s = %q", s.Select.Selector.Describe(), s.Select.Option)
+		return fmt.Sprintf("select %s = %q", s.Select.Describe(), s.Select.Option)
 	case "press":
 		return "press " + s.Press
 	case "scroll":

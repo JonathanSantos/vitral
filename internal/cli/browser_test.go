@@ -22,9 +22,11 @@ func TestFormatNotFound(t *testing.T) {
 		{
 			name: "download blocked, no system opt-in",
 			err:  &install.NotFoundError{InstallErr: errors.New("HTTP 403")},
-			want: []string{"não encontrou um navegador", "falhou: HTTP 403", "não é usado sem permissão",
+			want: []string{
+				"não encontrou um navegador", "falhou: HTTP 403", "não é usado sem permissão",
 				"VITRAL_BROWSER_MIRROR", "vitral install-browser --from", "--allow-system-browser", "vitral doctor",
-				"chrome-for-testing-public/" + install.PinnedVersion + "/linux64/chrome-linux64.zip"},
+				"chrome-for-testing-public/" + install.PinnedVersion + "/linux64/chrome-linux64.zip",
+			},
 		},
 		{
 			name: "unsupported platform with system allowed",
@@ -51,7 +53,9 @@ func TestFormatNotFound(t *testing.T) {
 
 func TestParseInstallBrowser(t *testing.T) {
 	zipFile := filepath.Join(t.TempDir(), "c.zip")
-	os.WriteFile(zipFile, []byte("x"), 0o644)
+	if err := os.WriteFile(zipFile, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	path, rest, err := parseInstallBrowser([]string{"--browser-mirror", "https://m", "--from", zipFile})
 	if err != nil || path != zipFile || len(rest) != 2 {
 		t.Fatalf("%q %v %v", path, rest, err)
@@ -79,9 +83,15 @@ func TestInstallBrowserFromZip(t *testing.T) {
 	h := &zip.FileHeader{Name: install.ExecutableRel(platform), Method: zip.Deflate}
 	h.SetMode(0o755)
 	fw, _ := w.CreateHeader(h)
-	fw.Write([]byte("#!/bin/sh\necho 'Google Chrome for Testing " + install.PinnedVersion + "'\n"))
-	w.Close()
-	f.Close()
+	if _, err := fw.Write([]byte("#!/bin/sh\necho 'Google Chrome for Testing " + install.PinnedVersion + "'\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	fe := newFakeEnv(t, runtime.GOOS)
 	browsers := filepath.Join(fe.Home, ".vitral", "browsers")

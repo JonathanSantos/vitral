@@ -106,7 +106,7 @@ func parseInstallBrowser(args []string) (zipPath string, rest []string, err erro
 			if i+1 >= len(args) {
 				return "", nil, errors.New(msgInstallBrowserNeedsFile)
 			}
-			zipPath = args[i+1]
+			zipPath = args[i+1] // #nosec G602 -- i+1 < len(args) conferido acima
 			i++
 		case strings.HasPrefix(a, "--from="):
 			zipPath = strings.TrimPrefix(a, "--from=")

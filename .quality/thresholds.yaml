@@ -1,0 +1,35 @@
+# Limiares do quality gate (docs/TESTING.md). Única fonte dos números do gate.
+# criterion: unit = só unitários; combined = unitários + integração + e2e; none = sem mínimo.
+# Pacote abaixo da meta entra com o valor medido como mínimo e a meta ao lado. O mínimo só sobe.
+module: github.com/JonathanSantos/vitral
+
+coverage:
+  # Pacotes puros: o mínimo vale só com unitários.
+  internal/snapshot:        {criterion: unit, min: 85}
+  internal/flow:            {criterion: unit, min: 85}
+  internal/ux:              {criterion: unit, min: 85}
+  internal/brand:           {criterion: unit, min: 85}
+  internal/network:         {criterion: unit, min: 85}
+  internal/security:        {criterion: unit, min: 85}
+  internal/mock:            {criterion: unit, min: 73, target: 85, note: "intercept.go fala com o Fetch; unit-testar handle/respond com página falsa (etapa 3)"}
+  internal/cli:             {criterion: unit, min: 62, target: 85, note: "faltam testes de doctor e install-browser sem rede (etapa 3)"}
+  internal/browser/install: {criterion: unit, min: 76, target: 85, note: "faltam erros de rede do download e RunVersion (etapa 3)"}
+
+  # Demais pacotes sem browser.
+  internal/config:     {criterion: unit, min: 70}
+  internal/console:    {criterion: unit, min: 70}
+  internal/ring:       {criterion: unit, min: 70}
+  internal/screenshot: {criterion: unit, min: 70}
+
+  # Pacotes que falam com o browser: cobertura combinada.
+  internal/session: {criterion: combined, min: 70}
+  internal/tools:   {criterion: combined, min: 70}
+  internal/overlay: {criterion: combined, min: 70}
+  internal/world:   {criterion: combined, min: 70}
+  internal/app:     {criterion: combined, min: 70}
+  internal/browser: {criterion: combined, min: 66, target: 70, note: "cobrir attach e reabertura de aba no e2e (etapa 2)"}
+
+  # Cola e ferramentas: cobertos por integração/e2e ou fora do binário.
+  cmd/vitral:        {criterion: none}
+  tools/brandgen:    {criterion: none}
+  tools/qualitygate: {criterion: none}

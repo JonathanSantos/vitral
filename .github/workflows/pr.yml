@@ -1,0 +1,35 @@
+# Gate de PR: toda a lógica está no Makefile (make check); este arquivo só prepara a máquina.
+name: pr
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Cache do Chrome for Testing de teste
+        uses: actions/cache@v4
+        with:
+          path: ~/.vitral/browsers
+          key: cft-${{ runner.os }}-${{ hashFiles('internal/browser/install/cft.go') }}
+      - name: Gate
+        run: make check
+      - name: Relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-out
+          path: .quality/out/
+          if-no-files-found: ignore

@@ -1,0 +1,74 @@
+# Lint do Vitral (docs/TESTING.md, seção 10). Zero avisos no gate.
+version: "2"
+
+run:
+  build-tags: [integration, network]
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - gocritic
+    - gosec
+    - misspell
+  settings:
+    staticcheck:
+      # ST1005 desligado: as mensagens de erro são texto acionável lido pela IA e terminam com ponto.
+      checks: ["all", "-ST1000", "-ST1003", "-ST1005", "-ST1016", "-ST1020", "-ST1021", "-ST1022"]
+    misspell:
+      locale: US
+      # Comentários e mensagens para pessoas são em português (padrão do projeto); estas palavras
+      # existem em português e não são erros de inglês.
+      ignore-rules: [comando, comandos, progresso, argumentos, respondendo, reinstale, resolvendo]
+    errcheck:
+      # Best-effort: fechar arquivo/corpo depois de ler, apagar temporários e escrever no terminal.
+      # Caminhos de escrita conferem o Close explicitamente.
+      exclude-functions:
+        - (io.ReadCloser).Close
+        - (*os.File).Close
+        - (*archive/zip.ReadCloser).Close
+        - (io.Closer).Close
+        - os.Remove
+        - os.RemoveAll
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    gosec:
+      excludes:
+        # G204/G702: o Vitral roda de propósito executáveis escolhidos pela pessoa (navegador, git, o
+        # próprio binário para ler a versão); nenhum argumento vem da página ou da IA sem validação.
+        - G204
+        - G702
+        # G301/G302/G306: o Vitral grava configuração feita para ser lida por outros programas e pela
+        # equipe (mcp.json, prompts, skill, fluxos versionados, o binário em ~/.vitral/bin). Nenhum
+        # desses arquivos guarda segredo; o perfil do navegador é criado com 0700.
+        - G301
+        - G302
+        - G306
+        # G304/G703/G704: caminhos e URLs vêm da configuração escolhida pela pessoa (flags, yaml, env),
+        # nunca da página nem da IA. A extração do zip valida cada caminho com inside() e tem teste
+        # de zip-slip e de symlink escapando.
+        - G304
+        - G703
+        - G704
+        # G104 repete o errcheck, que já tem a política de exceções acima.
+        - G104
+  exclusions:
+    rules:
+      # Testes e ferramentas de desenvolvimento leem arquivos e geram processos por caminho variável.
+      - path: (_test\.go|^tools/)
+        linters: [gosec]
+      # G101: textos para pessoas que mencionam "senha" não são credenciais.
+      - path: messages\.go$
+        text: G101
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: [github.com/JonathanSantos/vitral]

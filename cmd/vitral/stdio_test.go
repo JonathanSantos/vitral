@@ -41,7 +41,7 @@ func TestStdioServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 
 	tools, err := cs.ListTools(ctx, nil)
 	if err != nil {
@@ -102,7 +102,7 @@ func TestStdioNoBrowserFound(t *testing.T) {
 	if !res.IsError || !strings.Contains(text, "no browser available") || !strings.Contains(text, "vitral doctor") {
 		t.Fatalf("tool result: %v %s", res.IsError, text)
 	}
-	cs.Close()
+	_ = cs.Close()
 	if !strings.Contains(stderr.String(), "O Vitral não encontrou um navegador") || !strings.Contains(stderr.String(), "install-browser --from") {
 		t.Fatalf("stderr should explain the options in PT-BR:\n%s", stderr.String())
 	}

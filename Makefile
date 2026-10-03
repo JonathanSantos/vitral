@@ -2,9 +2,17 @@ NAME    := vitral
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/JonathanSantos/vitral/internal/config.Version=$(VERSION)
 PLATFORMS := darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
-STATICCHECK := go run honnef.co/go/tools/cmd/staticcheck@latest
 
-.PHONY: build dist test integration network lint check clean brand
+# Ferramentas com versão fixada (rodadas via go run, sem instalação global).
+GOLANGCI    := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
+QUALITYGATE := go run ./tools/qualitygate
+OUT         := .quality/out
+
+.PHONY: build dist test unit integration integration-cover network lint fmt vuln \
+        gate gate-fast check check-fast nightly release-check clean brand
+
+# ---------- build ----------
 
 # Binário para a máquina atual em bin/.
 build:
@@ -19,25 +27,60 @@ dist:
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$out ./cmd/vitral || exit 1; \
 	done
 
-test:
-	go test ./...
-
-integration:
-	go test -tags integration ./...
-
-# Baixa o Chrome for Testing de verdade (≈150 MB); fora do "check" padrão.
-network:
-	go test -tags network ./internal/browser/install/
-
-lint:
-	go vet ./... && go vet -tags integration ./... && go vet -tags network ./...
-	$(STATICCHECK) ./... && $(STATICCHECK) -tags integration ./...
-
-check: lint test integration
-
 # Regenera os PNGs de assets/brand a partir dos SVGs (usa o Chrome local, funciona offline).
 brand:
 	go run ./tools/brandgen
 
+# ---------- testes ----------
+
+test: unit
+
+# Unitários com race e cobertura (critério "unit" do thresholds.yaml).
+unit:
+	@mkdir -p $(OUT)
+	go test -race -count=1 -coverprofile=$(OUT)/unit.out ./...
+
+# Integração com browser, só rodando os testes.
+integration:
+	go test -race -count=1 -tags integration ./...
+
+# Integração com cobertura de todo internal/ (entra na cobertura "combined").
+integration-cover:
+	@mkdir -p $(OUT)
+	go test -race -count=1 -tags integration -coverpkg=./internal/... -coverprofile=$(OUT)/integration.out ./internal/... ./cmd/...
+
+# Download real do Chrome for Testing (≈150 MB); fora do gate de PR.
+network:
+	go test -tags network ./internal/browser/install/
+
+# ---------- qualidade ----------
+
+lint:
+	$(GOLANGCI) run ./...
+
+fmt:
+	$(GOLANGCI) fmt ./...
+
+vuln:
+	$(GOVULNCHECK) ./...
+
+# Gate só com a cobertura unitária (pacotes "combined" aparecem como não medidos).
+gate-fast:
+	$(QUALITYGATE) -unit $(OUT)/unit.out
+
+gate:
+	$(QUALITYGATE) -unit $(OUT)/unit.out -combined $(OUT)/integration.out
+
+# pre-push local (.githooks/pre-push): lint + unitários com race + cobertura unitária.
+check-fast: lint unit gate-fast
+
+# Gate de PR (docs/TESTING.md, seção 12). O CI só chama este alvo.
+check: lint vuln unit integration-cover gate
+
+# Pendente: o agendamento do noturno ainda não existe (docs/TESTING.md, seção 12).
+nightly: check network
+
+release-check: nightly
+
 clean:
-	rm -rf bin dist
+	rm -rf bin dist $(OUT)

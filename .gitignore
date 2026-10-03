@@ -4,3 +4,7 @@ dist/
 profile/
 *.test
 *.out
+.quality/out/
+/qualitygate
+/brandgen
+/vitral

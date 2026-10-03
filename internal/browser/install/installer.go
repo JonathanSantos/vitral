@@ -80,7 +80,7 @@ func (i *Installer) get(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := i.Client.Do(req)
+	res, err := i.Client.Do(req) // #nosec G704 -- URL da constante oficial ou do mirror configurado pela pessoa
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (i *Installer) Probe(ctx context.Context) (string, error) {
 	if err != nil {
 		return url, err
 	}
-	res, err := i.Client.Do(req)
+	res, err := i.Client.Do(req) // #nosec G704 -- URL da constante oficial ou do mirror configurado pela pessoa
 	if err != nil {
 		return url, err
 	}
@@ -120,7 +120,7 @@ func (i *Installer) Install(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(i.Root, 0o755); err != nil {
+	if err := os.MkdirAll(i.Root, 0o750); err != nil {
 		return "", err
 	}
 	tmp, err := os.CreateTemp(i.Root, ".download-*.zip")
@@ -144,7 +144,7 @@ func (i *Installer) download(ctx context.Context, url string, w io.Writer) error
 	if err != nil {
 		return err
 	}
-	res, err := i.Client.Do(req)
+	res, err := i.Client.Do(req) // #nosec G704 -- URL da constante oficial ou do mirror configurado pela pessoa
 	if err != nil {
 		return fmt.Errorf("download %s: %w", url, err)
 	}
@@ -176,7 +176,7 @@ func (p *progressReader) Read(b []byte) (int, error) {
 
 // InstallZip extrai numa pasta temporária, valida com --version e só então faz o rename atômico.
 func (i *Installer) InstallZip(zipPath string) (string, error) {
-	if err := os.MkdirAll(i.Root, 0o755); err != nil {
+	if err := os.MkdirAll(i.Root, 0o750); err != nil {
 		return "", err
 	}
 	staging, err := os.MkdirTemp(i.Root, ".staging-")
@@ -203,7 +203,7 @@ func (i *Installer) InstallZip(zipPath string) (string, error) {
 	if err := os.RemoveAll(i.Dir()); err != nil {
 		return "", err
 	}
-	if err := os.Rename(staging, i.Dir()); err != nil {
+	if err := os.Rename(staging, i.Dir()); err != nil { // #nosec G703 -- Dir() vem da configuração, não do zip
 		return "", err
 	}
 	i.log("Downloaded:", i.Dir())
@@ -231,6 +231,9 @@ func Extract(zipPath, dest string) error {
 	return nil
 }
 
+// maxEntrySize limita cada arquivo extraído (proteção contra "zip bomb").
+const maxEntrySize = 2 << 30
+
 func inside(root, p string) bool {
 	rel, err := filepath.Rel(root, p)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
@@ -243,9 +246,9 @@ func extractOne(f *zip.File, root string) error {
 	}
 	mode := f.Mode()
 	if f.FileInfo().IsDir() {
-		return os.MkdirAll(target, 0o755)
+		return os.MkdirAll(target, 0o750) // #nosec G703 -- target conferido por inside()
 	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil { // #nosec G703 -- target conferido por inside()
 		return err
 	}
 	rc, err := f.Open()
@@ -262,17 +265,22 @@ func extractOne(f *zip.File, root string) error {
 		if filepath.IsAbs(dest) || !inside(root, filepath.Join(filepath.Dir(target), dest)) {
 			return fmt.Errorf("unsafe symlink in zip: %s -> %s", f.Name, dest)
 		}
-		return os.Symlink(dest, target)
+		return os.Symlink(dest, target) // #nosec G703 -- origem e destino conferidos por inside()
 	}
 	perm := mode.Perm()
 	if perm == 0 {
 		perm = 0o644
 	}
-	out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm|0o200)
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm|0o200) // #nosec G703 -- conferido por inside()
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, rc); err != nil {
+	// Limite por arquivo contra zip bomb: o maior arquivo do Chrome tem algumas centenas de MB.
+	n, err := io.Copy(out, io.LimitReader(rc, maxEntrySize+1))
+	if err == nil && n > maxEntrySize {
+		err = fmt.Errorf("zip entry too large: %s", f.Name)
+	}
+	if err != nil {
 		out.Close()
 		return err
 	}

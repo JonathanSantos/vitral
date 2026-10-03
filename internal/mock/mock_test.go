@@ -83,8 +83,8 @@ func TestRegistryNewestWinsAndTimes(t *testing.T) {
 func TestRegistryClearAndPatterns(t *testing.T) {
 	reg := NewRegistry(nil)
 	a, _ := reg.Add(Rule{URLPattern: "/api/a"})
-	reg.Add(Rule{URLPattern: "*/b*"})
-	reg.Add(Rule{URLPattern: "/api/a", Method: "POST"})
+	mustAdd(t, reg, Rule{URLPattern: "*/b*"})
+	mustAdd(t, reg, Rule{URLPattern: "/api/a", Method: "POST"})
 	if got := reg.Patterns(); len(got) != 2 || got[0] != "*/api/a*" || got[1] != "*/b*" {
 		t.Fatalf("patterns = %v", got)
 	}
@@ -101,7 +101,7 @@ func TestRegistryClearAndPatterns(t *testing.T) {
 
 func TestRegistryAllowedHosts(t *testing.T) {
 	reg := NewRegistry([]string{"portal.local"})
-	reg.Add(Rule{URLPattern: "/api"})
+	mustAdd(t, reg, Rule{URLPattern: "/api"})
 	if _, ok := reg.Take("http://evil.com/api", "GET"); ok {
 		t.Fatal("mock must not apply outside allowed hosts")
 	}
@@ -140,5 +140,12 @@ func TestResponseHeadersAndSummary(t *testing.T) {
 	}
 	if r, _ := FailReason("offline"); r != proto.NetworkErrorReasonInternetDisconnected {
 		t.Fatal("offline mapping")
+	}
+}
+
+func mustAdd(t *testing.T, reg *Registry, r Rule) {
+	t.Helper()
+	if _, err := reg.Add(r); err != nil {
+		t.Fatal(err)
 	}
 }

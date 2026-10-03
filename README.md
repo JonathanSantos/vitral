@@ -150,14 +150,24 @@ tools/brandgen      gera os PNGs da marca (não entra no binário)
 
 ### Testes e build
 
+A estratégia completa está em [`docs/TESTING.md`](docs/TESTING.md) e os números do gate em
+[`.quality/thresholds.yaml`](.quality/thresholds.yaml).
+
 ```bash
-make test          # unitários
+make check-fast    # lint + unitários com race + cobertura unitária (o mesmo do pre-push)
+make check         # gate de PR: check-fast + govulncheck + integração + cobertura combinada
 make integration   # integração com Chromium headless e páginas de testdata/
-make network       # download real do Chrome for Testing (≈150 MB, fora do CI padrão)
-make lint          # go vet + staticcheck
+make network       # download real do Chrome for Testing (≈150 MB, fora do gate)
 make build         # bin/vitral
 make dist          # binários para Windows, macOS e Linux em dist/
 make brand         # regenera os PNGs de assets/brand
 ```
 
-Releases com `goreleaser release --clean` a partir de uma tag.
+Para rodar o gate rápido antes de cada push, ative o hook uma vez por clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+O CI (`.github/workflows/pr.yml`) só chama `make check`. Releases com `goreleaser release --clean` a
+partir de uma tag.

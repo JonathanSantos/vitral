@@ -1,0 +1,4 @@
+#!/bin/sh
+# Gate rápido antes do push (docs/TESTING.md, seção 12).
+# Ative uma vez por clone: git config core.hooksPath .githooks
+exec make check-fast

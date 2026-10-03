@@ -203,8 +203,10 @@ func TestDetailMasksHeaders(t *testing.T) {
 		MIMEType:    "application/json",
 	}
 	got := Detail(e, "{}", []string{"x-tenant"})
-	for _, want := range []string{"POST http://x/api", "status: 201", "Authorization: ***", "X-Tenant: ***",
-		"Set-Cookie: ***", "request body:\n{\n  \"id\": 1\n}", "response body (application/json):\n{}"} {
+	for _, want := range []string{
+		"POST http://x/api", "status: 201", "Authorization: ***", "X-Tenant: ***",
+		"Set-Cookie: ***", "request body:\n{\n  \"id\": 1\n}", "response body (application/json):\n{}",
+	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}

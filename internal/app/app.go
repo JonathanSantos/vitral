@@ -57,7 +57,9 @@ func Build(cfg config.Config, logger *slog.Logger) *App {
 		Instructions: instructions,
 		Logger:       logger,
 	})
-	tools.Register(server, tools.Deps{Config: cfg, Session: sess, Network: net, Console: con, Mocks: mocks,
-		Flows: flow.Store{Dir: cfg.FlowsDir}, UI: ui})
+	tools.Register(server, tools.Deps{
+		Config: cfg, Session: sess, Network: net, Console: con, Mocks: mocks,
+		Flows: flow.Store{Dir: cfg.FlowsDir}, UI: ui,
+	})
 	return &App{Server: server, Browser: mgr, Overlay: ui, World: w}
 }

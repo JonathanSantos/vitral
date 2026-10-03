@@ -46,7 +46,7 @@ func (s Store) Save(f Flow) (path string, replaced bool, err error) {
 	if err != nil {
 		return "", false, err
 	}
-	if err := os.MkdirAll(s.Dir, 0o755); err != nil {
+	if err := os.MkdirAll(s.Dir, 0o750); err != nil {
 		return "", false, fmt.Errorf("create flows dir: %w", err)
 	}
 	path = s.Path(f.Name)
