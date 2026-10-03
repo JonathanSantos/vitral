@@ -1,0 +1,26 @@
+page: "Cadastro - Fixture" (http://fixture/pages/form.html)
+viewport: 1280x713, scroll: 0/1382
+[e1] banner
+  [e2] heading "Cadastro de cliente" level=1
+[e3] main
+  [e4] form "Cadastro"
+    [e5] textbox "Nome" value="" required
+    [e6] textbox "E-mail" type=email value=""
+    [e7] textbox "Senha" type=password value=""
+    [e8] combobox "País" value="Selecione" options=4
+      [e9] option "Selecione" selected
+      [e10] option "Brasil"
+      [e11] option "Portugal"
+      [e12] option "Angola" disabled
+    [e13] checkbox "Aceito os termos"
+    [e14] textbox "Observações" value=""
+    [e15] button "Enviar"
+    [e16] button "Rascunho" disabled
+  [e17] button "Abrir aviso"
+  [e18] list "Últimos cadastros" items=7 (showing 5)
+    [e19] listitem "Ana"
+    [e20] listitem "Bruno"
+    [e21] listitem "Carla"
+    [e22] listitem "Diego"
+    [e23] listitem "Eva"
+  [e26] link "Ir para o rodapé"

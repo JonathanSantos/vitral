@@ -1,0 +1,177 @@
+//go:build integration
+
+package app_test
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/jors/browser-mcp/internal/app"
+	"github.com/jors/browser-mcp/internal/config"
+)
+
+var update = flag.Bool("update", false, "rewrite golden files")
+
+// harness sobe um único Chromium headless para o pacote inteiro, falando via cliente MCP real.
+type harness struct {
+	site    *httptest.Server
+	session *mcp.ClientSession
+}
+
+var h *harness
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+	var cleanup func()
+	h, cleanup = newHarness(nil)
+	code := m.Run()
+	cleanup()
+	os.Exit(code)
+}
+
+// newHarness aceita mudanças de configuração (ex.: allowedHosts) para harnesses extras.
+func newHarness(tweak func(*config.Config)) (*harness, func()) {
+	site := httptest.NewServer(fixtureMux())
+	profile, err := os.MkdirTemp("", "browser-mcp-test-*")
+	if err != nil {
+		panic(err)
+	}
+	cfg := config.Defaults(profile)
+	cfg.Headless = true
+	cfg.ProfileDir = profile
+	cfg.StabilityTimeout = 5 * time.Second
+	if tweak != nil {
+		tweak(&cfg)
+	}
+	logOut := io.Discard
+	level := slog.LevelInfo
+	if os.Getenv("BROWSER_MCP_TEST_LOG") != "" {
+		logOut, level = os.Stderr, slog.LevelDebug
+	}
+	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: level}))
+	server, closeBrowser := app.Build(cfg, logger)
+
+	ctx := context.Background()
+	st, ct := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, st, nil); err != nil {
+		panic(err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil)
+	cs, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		panic(err)
+	}
+	return &harness{site: site, session: cs}, func() {
+		_ = cs.Close()
+		closeBrowser()
+		site.Close()
+		_ = os.RemoveAll(profile)
+	}
+}
+
+// fixtureMux serve testdata/pages e uma API fake usada pelas fixtures.
+func fixtureMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	pages := http.FileServer(http.Dir(filepath.Join("..", "..", "testdata", "pages")))
+	mux.Handle("/pages/", http.StripPrefix("/pages/", pages))
+	mux.HandleFunc("/api/orders", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Set-Cookie", "session=secret")
+		fmt.Fprint(w, `{"orders":[{"id":1023,"status":"Aprovado","total":450},{"id":1024,"status":"Pendente","total":99.9}]}`)
+	})
+	return mux
+}
+
+func (h *harness) url(path string) string { return h.site.URL + path }
+
+// call chama uma ferramenta e devolve o texto e se foi erro.
+func (h *harness) call(t *testing.T, name string, args map[string]any) (string, bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	res, err := h.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatalf("%s: protocol error: %v", name, err)
+	}
+	var parts []string
+	for _, c := range res.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			parts = append(parts, tc.Text)
+		}
+	}
+	return strings.Join(parts, "\n"), res.IsError
+}
+
+// ok chama a ferramenta e falha o teste se ela devolver erro.
+func (h *harness) ok(t *testing.T, name string, args map[string]any) string {
+	t.Helper()
+	out, isErr := h.call(t, name, args)
+	if isErr {
+		t.Fatalf("%s(%v) failed: %s", name, args, out)
+	}
+	return out
+}
+
+// fail chama a ferramenta e exige erro contendo want.
+func (h *harness) fail(t *testing.T, name string, args map[string]any, want string) {
+	t.Helper()
+	out, isErr := h.call(t, name, args)
+	if !isErr {
+		t.Fatalf("%s(%v) should fail, got: %s", name, args, out)
+	}
+	if !strings.Contains(out, want) {
+		t.Fatalf("%s error = %q, want it to contain %q", name, out, want)
+	}
+}
+
+// ref acha a ref de um elemento pelo papel e nome no texto do snapshot.
+func ref(t *testing.T, snapshot, role, name string) string {
+	t.Helper()
+	re := regexp.MustCompile(`\[(e\d+)\] ` + regexp.QuoteMeta(role) + ` "` + regexp.QuoteMeta(name) + `"`)
+	m := re.FindStringSubmatch(snapshot)
+	if m == nil {
+		t.Fatalf("no %s %q in:\n%s", role, name, snapshot)
+	}
+	return m[1]
+}
+
+func mustContain(t *testing.T, text string, wants ...string) {
+	t.Helper()
+	for _, w := range wants {
+		if !strings.Contains(text, w) {
+			t.Fatalf("missing %q in:\n%s", w, text)
+		}
+	}
+}
+
+// golden compara com testdata/golden/<name>, trocando a porta aleatória do servidor.
+func golden(t *testing.T, name, got string) {
+	t.Helper()
+	got = strings.ReplaceAll(got, h.site.URL, "http://fixture")
+	path := filepath.Join("..", "..", "testdata", "golden", name)
+	if *update {
+		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read golden (run with -update): %v", err)
+	}
+	if got != string(want) {
+		t.Fatalf("snapshot differs from %s (run with -update to accept)\ngot:\n%s\nwant:\n%s", path, got, want)
+	}
+}

@@ -1,0 +1,6 @@
+bin/
+dist/
+.browser-mcp/
+profile/
+*.test
+*.out

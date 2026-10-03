@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "browser": {
+      "type": "stdio",
+      "command": "browser-mcp",
+      "args": ["--profile-dir", "${userHome}/.browser-mcp/profile"]
+    }
+  }
+}

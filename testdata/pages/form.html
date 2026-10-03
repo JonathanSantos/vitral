@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Cadastro - Fixture</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; }
+    label { display: block; margin-top: 8px; }
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; }
+    .overlay.open { display: flex; }
+    .overlay [role=dialog] { background: #fff; padding: 16px; }
+    .error { color: #c00; }
+    #filler { height: 1500px; }
+  </style>
+</head>
+<body>
+  <header><h1>Cadastro de cliente</h1></header>
+  <main>
+    <form id="cadastro" aria-label="Cadastro">
+      <label for="nome">Nome</label>
+      <input id="nome" name="nome" required>
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" placeholder="voce@exemplo.com">
+      <label for="senha">Senha</label>
+      <input id="senha" name="senha" type="password">
+      <label for="pais">País</label>
+      <select id="pais" name="pais">
+        <option value="">Selecione</option>
+        <option value="br">Brasil</option>
+        <option value="pt">Portugal</option>
+        <option value="ao" disabled>Angola</option>
+      </select>
+      <label><input type="checkbox" id="termos"> Aceito os termos</label>
+      <label for="obs">Observações</label>
+      <textarea id="obs"></textarea>
+      <p class="error" id="erro" hidden></p>
+      <button type="submit">Enviar</button>
+      <button type="button" disabled>Rascunho</button>
+    </form>
+    <button type="button" id="abrir">Abrir aviso</button>
+    <ul aria-label="Últimos cadastros">
+      <li>Ana</li><li>Bruno</li><li>Carla</li><li>Diego</li><li>Eva</li><li>Fábio</li><li>Gabi</li>
+    </ul>
+    <a href="#filler">Ir para o rodapé</a>
+    <div id="filler"></div>
+    <footer><a href="/pages/form.html?bottom=1">Link do rodapé</a></footer>
+  </main>
+  <div class="overlay" id="overlay">
+    <div role="dialog" aria-modal="true" aria-labelledby="aviso-titulo">
+      <h2 id="aviso-titulo">Aviso importante</h2>
+      <button type="button" id="fechar">Fechar</button>
+    </div>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    $('abrir').addEventListener('click', () => $('overlay').classList.add('open'));
+    $('fechar').addEventListener('click', () => $('overlay').classList.remove('open'));
+    $('cadastro').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const erro = $('erro');
+      if (!$('termos').checked) {
+        erro.textContent = 'Aceite os termos para continuar';
+        erro.hidden = false;
+        return;
+      }
+      erro.hidden = true;
+      setTimeout(() => {
+        const ok = document.createElement('div');
+        ok.setAttribute('role', 'alert');
+        ok.textContent = `Cadastro enviado: ${$('nome').value} / ${$('email').value} / ${$('pais').selectedOptions[0].label}`;
+        document.querySelector('main').prepend(ok);
+      }, 200);
+    });
+  </script>
+</body>
+</html>
