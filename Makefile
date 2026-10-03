@@ -7,9 +7,12 @@ PLATFORMS := darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 win
 GOLANGCI    := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
 QUALITYGATE := go run ./tools/qualitygate
+GREMLINS    := go run github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+# Base da comparação da mutação no PR (o CI passa a branch de destino).
+MUTATION_BASE ?= main
 OUT         := .quality/out
 
-.PHONY: build dist test unit integration integration-cover e2e network lint fmt vuln \
+.PHONY: build dist test unit integration integration-cover e2e mutation mutation-all fuzz network lint fmt vuln \
         gate gate-fast check check-fast nightly release-check clean brand tokens-baseline
 
 # ---------- build ----------
@@ -56,6 +59,24 @@ e2e:
 	VITRAL_E2E_COVERDIR=$(abspath $(OUT)/e2e/cover) go test -tags e2e -count=1 ./test/e2e/
 	go tool covdata textfmt -i=$(OUT)/e2e/cover -o=$(OUT)/e2e.out
 
+# Mutação só nos pacotes puros alterados em relação à base (gate de PR).
+mutation:
+	$(QUALITYGATE) mutate -base $(MUTATION_BASE) -out $(OUT)/mutation -gremlins "$(GREMLINS)"
+
+# Mutação em todo o escopo (noturno).
+mutation-all:
+	$(QUALITYGATE) mutate -all -out $(OUT)/mutation -gremlins "$(GREMLINS)"
+
+# Fuzz de verdade, FUZZTIME por alvo (noturno). As sementes já rodam em todo go test.
+FUZZTIME ?= 3m
+fuzz:
+	@for pkg in $$(go list ./internal/...); do \
+		for target in $$(go test -list '^Fuzz' $$pkg | grep '^Fuzz'); do \
+			echo "fuzz $$pkg $$target"; \
+			go test $$pkg -run '^$$' -fuzz "^$$target$$" -fuzztime $(FUZZTIME) || exit 1; \
+		done; \
+	done
+
 # Download real do Chrome for Testing (≈150 MB); fora do gate de PR.
 network:
 	go test -tags network ./internal/browser/install/
@@ -76,7 +97,7 @@ gate-fast:
 	$(QUALITYGATE) -unit $(OUT)/unit.out
 
 gate:
-	$(QUALITYGATE) -unit $(OUT)/unit.out -combined $(OUT)/integration.out,$(OUT)/e2e.out -tokens $(OUT)/tokens.json
+	$(QUALITYGATE) -unit $(OUT)/unit.out -combined $(OUT)/integration.out,$(OUT)/e2e.out -tokens $(OUT)/tokens.json -mutation $(OUT)/mutation
 
 # Atualiza a base de tokens com a última medição do e2e (o diff aparece no PR).
 tokens-baseline:
@@ -86,10 +107,10 @@ tokens-baseline:
 check-fast: lint unit gate-fast
 
 # Gate de PR (docs/TESTING.md, seção 12). O CI só chama este alvo.
-check: lint vuln unit integration-cover e2e gate
+check: lint vuln unit integration-cover e2e mutation gate
 
 # Pendente: o agendamento do noturno ainda não existe (docs/TESTING.md, seção 12).
-nightly: check network
+nightly: check mutation-all fuzz network
 
 release-check: nightly
 

@@ -33,8 +33,8 @@ func Compute(prev, curr *Page, opts FormatOptions) Diff {
 		d.Title, d.TitleChanged = curr.Title, true
 	}
 
-	prevNodes, _ := Index(prev)
-	currNodes, _ := Index(curr)
+	prevNodes := Index(prev)
+	currNodes := Index(curr)
 	offscreen := toSet(curr.Offscreen)
 
 	prevLines := map[string]string{}

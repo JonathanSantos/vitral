@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/tailscale/hujson"
 )
@@ -128,17 +129,30 @@ func appendMember(obj *hujson.Object, name string, value hujson.Value, indent st
 }
 
 // ReadServer lê servers.<name> de um mcp.json (JSONC). ok=false se não existir.
+// As chaves são comparadas exatamente, como o VS Code faz (o encoding/json do Go ignoraria
+// maiúsculas e poderia ler "Servers" no lugar de "servers").
 func ReadServer(data []byte, name string) (ServerEntry, bool, error) {
-	std, err := hujson.Standardize(data)
+	v, err := hujson.Parse(data)
 	if err != nil {
 		return ServerEntry{}, false, fmt.Errorf("invalid JSON: %w", err)
 	}
-	var doc struct {
-		Servers map[string]ServerEntry `json:"servers"`
+	found := v.Find("/servers/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(name))
+	if found == nil {
+		return ServerEntry{}, false, nil
 	}
-	if err := json.Unmarshal(std, &doc); err != nil {
-		return ServerEntry{}, false, err
+	entryValue := found.Clone()
+	entryValue.Standardize()
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(entryValue.Pack(), &fields); err != nil {
+		return ServerEntry{}, false, fmt.Errorf("servers.%s is not an object", name)
 	}
-	entry, ok := doc.Servers[name]
-	return entry, ok, nil
+	var e ServerEntry
+	for key, dst := range map[string]any{"type": &e.Type, "command": &e.Command, "args": &e.Args} {
+		if raw, ok := fields[key]; ok {
+			if err := json.Unmarshal(raw, dst); err != nil {
+				return ServerEntry{}, false, fmt.Errorf("servers.%s.%s: %w", name, key, err)
+			}
+		}
+	}
+	return e, true, nil
 }

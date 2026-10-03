@@ -83,18 +83,12 @@ func Walk(nodes []*Node, fn func(n, parent *Node)) {
 	visit(nodes, nil)
 }
 
-// Index mapeia ref -> nó, e ref -> pai.
-func Index(p *Page) (map[string]*Node, map[string]*Node) {
+// Index mapeia ref -> nó.
+func Index(p *Page) map[string]*Node {
 	nodes := map[string]*Node{}
-	parents := map[string]*Node{}
 	if p == nil {
-		return nodes, parents
+		return nodes
 	}
-	Walk(p.Nodes, func(n, parent *Node) {
-		nodes[n.Ref] = n
-		if parent != nil {
-			parents[n.Ref] = parent
-		}
-	})
-	return nodes, parents
+	Walk(p.Nodes, func(n, _ *Node) { nodes[n.Ref] = n })
+	return nodes
 }

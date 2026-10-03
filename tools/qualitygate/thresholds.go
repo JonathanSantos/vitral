@@ -26,6 +26,7 @@ type Thresholds struct {
 	Module   string                      `yaml:"module"`
 	Coverage map[string]PackageThreshold `yaml:"coverage"`
 	Tokens   []TokenRule                 `yaml:"tokens"`
+	Mutation MutationConfig              `yaml:"mutation"`
 }
 
 // ParseThresholds lê e valida o arquivo de limiares.

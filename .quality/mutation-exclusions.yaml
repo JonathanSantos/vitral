@@ -1,0 +1,17 @@
+# Mutantes equivalentes ou inviáveis, cada um com o motivo (docs/TESTING.md, seção 4).
+- file: internal/network/format.go
+  line: 42
+  mutator: CONDITIONALS_BOUNDARY
+  reason: "len(out) >= f.Limit com len == Limit fatia out[0:], igual a não fatiar: mesma saída."
+- file: internal/network/format.go
+  line: 145
+  mutator: CONDITIONALS_BOUNDARY
+  reason: "cut >= 0 só difere em cut == 0, e text[0] é sempre início de runa em UTF-8 válido (FormatBody já checa utf8.Valid)."
+- file: internal/snapshot/diff.go
+  line: 155
+  mutator: CONDITIONALS_BOUNDARY
+  reason: "Empate exato de tamanho entre diff e snapshot: devolver qualquer um dos dois é correto."
+- file: internal/snapshot/format.go
+  line: 140
+  mutator: CONDITIONALS_BOUNDARY
+  reason: "Coluna 32 (limit >= MaxLines): com limit == MaxLines o corte é no mesmo índice; mesma saída. A coluna 19 tem teste próprio."

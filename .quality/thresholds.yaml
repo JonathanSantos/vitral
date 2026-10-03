@@ -58,3 +58,19 @@ tokens:
   - {match: "action/*/*-wait_for", max: 330}
   - {match: "action/*/*-click", max: 280}
   - {match: "action/*/*", max: 170}
+
+# Mutação (Gremlins). No PR, só os pacotes do escopo alterados em relação à base; no noturno, todos.
+# Nota = mortos / (mortos + vivos); timeout, não coberto e inviável ficam fora da conta.
+mutation:
+  min: 75
+  timeoutCoefficient: 20
+  packages:
+    - internal/snapshot
+    - internal/mock
+    - internal/flow
+    - internal/ux
+    - internal/brand
+    - internal/cli
+    - internal/network
+    - internal/security
+    - internal/browser/install

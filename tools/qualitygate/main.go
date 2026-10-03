@@ -17,14 +17,24 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "mutate" {
+		if err := runMutate(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "qualitygate mutate:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	thresholds := flag.String("thresholds", ".quality/thresholds.yaml", "thresholds file")
 	unit := flag.String("unit", "", "comma separated coverprofiles from unit tests")
 	combined := flag.String("combined", "", "comma separated coverprofiles for combined coverage (unit + integration + e2e)")
 	tokensFile := flag.String("tokens", "", "token report from the e2e (JSON key -> tokens)")
 	tokenBase := flag.String("token-baseline", ".quality/token-baseline.json", "versioned token baseline")
+	mutationDir := flag.String("mutation", "", "folder with gremlins reports from qualitygate mutate")
+	exclusions := flag.String("mutation-exclusions", ".quality/mutation-exclusions.yaml", "versioned mutation exclusions")
 	flag.Parse()
 
-	if err := run(*thresholds, split(*unit), split(*combined), *tokensFile, *tokenBase); err != nil {
+	opts := runOptions{tokensFile: *tokensFile, tokenBase: *tokenBase, mutationDir: *mutationDir, exclusions: *exclusions}
+	if err := run(*thresholds, split(*unit), split(*combined), opts); err != nil {
 		fmt.Fprintln(os.Stderr, "qualitygate:", err)
 		os.Exit(1)
 	}
@@ -40,7 +50,13 @@ func split(s string) []string {
 	return out
 }
 
-func run(thresholdsPath string, unitFiles, combinedFiles []string, tokensFile, tokenBase string) error {
+type runOptions struct {
+	tokensFile, tokenBase   string
+	mutationDir, exclusions string
+}
+
+func run(thresholdsPath string, unitFiles, combinedFiles []string, o runOptions) error {
+	tokensFile, tokenBase := o.tokensFile, o.tokenBase
 	data, err := os.ReadFile(thresholdsPath)
 	if err != nil {
 		return err
@@ -68,6 +84,11 @@ func run(thresholdsPath string, unitFiles, combinedFiles []string, tokensFile, t
 			return err
 		}
 		if in.TokenBase, err = readTokens(tokenBase, false); err != nil {
+			return err
+		}
+	}
+	if o.mutationDir != "" {
+		if in.Mutation, err = loadMutation(o.mutationDir, o.exclusions); err != nil {
 			return err
 		}
 	}
