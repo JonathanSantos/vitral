@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Visual - Fixture</title>
+  <!-- Só fontes locais: nada de webfont, para o golden não depender de rede. -->
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #ffffff; color: #222222; }
+    header { padding: 8px 24px; background: #eeeeee; }
+    main { padding: 16px 24px; }
+    .dense label { display: inline-block; margin-right: 2px; }
+    .dense input { margin: 0; }
+    .row { display: flex; gap: 8px; margin-top: 16px; }
+    .stack { position: relative; height: 70px; margin-top: 16px; }
+    .stack button { position: absolute; }
+  </style>
+</head>
+<body>
+  <header><a href="#inicio">Início</a> <a href="#ajuda">Ajuda</a></header>
+  <main>
+    <h1>Marcações</h1>
+    <div class="dense">
+      <label><input type="checkbox" aria-label="A"></label><label><input type="checkbox" aria-label="B"></label><label><input type="checkbox" aria-label="C"></label><label><input type="checkbox" aria-label="D"></label><label><input type="checkbox" aria-label="E"></label><label><input type="checkbox" aria-label="F"></label>
+    </div>
+    <div class="row">
+      <input aria-label="Nome" placeholder="Nome">
+      <input type="password" aria-label="Senha">
+      <select aria-label="País"><option>Brasil</option></select>
+    </div>
+    <div class="stack">
+      <button style="left: 0; top: 0">Primeiro</button>
+      <button style="left: 40px; top: 12px">Sobreposto</button>
+    </div>
+  </main>
+</body>
+</html>

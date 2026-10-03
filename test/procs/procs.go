@@ -6,19 +6,16 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 )
 
-// Alive diz se o processo ainda existe (no Windows não há sinal 0: devolve false).
+// Alive diz se o processo ainda existe.
 func Alive(pid int) bool {
-	if pid <= 0 || runtime.GOOS == "windows" {
-		return false
-	}
-	return syscall.Kill(pid, 0) == nil
+	return pid > 0 && alive(pid)
 }
 
 // WithArg lista PIDs cuja linha de comando contém arg (ex.: o perfil temporário do teste).
+// No Windows não há pgrep: lá só os PIDs lançados (Alive) são conferidos.
 func WithArg(arg string) []string {
 	if runtime.GOOS == "windows" || arg == "" {
 		return nil

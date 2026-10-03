@@ -12,8 +12,8 @@ GREMLINS    := go run github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 MUTATION_BASE ?= main
 OUT         := .quality/out
 
-.PHONY: build dist test unit integration integration-cover e2e mutation mutation-all fuzz network lint fmt vuln \
-        gate gate-fast check check-fast nightly release-check clean brand tokens-baseline
+.PHONY: build dist test unit integration integration-cover e2e mutation mutation-all fuzz network visual visual-update \
+        matrix install-test lint fmt vuln gate gate-fast check check-fast nightly release-check clean brand tokens-baseline
 
 # ---------- build ----------
 
@@ -77,6 +77,31 @@ fuzz:
 		done; \
 	done
 
+# Regressão visual com navegador: marcações num print real e o selo em cada estado. Os goldens ficam
+# em testdata/visual/<sistema>-chrome-<versão> e exigem o Chrome for Testing fixado (o make e2e baixa).
+# O golden das marcações em Go puro roda em todo go test (internal/screenshot).
+visual:
+	go test -count=1 -tags integration,visual -run '^TestVisual$$' ./internal/app/
+
+# Aceita as mudanças visuais (revise os PNGs no diff antes de commitar).
+visual-update:
+	go test -count=1 -tags integration,visual -run '^TestVisual$$' ./internal/app/ -update
+	go test -count=1 -run '^TestMarksGolden$$' ./internal/screenshot/ -update
+
+# Matriz: compila o binário e checa os testes (todas as tags) para Linux, macOS e Windows. Rodar os
+# testes em cada sistema depende de máquinas de cada um (pendente com o noturno).
+MATRIX_OS := linux darwin windows
+matrix:
+	@for os in $(MATRIX_OS); do \
+		echo "matrix $$os"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=amd64 go build -o /dev/null ./cmd/vitral || exit 1; \
+		GOOS=$$os GOARCH=amd64 go vet -tags integration,e2e,visual,install,network,eval ./... || exit 1; \
+	done
+
+# Instalação e atualização com binários reais (setup, setup de novo, atualização, doctor).
+install-test:
+	go test -count=1 -tags install ./test/install/
+
 # Download real do Chrome for Testing (≈150 MB); fora do gate de PR.
 network:
 	go test -tags network ./internal/browser/install/
@@ -110,9 +135,10 @@ check-fast: lint unit gate-fast
 check: lint vuln unit integration-cover e2e mutation gate
 
 # Pendente: o agendamento do noturno ainda não existe (docs/TESTING.md, seção 12).
-nightly: check mutation-all fuzz network
+nightly: check mutation-all fuzz network visual matrix
 
-release-check: nightly
+# Antes de release: noturno + instalação e atualização (rodar em cada um dos 3 sistemas).
+release-check: nightly install-test
 
 clean:
 	rm -rf bin dist $(OUT)

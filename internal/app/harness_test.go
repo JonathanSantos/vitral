@@ -108,13 +108,24 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 }
 
 // testBrowserPath escolhe o navegador dos testes: VITRAL_BROWSER_PATH, o Chrome for Testing
-// gerenciado se já estiver baixado, ou o Chrome instalado na máquina.
+// gerenciado (~/.vitral/browsers ou o cache do e2e) se já estiver baixado, ou o Chrome da máquina.
 func testBrowserPath() string {
 	if p := os.Getenv(config.EnvBrowserPath); p != "" {
 		return p
 	}
+	var dirs []string
 	if home, err := os.UserHomeDir(); err == nil {
-		inst, _ := browser.NewInstaller(config.Defaults(home), nil)
+		dirs = append(dirs, config.Defaults(home).BrowsersDir)
+	}
+	if d := os.Getenv("VITRAL_E2E_BROWSERS_DIR"); d != "" {
+		dirs = append(dirs, d)
+	} else if cache, err := os.UserCacheDir(); err == nil {
+		dirs = append(dirs, filepath.Join(cache, "vitral-e2e", "browsers"))
+	}
+	for _, dir := range dirs {
+		cfg := config.Defaults(dir)
+		cfg.BrowsersDir = dir
+		inst, _ := browser.NewInstaller(cfg, nil)
 		if _, err := os.Stat(inst.Executable()); err == nil {
 			return inst.Executable()
 		}

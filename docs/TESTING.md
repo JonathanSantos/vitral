@@ -109,9 +109,19 @@ browser; fechar o stdin no meio de uma ação mata o browser lançado (e não o 
 ## 10. Demais verificações
 
 - Lint: `golangci-lint` com configuração versionada (`.golangci.yml`), zero avisos.
-- Regressão visual (noturno): goldens PNG das marcações e do selo, tolerância de 8 por canal e 0,5% de
-  pixels, fontes locais, atrelados à versão do Chrome for Testing.
-- Matriz Linux/macOS/Windows e instalação/atualização (noturno e release).
+- Regressão visual: goldens PNG com tolerância de 8 por canal e 0,5% de pixels (`test/visual`).
+  - Marcações em Go puro (`internal/screenshot`, rótulos que colidem, bordas, refs longas): fonte Go
+    Mono embutida, resultado igual em qualquer sistema, roda em todo `go test`.
+  - Com navegador (`make visual`, noturno): marcações num print real e o selo em cada estado (ocioso,
+    trabalhando, fluxo, pausado, "Sua vez" com destaque, recolhido). Página só com fontes locais;
+    goldens em `testdata/visual/<sistema>-chrome-<versão>`, atrelados ao Chrome for Testing fixado
+    (outro navegador reprova). Falha grava `.got.png` e `.diff.png` em `.quality/out/visual`;
+    `make visual-update` aceita.
+- Matriz (`make matrix`, noturno): compila o binário e checa os testes com todas as tags para Linux,
+  macOS e Windows. Rodar os testes em cada sistema depende de máquinas de cada um (pendente, junto
+  com o agendamento do noturno).
+- Instalação e atualização (`make install-test`, release): binários reais de duas versões, setup numa
+  pasta com `mcp.json` comentado, setup repetido, atualização e o `doctor` detectando versão antiga.
 - Benchmarks com `benchstat` (noturno, só relatório).
 - **Quarentena:** `t.Skip("quarantine: <issue> until AAAA-MM-DD")`. O `qualitygate` lista os testes em
   quarentena e falha quando o prazo vence.
@@ -128,8 +138,8 @@ Métricas: sucesso, passos, erros, tokens de entrada e saída, tempo. Nunca bloq
 |---|---|---|---|
 | `make check-fast` | pre-push local (`.githooks/pre-push`) | lint, unitários com race, cobertura unitária | sim |
 | `make check` | PR (meta < 10 min) | tudo do `check-fast` + `govulncheck`, integração, e2e, contrato, tokens, segurança, vazamento, mutação nos alterados, `qualitygate` | sim |
-| `make nightly` | **pendente** | `check` + mutação completa, fuzz 3 min/alvo, caos aleatório, visual, matriz, benchmarks, avaliação | — |
-| `make release-check` | antes de release | `nightly` + instalação e atualização nos 3 sistemas | sim |
+| `make nightly` | **pendente** | `check` + mutação completa, fuzz 3 min/alvo, download real, visual, matriz (benchmarks e avaliação: etapa 6) | — |
+| `make release-check` | antes de release | `nightly` + instalação e atualização (rodar em cada um dos 3 sistemas) | sim |
 
 ### Pendente: execução noturna
 
@@ -139,10 +149,10 @@ e podem ser rodados à mão; nenhum workflow `nightly.yml` foi criado.
 
 ## 13. Etapas
 
-0. Isolated world e teste de página maliciosa (**feito**).
-1. Fundação: `thresholds.yaml`, `qualitygate`, `make check`/`check-fast`, lint, `govulncheck`, `pr.yml`, pre-push.
-2. E2E: harness, agentes roteirizado e heurístico, cenários, caos com semente fixa.
-3. Contrato, tokens, segurança e vazamento.
-4. Fuzz, propriedades e mutação.
-5. Visual, matriz e instalação (alvos do Makefile).
+0. Isolated world e teste de página maliciosa. (**feito**)
+1. Fundação: `thresholds.yaml`, `qualitygate`, `make check`/`check-fast`, lint, `govulncheck`, `pr.yml`, pre-push. (**feito**)
+2. E2E: harness, agentes roteirizado e heurístico, cenários, caos com semente fixa. (**feito**)
+3. Contrato, tokens, segurança e vazamento. (**feito**)
+4. Fuzz, propriedades e mutação. (**feito**)
+5. Visual, matriz e instalação (alvos do Makefile). (**feito**)
 6. Noturno: pendente (ver acima).

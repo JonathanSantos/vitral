@@ -117,7 +117,7 @@ func printInstall(e Env, res installResult) {
 	switch {
 	case res.OldVersion == "":
 		fmt.Fprintf(e.Stdout, msgInstalledFirst, res.Path, config.Version)
-	case !res.Copied:
+	case !res.Copied, res.OldVersion == config.Version:
 		fmt.Fprintf(e.Stdout, msgInstalledSame, res.Path, config.Version)
 	default:
 		fmt.Fprintf(e.Stdout, msgInstalledUpdate, res.Path, config.Version, res.OldVersion)

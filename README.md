@@ -155,8 +155,13 @@ A estratégia completa está em [`docs/TESTING.md`](docs/TESTING.md) e os númer
 
 ```bash
 make check-fast    # lint + unitários com race + cobertura unitária (o mesmo do pre-push)
-make check         # gate de PR: check-fast + govulncheck + integração + cobertura combinada
+make check         # gate de PR: check-fast + govulncheck + integração + e2e + mutação + qualitygate
 make integration   # integração com Chromium headless e páginas de testdata/
+make visual        # regressão visual com navegador (make visual-update aceita as mudanças)
+make matrix        # compila e checa os testes para Linux, macOS e Windows
+make install-test  # instalação e atualização com binários reais
+make nightly       # check + mutação completa + fuzz + download real + visual + matriz
+make release-check # nightly + install-test (rodar em cada sistema)
 make network       # download real do Chrome for Testing (≈150 MB, fora do gate)
 make build         # bin/vitral
 make dist          # binários para Windows, macOS e Linux em dist/

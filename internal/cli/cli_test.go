@@ -304,3 +304,19 @@ func TestParseVersionAndDownloadLogger(t *testing.T) {
 		t.Fatalf("got %q", buf.String())
 	}
 }
+
+// Rodar o setup de novo com a mesma versão (pelo binário baixado, não o instalado) não é "atualizar".
+func TestSetupSameVersionFromDownload(t *testing.T) {
+	f := newFakeEnv(t, "linux")
+	installed := filepath.Join(f.Home, ".vitral", "bin", "vitral")
+	writeFile(t, installed, "binary same")
+	f.versions["binary same"] = config.Version
+
+	if err := Setup(f.Env, SetupOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	out := f.out.String()
+	if !strings.Contains(out, "já está instalado em "+installed) || strings.Contains(out, "antes:") {
+		t.Fatalf("same version should not look like an update:\n%s", out)
+	}
+}
