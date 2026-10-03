@@ -15,6 +15,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/overlay"
 	"github.com/JonathanSantos/vitral/internal/session"
 	"github.com/JonathanSantos/vitral/internal/tools"
+	"github.com/JonathanSantos/vitral/internal/world"
 )
 
 const instructions = `Controls a real browser window. Start with "open" (or "snapshot" if a page is already open).
@@ -28,6 +29,7 @@ type App struct {
 	Server  *mcp.Server
 	Browser *browser.Manager
 	Overlay *overlay.Manager
+	World   *world.Tracker
 }
 
 // Close fecha o browser lançado pelo servidor.
@@ -38,8 +40,11 @@ func Build(cfg config.Config, logger *slog.Logger) *App {
 	mgr := browser.New(cfg, logger)
 	net := network.NewTracker(cfg.NetworkBuffer, cfg.PreserveNetwork)
 	con := console.NewBuffer(cfg.ConsoleBuffer)
-	ui := overlay.New(overlay.Options{Minimal: cfg.NoOverlay, Highlight: cfg.Highlight()}, logger)
-	sess := session.New(cfg, logger, mgr, net, con, ui)
+	// O rastreador do mundo isolado vem primeiro: os scripts dos outros preparos dependem dele.
+	w := world.New()
+	mgr.OnNewPage(w.Attach)
+	ui := overlay.New(overlay.Options{Minimal: cfg.NoOverlay, Highlight: cfg.Highlight()}, logger, w)
+	sess := session.New(cfg, logger, mgr, net, con, ui, w)
 	mgr.OnNewPage(ui.Attach)
 
 	var mocks *mock.Registry
@@ -54,5 +59,5 @@ func Build(cfg config.Config, logger *slog.Logger) *App {
 	})
 	tools.Register(server, tools.Deps{Config: cfg, Session: sess, Network: net, Console: con, Mocks: mocks,
 		Flows: flow.Store{Dir: cfg.FlowsDir}, UI: ui})
-	return &App{Server: server, Browser: mgr, Overlay: ui}
+	return &App{Server: server, Browser: mgr, Overlay: ui, World: w}
 }

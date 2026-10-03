@@ -40,7 +40,7 @@ func (s *Session) Open(ctx context.Context, rawURL string) (string, error) {
 		return "", err
 	}
 	warning := s.waitStable(ctx, p, start)
-	page, err := capture(ctx, p, snapshot.Options{})
+	page, err := s.capture(ctx, snapshot.Options{})
 	if err != nil {
 		return "", fmt.Errorf("page opened, but snapshot failed: %w. Call snapshot.", err)
 	}
@@ -146,7 +146,7 @@ func (s *Session) Click(ctx context.Context, ref string) (string, error) {
 // hit rola até o elemento e confere se ele pode receber o clique.
 func (s *Session) hit(ctx context.Context, p *rod.Page, ref string) (hitInfo, error) {
 	var hit hitInfo
-	if err := evalInto(ctx, p, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
+	if err := s.evalInto(ctx, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
 		return hit, err
 	}
 	if err := refError(ref, hit.Error); err != nil {
@@ -195,7 +195,7 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 	}}
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		var info typeInfo
-		if err := evalInto(ctx, p, &info, `(r, c) => window.__vitral.prepareType(r, c)`, ref, clearFirst); err != nil {
+		if err := s.evalInto(ctx, &info, `(r, c) => window.__vitral.prepareType(r, c)`, ref, clearFirst); err != nil {
 			return err
 		}
 		switch {
@@ -248,7 +248,7 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 			return err
 		}
 		var info selectInfo
-		if err := evalInto(ctx, p, &info, `(r, o) => window.__vitral.selectOption(r, o)`, ref, option); err != nil {
+		if err := s.evalInto(ctx, &info, `(r, o) => window.__vitral.selectOption(r, o)`, ref, option); err != nil {
 			return err
 		}
 		switch info.Error {
@@ -271,7 +271,7 @@ func (s *Session) revealAndHighlight(ctx context.Context, p *rod.Page, ref strin
 		Error string `json:"error"`
 		Box   [4]int `json:"box"`
 	}
-	if err := evalInto(ctx, p, &res, `(r) => window.__vitral.reveal(r)`, ref); err != nil {
+	if err := s.evalInto(ctx, &res, `(r) => window.__vitral.reveal(r)`, ref); err != nil {
 		return err
 	}
 	if err := refError(ref, res.Error); err != nil {
@@ -321,7 +321,7 @@ func (s *Session) Scroll(ctx context.Context, opts ScrollOptions) (string, error
 			return s.revealAndHighlight(ctx, p, opts.Ref)
 		}
 		var vp [2]float64
-		if err := evalInto(ctx, p, &vp, `() => [window.innerWidth, window.innerHeight]`); err != nil {
+		if err := s.evalInto(ctx, &vp, `() => [window.innerWidth, window.innerHeight]`); err != nil {
 			return err
 		}
 		amount := float64(opts.Amount)
@@ -399,19 +399,19 @@ func (s *Session) WaitFor(ctx context.Context, opts WaitOptions) (string, error)
 func (s *Session) probe(ctx context.Context, p *rod.Page, opts WaitOptions) (textMatch, error) {
 	var m textMatch
 	if opts.Text != "" {
-		err := evalInto(ctx, p, &m, `(t) => window.__vitral.findText(t)`, opts.Text)
+		err := s.evalInto(ctx, &m, `(t) => window.__vitral.findText(t)`, opts.Text)
 		return m, err
 	}
 	js := `(r) => { const el = window.__vitral.find(r); if (!el) return {found: false};
 		const r2 = el.getBoundingClientRect();
 		const vis = el.checkVisibility ? el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true}) : true;
 		return {found: vis && r2.width > 0 && r2.height > 0, ref: r}; }`
-	err := evalInto(ctx, p, &m, js, opts.Ref)
+	err := s.evalInto(ctx, &m, js, opts.Ref)
 	return m, err
 }
 
 func (s *Session) waitResult(ctx context.Context, p *rod.Page, opts WaitOptions, m textMatch) (string, error) {
-	page, err := capture(ctx, p, snapshot.Options{})
+	page, err := s.capture(ctx, snapshot.Options{})
 	if err != nil {
 		return "", err
 	}

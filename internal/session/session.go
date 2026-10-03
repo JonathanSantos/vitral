@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/proto"
 
 	"github.com/JonathanSantos/vitral/internal/browser"
 	"github.com/JonathanSantos/vitral/internal/config"
@@ -22,6 +21,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/network"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
 	"github.com/JonathanSantos/vitral/internal/ux"
+	"github.com/JonathanSantos/vitral/internal/world"
 )
 
 // Tempos da espera por estabilidade (seção 8.2 da spec).
@@ -56,6 +56,7 @@ type Session struct {
 	net     *network.Tracker
 	console *console.Buffer
 	ui      Overlay
+	world   *world.Tracker
 	format  snapshot.FormatOptions
 
 	rec       *flow.Recorder
@@ -68,14 +69,14 @@ type Session struct {
 }
 
 // New cria a sessão e registra o preparo de páginas novas no gerenciador.
-func New(cfg config.Config, logger *slog.Logger, b *browser.Manager, net *network.Tracker, con *console.Buffer, ui Overlay) *Session {
-	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, ui: ui, format: snapshot.DefaultFormat(), rec: &flow.Recorder{}}
+func New(cfg config.Config, logger *slog.Logger, b *browser.Manager, net *network.Tracker, con *console.Buffer, ui Overlay, w *world.Tracker) *Session {
+	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, ui: ui, world: w, format: snapshot.DefaultFormat(), rec: &flow.Recorder{}}
 	b.OnNewPage(s.preparePage)
 	return s
 }
 
 func (s *Session) preparePage(p *rod.Page) error {
-	if _, err := p.EvalOnNewDocument(snapshot.Script); err != nil {
+	if err := world.AddScript(p, snapshot.Script); err != nil {
 		return fmt.Errorf("inject snapshot script: %w", err)
 	}
 	if err := s.net.Attach(p); err != nil {
@@ -111,35 +112,31 @@ func (s *Session) WithPage(fn func(p *rod.Page) error) error {
 	return fn(p)
 }
 
-// evalJSON chama uma função JS e devolve o resultado em JSON.
-func evalJSON(ctx context.Context, p *rod.Page, js string, args ...any) ([]byte, error) {
+// evalJSON chama uma função JS no mundo isolado do Vitral e devolve o resultado em JSON.
+func (s *Session) evalJSON(ctx context.Context, js string, args ...any) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, evalTimeout)
 	defer cancel()
-	if err := ensureScript(ctx, p); err != nil {
+	if err := s.ensureScript(ctx); err != nil {
 		return nil, err
 	}
-	res, err := p.Context(ctx).Evaluate(rod.Eval(js, args...).ByPromise())
-	if err != nil {
-		return nil, fmt.Errorf("evaluate in page: %w", err)
-	}
-	return []byte(res.Value.JSON("", "")), nil
+	return s.world.Call(ctx, js, args...)
 }
 
-// ensureScript injeta o script em documentos abertos antes do EvalOnNewDocument (ex.: attach).
-func ensureScript(ctx context.Context, p *rod.Page) error {
-	res, err := p.Context(ctx).Evaluate(rod.Eval(`() => !!window.__vitral`))
-	if err != nil {
-		return fmt.Errorf("evaluate in page: %w", err)
+// ensureScript reinjeta o script se o mundo isolado existir sem ele (ex.: documento criado
+// por um caminho em que o Chrome não rodou os scripts de documento novo).
+func (s *Session) ensureScript(ctx context.Context) error {
+	var ready bool
+	if err := s.world.Unmarshal(ctx, &ready, `() => !!window.__vitral`); err != nil {
+		return err
 	}
-	if res.Value.Bool() {
+	if ready {
 		return nil
 	}
-	_, err = proto.RuntimeEvaluate{Expression: snapshot.Script}.Call(p.Context(ctx))
-	return err
+	return s.world.Eval(ctx, snapshot.Script)
 }
 
-func evalInto(ctx context.Context, p *rod.Page, out any, js string, args ...any) error {
-	data, err := evalJSON(ctx, p, js, args...)
+func (s *Session) evalInto(ctx context.Context, out any, js string, args ...any) error {
+	data, err := s.evalJSON(ctx, js, args...)
 	if err != nil {
 		return err
 	}
@@ -147,8 +144,8 @@ func evalInto(ctx context.Context, p *rod.Page, out any, js string, args ...any)
 }
 
 // capture tira um snapshot estruturado.
-func capture(ctx context.Context, p *rod.Page, opts snapshot.Options) (*snapshot.Page, error) {
-	data, err := evalJSON(ctx, p, `(o) => window.__vitral.snapshot(o)`, opts)
+func (s *Session) capture(ctx context.Context, opts snapshot.Options) (*snapshot.Page, error) {
+	data, err := s.evalJSON(ctx, `(o) => window.__vitral.snapshot(o)`, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +188,7 @@ func (s *Session) domQuietFor(ctx context.Context, p *rod.Page, start time.Time)
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	// Durante uma navegação a avaliação falha: tratamos como "ainda mexendo".
-	if err := evalInto(ctx, p, &ms, `() => window.__vitral.quietMs()`); err != nil {
+	if err := s.evalInto(ctx, &ms, `() => window.__vitral.quietMs()`); err != nil {
 		return 0
 	}
 	quiet := time.Duration(ms) * time.Millisecond
@@ -227,7 +224,7 @@ func (s *Session) action(ctx context.Context, rec *recording, do func(p *rod.Pag
 		return "", err
 	}
 	warning := s.waitStable(ctx, p, start)
-	curr, err := capture(ctx, p, snapshot.Options{Known: knownRefs(s.last)})
+	curr, err := s.capture(ctx, snapshot.Options{Known: knownRefs(s.last)})
 	if err != nil {
 		return "", fmt.Errorf("action done, but snapshot failed: %w. Call snapshot.", err)
 	}
@@ -285,11 +282,10 @@ type SnapshotOptions struct {
 func (s *Session) Snapshot(ctx context.Context, opts SnapshotOptions) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.page()
-	if err != nil {
+	if _, err := s.page(); err != nil {
 		return "", err
 	}
-	page, err := capture(ctx, p, snapshot.Options{Full: opts.Full, Scope: opts.Scope})
+	page, err := s.capture(ctx, snapshot.Options{Full: opts.Full, Scope: opts.Scope})
 	if err != nil {
 		return "", err
 	}

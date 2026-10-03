@@ -37,7 +37,7 @@ func (s *Session) Screenshot(ctx context.Context, opts ShotOptions) (Shot, error
 		return Shot{}, err
 	}
 	if opts.Ref != "" {
-		if err := scrollIntoView(ctx, p, opts.Ref); err != nil {
+		if err := s.scrollIntoView(ctx, opts.Ref); err != nil {
 			return Shot{}, err
 		}
 	}
@@ -67,7 +67,7 @@ func (s *Session) Screenshot(ctx context.Context, opts ShotOptions) (Shot, error
 	}
 	if opts.Ref != "" {
 		var box *[4]int
-		if err := evalInto(ctx, p, &box, `(r) => window.__vitral.box(r)`, opts.Ref); err != nil {
+		if err := s.evalInto(ctx, &box, `(r) => window.__vitral.box(r)`, opts.Ref); err != nil {
 			return Shot{}, err
 		}
 		if box == nil {
@@ -84,11 +84,11 @@ func (s *Session) Screenshot(ctx context.Context, opts ShotOptions) (Shot, error
 	return Shot{PNG: data, Caption: caption}, nil
 }
 
-func scrollIntoView(ctx context.Context, p *rod.Page, ref string) error {
+func (s *Session) scrollIntoView(ctx context.Context, ref string) error {
 	var code string
 	js := `(r) => { const el = window.__vitral.find(r); if (!el) return 'not_found';
 		el.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'}); return ''; }`
-	if err := evalInto(ctx, p, &code, js, ref); err != nil {
+	if err := s.evalInto(ctx, &code, js, ref); err != nil {
 		return err
 	}
 	return refError(ref, code)
@@ -96,7 +96,7 @@ func scrollIntoView(ctx context.Context, p *rod.Page, ref string) error {
 
 // captureImage devolve o snapshot usado para as marcas, o print em pixels CSS e o deslocamento das caixas.
 func (s *Session) captureImage(ctx context.Context, p *rod.Page, fullPage bool) (*snapshot.Page, image.Image, image.Point, error) {
-	snap, err := capture(ctx, p, snapshot.Options{Full: fullPage})
+	snap, err := s.capture(ctx, snapshot.Options{Full: fullPage})
 	if err != nil {
 		return nil, nil, image.Point{}, err
 	}
@@ -135,14 +135,13 @@ func (s *Session) captureImage(ctx context.Context, p *rod.Page, fullPage bool) 
 func (s *Session) Inspect(ctx context.Context, ref string, props []string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.page()
-	if err != nil {
+	if _, err := s.page(); err != nil {
 		return "", err
 	}
 	if props == nil {
 		props = []string{}
 	}
-	data, err := evalJSON(ctx, p, `(r, props) => window.__vitral.inspect(r, props)`, ref, props)
+	data, err := s.evalJSON(ctx, `(r, props) => window.__vitral.inspect(r, props)`, ref, props)
 	if err != nil {
 		return "", err
 	}

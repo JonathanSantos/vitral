@@ -20,6 +20,7 @@ import (
 
 	"github.com/JonathanSantos/vitral/internal/brand"
 	"github.com/JonathanSantos/vitral/internal/ux"
+	"github.com/JonathanSantos/vitral/internal/world"
 )
 
 //go:embed overlay.js
@@ -49,6 +50,8 @@ type Manager struct {
 	token  string
 	script string
 
+	world *world.Tracker
+
 	mu    sync.Mutex
 	state ux.State
 	page  *rod.Page
@@ -57,9 +60,10 @@ type Manager struct {
 }
 
 // New cria o gerenciador. O token impede que scripts da página acionem a pausa pela binding.
-func New(opts Options, logger *slog.Logger) *Manager {
+func New(opts Options, logger *slog.Logger, w *world.Tracker) *Manager {
 	token := newToken()
 	return &Manager{
+		world:  w,
 		log:    logger,
 		opts:   opts,
 		token:  token,
@@ -88,25 +92,22 @@ func Script(token string, minimal bool) string {
 	return r.Replace(scriptTemplate)
 }
 
-// Attach prepara uma página nova: binding, script em todo documento e reidratação do estado.
+// Attach prepara uma página nova: binding e script só no mundo isolado do Vitral, onde o
+// JavaScript da página não alcança (nem para chamar a binding, nem para mexer no overlay).
 func (m *Manager) Attach(p *rod.Page) error {
 	m.mu.Lock()
 	m.page = p
 	m.mu.Unlock()
-	if err := (proto.RuntimeAddBinding{Name: bindingName}).Call(p); err != nil {
+	if err := (proto.RuntimeAddBinding{Name: bindingName, ExecutionContextName: world.Name}).Call(p); err != nil {
 		return fmt.Errorf("add overlay binding: %w", err)
-	}
-	if _, err := p.EvalOnNewDocument(m.script); err != nil {
-		return fmt.Errorf("inject overlay: %w", err)
 	}
 	go p.EachEvent(func(e *proto.RuntimeBindingCalled) {
 		if e.Name == bindingName {
 			go m.onPageEvent(e.Payload)
 		}
 	})()
-	// O documento atual (about:blank ou página já aberta no attach) não passou pelo EvalOnNewDocument.
-	if _, err := (proto.RuntimeEvaluate{Expression: m.script}).Call(p); err != nil {
-		m.log.Debug("overlay on current document", "err", err)
+	if err := world.AddScript(p, m.script); err != nil {
+		return fmt.Errorf("inject overlay: %w", err)
 	}
 	return nil
 }
@@ -219,14 +220,14 @@ func (m *Manager) render() {
 		return
 	}
 	data, _ := json.Marshal(ViewOf(s))
-	m.eval(context.Background(), p, "render", string(data))
+	m.eval(context.Background(), "render", string(data))
 }
 
-func (m *Manager) eval(ctx context.Context, p *rod.Page, fn, arg string) {
+func (m *Manager) eval(ctx context.Context, fn, arg string) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	expr := fmt.Sprintf("window.__vitralOverlay && window.__vitralOverlay.%s(%s)", fn, arg)
-	if _, err := (proto.RuntimeEvaluate{Expression: expr}).Call(p.Context(ctx)); err != nil {
+	if err := m.world.Eval(ctx, expr); err != nil {
 		m.log.Debug("overlay eval", "fn", fn, "err", err)
 	}
 }
@@ -238,7 +239,7 @@ func (m *Manager) Highlight(ctx context.Context, p *rod.Page, ref string, box [4
 		return
 	}
 	data, _ := json.Marshal(newMark(ref, ux.Box(box), int(d.Milliseconds())))
-	m.eval(ctx, p, "highlight", string(data))
+	m.eval(ctx, "highlight", string(data))
 	select {
 	case <-ctx.Done():
 	case <-time.After(d):
@@ -247,8 +248,8 @@ func (m *Manager) Highlight(ctx context.Context, p *rod.Page, ref string, box [4
 
 // Hidden esconde o overlay enquanto fn roda (screenshot e clique sob o selo) e sempre o devolve.
 func (m *Manager) Hidden(ctx context.Context, p *rod.Page, fn func() error) error {
-	m.eval(ctx, p, "hidden", "true")
+	m.eval(ctx, "hidden", "true")
 	// context.Background: o selo precisa voltar mesmo se a ferramenta foi cancelada.
-	defer m.eval(context.Background(), p, "hidden", "false")
+	defer m.eval(context.Background(), "hidden", "false")
 	return fn()
 }

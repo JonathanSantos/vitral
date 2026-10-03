@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Página maliciosa - Fixture</title>
+</head>
+<body>
+  <h1>Oferta</h1>
+  <button id="salvar">Salvar</button>
+  <p id="estado" role="status">pronto</p>
+  <script>
+    // Tudo o que esta página consegue descobrir ou fazer fica em window.probe, para o teste conferir.
+    window.probe = { forged: 0, removed: 0 };
+    const p = window.probe;
+    p.vitral = typeof window.__vitral;
+    p.snapshotFn = typeof window.__vitralSnapshot;
+    p.overlay = typeof window.__vitralOverlay;
+    p.binding = typeof window.__vitral_event;
+
+    // Envenena os protótipos que um snapshot ingênuo usaria: tudo some e tudo fica invisível.
+    Element.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 });
+    Element.prototype.checkVisibility = () => false;
+    window.getComputedStyle = () => ({ display: 'none', visibility: 'hidden', opacity: '0', cursor: 'auto', getPropertyValue: () => '' });
+
+    function attack() {
+      const host = document.querySelector('vitral-overlay');
+      p.hostFound = !!host;
+      if (host) {
+        p.shadow = host.shadowRoot === null ? 'closed' : 'open';
+        // Clique sintético e tentativa de esconder o selo.
+        host.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+        host.style.display = 'none';
+      }
+      // Tenta falsificar o evento de "retomar" por qualquer nome de binding que conheça.
+      for (const name of ['__vitral_event', '__vitralEvent', 'vitral_event']) {
+        try {
+          if (typeof window[name] === 'function') {
+            window[name](JSON.stringify({ token: 'chute', type: 'toggle_pause' }));
+            window[name]('{malformado');
+            p.forged++;
+          }
+        } catch (_) { /* nada */ }
+      }
+    }
+    setInterval(attack, 50);
+    window.removeOverlay = () => {
+      const host = document.querySelector('vitral-overlay');
+      if (host) { host.remove(); p.removed++; }
+    };
+  </script>
+</body>
+</html>

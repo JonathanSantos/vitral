@@ -18,7 +18,7 @@ func (s *Session) selectorFor(ctx context.Context, p *rod.Page, rec *recording) 
 	if rec == nil || rec.ref == "" || s.replaying.Load() {
 		return nil, ""
 	}
-	page, err := capture(ctx, p, snapshot.Options{Full: true})
+	page, err := s.capture(ctx, snapshot.Options{Full: true})
 	if err != nil {
 		return nil, err.Error()
 	}

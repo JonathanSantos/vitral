@@ -180,11 +180,10 @@ func (s *Session) resolve(ctx context.Context, sel flow.Selector, timeout time.D
 func (s *Session) resolveOnce(ctx context.Context, sel flow.Selector) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.page()
-	if err != nil {
+	if _, err := s.page(); err != nil {
 		return "", err
 	}
-	page, err := capture(ctx, p, snapshot.Options{Full: true})
+	page, err := s.capture(ctx, snapshot.Options{Full: true})
 	if err != nil {
 		return "", err
 	}

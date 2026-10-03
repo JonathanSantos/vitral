@@ -3,6 +3,7 @@
 package app_test
 
 import (
+	"context"
 	"image"
 	"strings"
 	"sync"
@@ -197,11 +198,11 @@ func TestHighlightBeforeAction(t *testing.T) {
 
 	// Durante o destaque: o anel existe no overlay e um snapshot direto não enxerga nada dele.
 	waitFor(t, func() bool { return hasRing(t, hl) })
-	raw, err := hl.page(t).Eval(`() => JSON.stringify(window.__vitral.snapshot({full: true}))`)
+	raw, err := hl.app.World.Call(context.Background(), `() => JSON.stringify(window.__vitral.snapshot({full: true}))`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s := raw.Value.Str(); strings.Contains(strings.ToLower(s), "vitral") || strings.Contains(s, "Pausar") {
+	if s := string(raw); strings.Contains(strings.ToLower(s), "vitral") || strings.Contains(s, "Pausar") {
 		t.Fatalf("snapshot during highlight sees the overlay: %s", s)
 	}
 

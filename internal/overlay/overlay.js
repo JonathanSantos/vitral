@@ -85,6 +85,8 @@
       // Botões não roubam o foco da página nem deixam o clique vazar para os listeners dela.
       root.addEventListener('mousedown', (e) => e.preventDefault());
       root.addEventListener('click', (e) => {
+        // Só clique de verdade (mouse/teclado da pessoa); eventos sintéticos não contam.
+        if (!e.isTrusted) return;
         const target = e.target.closest && e.target.closest('[data-action]');
         if (!target) return;
         e.stopPropagation();
@@ -173,10 +175,15 @@
     enumerable: false,
   });
 
-  // Recoloca o host se a página o remover (ex.: document.open ou troca do <html>).
+  // Recoloca o host se a página o remover (ex.: document.open ou troca do <html>) e desfaz
+  // tentativas de escondê-lo pelo atributo style (o JS da página enxerga o elemento no DOM).
   new MutationObserver(() => {
-    if (!host || !host.isConnected) mount();
-  }).observe(document, { childList: true, subtree: true });
+    if (!host || !host.isConnected) {
+      mount();
+      return;
+    }
+    if (host.getAttribute('style') !== hostStyle()) host.setAttribute('style', hostStyle());
+  }).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'hidden', 'class'] });
 
   if (document.documentElement) mount();
   else document.addEventListener('readystatechange', mount, { once: true });
