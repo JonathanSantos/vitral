@@ -48,6 +48,7 @@ type Tracker struct {
 	byReq        map[proto.NetworkRequestID]*Entry
 	inflight     map[proto.NetworkRequestID]bool
 	mocked       map[proto.NetworkRequestID]bool
+	held         map[proto.NetworkRequestID]bool
 	nextID       int
 	lastActivity time.Time
 	preserve     bool
@@ -62,6 +63,7 @@ func NewTracker(capacity int, preserve bool) *Tracker {
 		byReq:    map[proto.NetworkRequestID]*Entry{},
 		inflight: map[proto.NetworkRequestID]bool{},
 		mocked:   map[proto.NetworkRequestID]bool{},
+		held:     map[proto.NetworkRequestID]bool{},
 		preserve: preserve,
 		now:      time.Now,
 	}
@@ -72,6 +74,7 @@ func (t *Tracker) Attach(p *rod.Page) error {
 	t.mu.Lock()
 	t.mainFrame = p.FrameID
 	clear(t.inflight)
+	clear(t.held)
 	t.mu.Unlock()
 	if err := (proto.NetworkEnable{}).Call(p); err != nil {
 		return err
@@ -125,7 +128,7 @@ func (t *Tracker) OnRequest(e *proto.NetworkRequestWillBeSent) {
 		delete(t.byReq, evicted.RequestID)
 	}
 	t.byReq[e.RequestID] = entry
-	if !ignoredForIdle[e.Type] {
+	if !ignoredForIdle[e.Type] && !t.held[e.RequestID] {
 		t.inflight[e.RequestID] = true
 	}
 }
@@ -171,6 +174,7 @@ func (t *Tracker) finish(id proto.NetworkRequestID, ts float64, update func(*Ent
 	t.lastActivity = t.now()
 	delete(t.inflight, id)
 	delete(t.mocked, id)
+	delete(t.held, id)
 	entry, ok := t.byReq[id]
 	if !ok {
 		return
@@ -181,9 +185,15 @@ func (t *Tracker) finish(id proto.NetworkRequestID, ts float64, update func(*Ent
 }
 
 // MarkMocked marca a request como atendida por mock (o evento pode chegar antes da request).
-func (t *Tracker) MarkMocked(id proto.NetworkRequestID) {
+// Requests seguradas por delay saem da conta de "rede ocupada": assim a ação devolve o estado
+// de carregamento em vez de esperar o delay acabar.
+func (t *Tracker) MarkMocked(id proto.NetworkRequestID, delayed bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if delayed {
+		t.held[id] = true
+		delete(t.inflight, id)
+	}
 	if entry, ok := t.byReq[id]; ok {
 		entry.Mocked = true
 		return

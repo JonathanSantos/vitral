@@ -43,3 +43,17 @@ Pré-requisitos: binário `browser-mcp` no PATH (ou caminho absoluto em `command
 3. Peça: *"Tem algum erro no console?"*. Em `console_list` vêm as mensagens com `arquivo:linha`.
 4. Clique em algo que gera erro. A resposta da própria ação já traz `console: N new error(s)` e/ou
    `network: N failed request(s)`.
+
+## Fase 4: mock e emulação
+
+1. Numa tela que chama uma API, peça: *"Simule a API de pedidos retornando erro 500 e me mostre como a
+   tela fica."* A IA usa `mock_add` (ex.: `*/api/orders*`, status 500), repete a ação e a resposta mostra
+   a mensagem de erro da tela, mais `network: … 500 … mocked`.
+2. Peça: *"Agora deixe a API lenta (3 segundos) e mostre o carregamento."* (`delayMs`). A resposta da
+   ação mostra o indicador de loading e, em seguida, `wait_for` mostra o resultado final.
+3. Peça: *"Liste os mocks ativos"* (`mock_list`) e depois *"remova todos"* (`mock_clear`).
+4. Peça: *"Mostre a tela como num celular"* (`emulate` com `device: mobile`) e tire um print.
+   Depois peça para voltar ao desktop.
+5. Peça: *"Simule ficar sem internet"* (`network: offline`) e clique em algo que chama a API.
+   Volte com `network: none`.
+6. Rode o servidor com `--disable-mock` em `args` e confira que as ferramentas `mock_*` somem.

@@ -9,6 +9,7 @@ import (
 	"github.com/jors/browser-mcp/internal/browser"
 	"github.com/jors/browser-mcp/internal/config"
 	"github.com/jors/browser-mcp/internal/console"
+	"github.com/jors/browser-mcp/internal/mock"
 	"github.com/jors/browser-mcp/internal/network"
 	"github.com/jors/browser-mcp/internal/session"
 	"github.com/jors/browser-mcp/internal/tools"
@@ -26,10 +27,16 @@ func Build(cfg config.Config, logger *slog.Logger) (*mcp.Server, func()) {
 	con := console.NewBuffer(cfg.ConsoleBuffer)
 	sess := session.New(cfg, logger, mgr, net, con)
 
+	var mocks *mock.Registry
+	if !cfg.DisableMock {
+		mocks = mock.NewRegistry(cfg.AllowedHosts)
+		mgr.OnNewPage(mock.NewInterceptor(mocks, logger, net.MarkMocked).Attach)
+	}
+
 	server := mcp.NewServer(&mcp.Implementation{Name: config.Name, Version: config.Version}, &mcp.ServerOptions{
 		Instructions: instructions,
 		Logger:       logger,
 	})
-	tools.Register(server, tools.Deps{Config: cfg, Session: sess, Network: net, Console: con})
+	tools.Register(server, tools.Deps{Config: cfg, Session: sess, Network: net, Console: con, Mocks: mocks})
 	return server, mgr.Close
 }

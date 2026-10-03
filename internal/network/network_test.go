@@ -63,7 +63,7 @@ func TestTrackerLifecycle(t *testing.T) {
 
 func TestTrackerFailureMockAndRedirect(t *testing.T) {
 	tr, _ := newTestTracker(10)
-	tr.MarkMocked("2") // o Fetch pode avisar antes do requestWillBeSent
+	tr.MarkMocked("2", false) // o Fetch pode avisar antes do requestWillBeSent
 	tr.OnRequest(request("2", "http://x/mock", proto.NetworkResourceTypeXHR, 1))
 	tr.OnFailed(&proto.NetworkLoadingFailed{RequestID: "2", Timestamp: 2, ErrorText: "net::ERR_CONNECTION_REFUSED"})
 
@@ -84,6 +84,23 @@ func TestTrackerFailureMockAndRedirect(t *testing.T) {
 	}
 	if got := Line(entries[0]); !strings.Contains(got, "failed") || !strings.Contains(got, "mocked") {
 		t.Fatalf("line = %q", got)
+	}
+}
+
+func TestDelayedMockDoesNotBlockIdle(t *testing.T) {
+	tr, now := newTestTracker(10)
+	tr.OnRequest(request("9", "http://x/slow", proto.NetworkResourceTypeFetch, 1))
+	tr.MarkMocked("9", true)
+	if pending, _ := tr.IdleSince(*now); pending != 0 {
+		t.Fatalf("delayed mock should not count as pending, got %d", pending)
+	}
+	tr.MarkMocked("10", true) // aviso antes da request
+	tr.OnRequest(request("10", "http://x/slow2", proto.NetworkResourceTypeFetch, 1))
+	if pending, _ := tr.IdleSince(*now); pending != 0 {
+		t.Fatalf("held request should not become pending, got %d", pending)
+	}
+	if e, _ := tr.Get(2); !e.Mocked {
+		t.Fatal("held request should be marked mocked")
 	}
 }
 

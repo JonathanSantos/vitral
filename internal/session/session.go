@@ -38,9 +38,10 @@ type Session struct {
 	console *console.Buffer
 	format  snapshot.FormatOptions
 
-	mu      sync.Mutex
-	last    *snapshot.Page
-	current *rod.Page
+	mu        sync.Mutex
+	last      *snapshot.Page
+	current   *rod.Page
+	emulation Emulation
 }
 
 // New cria a sessão e registra o preparo de páginas novas no gerenciador.
@@ -60,7 +61,8 @@ func (s *Session) preparePage(p *rod.Page) error {
 	if err := s.console.Attach(p); err != nil {
 		return fmt.Errorf("enable console: %w", err)
 	}
-	return nil
+	// Roda dentro de s.page() (mutex já travado), então pode ler s.emulation.
+	return s.reapplyEmulation(p)
 }
 
 // page devolve a página ativa (com s.mu travado). Se a aba mudou, o último snapshot não vale mais.
