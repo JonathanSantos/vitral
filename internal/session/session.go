@@ -21,6 +21,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/flow"
 	"github.com/JonathanSantos/vitral/internal/network"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/ux"
 )
 
 // Tempos da espera por estabilidade (seção 8.2 da spec).
@@ -31,6 +32,22 @@ const (
 	evalTimeout  = 5 * time.Second
 )
 
+// Overlay é o que a sessão usa do selo/destaque (implementado por overlay.Manager).
+type Overlay interface {
+	Highlight(ctx context.Context, p *rod.Page, ref string, box [4]int)
+	Hidden(ctx context.Context, p *rod.Page, fn func() error) error
+	WaitForUser(reason, ref string, box [4]int)
+	FlowProgress(name string, step, total int)
+	FlowEnded()
+	Blocked() bool
+	State() ux.State
+}
+
+// pausedResult interrompe a ação sem erro: a resposta é a mensagem para a IA (UX-3).
+type pausedResult string
+
+func (p pausedResult) Error() string { return string(p) }
+
 // Session serializa as ações na página ativa e guarda o último snapshot para o diff.
 type Session struct {
 	cfg     config.Config
@@ -38,6 +55,7 @@ type Session struct {
 	browser *browser.Manager
 	net     *network.Tracker
 	console *console.Buffer
+	ui      Overlay
 	format  snapshot.FormatOptions
 
 	rec       *flow.Recorder
@@ -50,8 +68,8 @@ type Session struct {
 }
 
 // New cria a sessão e registra o preparo de páginas novas no gerenciador.
-func New(cfg config.Config, logger *slog.Logger, b *browser.Manager, net *network.Tracker, con *console.Buffer) *Session {
-	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, format: snapshot.DefaultFormat(), rec: &flow.Recorder{}}
+func New(cfg config.Config, logger *slog.Logger, b *browser.Manager, net *network.Tracker, con *console.Buffer, ui Overlay) *Session {
+	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, ui: ui, format: snapshot.DefaultFormat(), rec: &flow.Recorder{}}
 	b.OnNewPage(s.preparePage)
 	return s
 }
@@ -202,6 +220,10 @@ func (s *Session) action(ctx context.Context, rec *recording, do func(p *rod.Pag
 	netMark, conMark := s.net.Mark(), s.console.Mark()
 	start := time.Now()
 	if err := do(p); err != nil {
+		var paused pausedResult
+		if errors.As(err, &paused) {
+			return string(paused), nil
+		}
 		return "", err
 	}
 	warning := s.waitStable(ctx, p, start)

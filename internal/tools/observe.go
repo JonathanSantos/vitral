@@ -30,17 +30,17 @@ type consoleListInput struct {
 }
 
 func registerObserve(s *mcp.Server, d Deps) {
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "network_list",
 		Description: "List the page's network requests (id METHOD STATUS URL). Use to check which API calls ran and which failed.",
 	}, networkListTool(d))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "network_get",
 		Description: "Show one request from network_list: headers, request payload and response body (JSON formatted).",
 	}, networkGetTool(d))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "console_list",
 		Description: "List browser console messages and uncaught errors with their source file:line.",
 	}, consoleListTool(d))

@@ -9,6 +9,7 @@ import (
 
 	"github.com/JonathanSantos/vitral/internal/flow"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/ux"
 )
 
 // MockAdder registra um mock (nil quando o mock está desabilitado).
@@ -31,13 +32,26 @@ func (s *Session) RunFlow(ctx context.Context, f flow.Flow, values map[string]st
 
 	header := fmt.Sprintf("flow %s%s: %d steps", f.Name, describeParams(f.Params, values), len(steps))
 	lines := []string{header}
+	defer s.ui.FlowEnded()
 	for i, step := range steps {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
+		// A pausa vale entre passos: o passo em andamento termina, o próximo não começa.
+		if s.ui.Blocked() {
+			lines = append(lines, fmt.Sprintf(ux.FlowPausedMessage, f.Name, i+1, len(steps)))
+			return strings.Join(lines, "\n"), nil
+		}
+		s.ui.FlowProgress(f.Name, i+1, len(steps))
 		if err := s.runStep(ctx, step, addMock); err != nil {
 			lines = append(lines, fmt.Sprintf("%d. FAILED %s", i+1, step.Describe()), "reason: "+err.Error())
 			return "", &FlowError{Report: s.withSnapshot(ctx, lines, fmt.Sprintf("stopped at step %d of %d.", i+1, len(steps)))}
+		}
+		// Um passo pode entregar o controle à pessoa (ex.: campo de senha): ele não foi feito.
+		if s.ui.State().Mode == ux.Waiting {
+			lines = append(lines, fmt.Sprintf("%d. waiting for the user: %s", i+1, step.Describe()),
+				fmt.Sprintf(ux.FlowPausedMessage, f.Name, i+1, len(steps)))
+			return strings.Join(lines, "\n"), nil
 		}
 		lines = append(lines, fmt.Sprintf("%d. ok %s", i+1, step.Describe()))
 	}

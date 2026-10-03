@@ -42,6 +42,10 @@ type Config struct {
 	PreserveNetwork bool `yaml:"preserveNetwork"`
 	ConsoleBuffer   int  `yaml:"consoleBuffer"`
 
+	// HighlightMs é o tempo do destaque antes de cada ação; -1 = automático (350 ms, 0 em headless).
+	HighlightMs int  `yaml:"highlightMs"`
+	NoOverlay   bool `yaml:"noOverlay"`
+
 	FlowsDir string `yaml:"flowsDir"`
 	LogLevel string `yaml:"logLevel"`
 }
@@ -55,6 +59,7 @@ func Defaults(homeDir string) Config {
 		StabilityTimeout: 10 * time.Second,
 		NetworkBuffer:    500,
 		ConsoleBuffer:    200,
+		HighlightMs:      -1,
 		FlowsDir:         filepath.Join("."+Name, "flows"),
 		LogLevel:         "info",
 	}
@@ -128,6 +133,8 @@ func parseFlags(cfg *Config, args []string) error {
 	fset.IntVar(&cfg.NetworkBuffer, "network-buffer", cfg.NetworkBuffer, "max requests kept in history")
 	fset.BoolVar(&cfg.PreserveNetwork, "preserve-network", cfg.PreserveNetwork, "keep network history across navigations")
 	fset.IntVar(&cfg.ConsoleBuffer, "console-buffer", cfg.ConsoleBuffer, "max console messages kept")
+	fset.IntVar(&cfg.HighlightMs, "highlight-ms", cfg.HighlightMs, "how long the target blinks before each action (0 disables; default 350, off in headless)")
+	fset.BoolVar(&cfg.NoOverlay, "no-overlay", cfg.NoOverlay, "hide the highlight and status badge (the pause button stays)")
 	fset.StringVar(&cfg.FlowsDir, "flows-dir", cfg.FlowsDir, "directory for saved flows")
 	fset.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "debug, info, warn or error")
 
@@ -173,6 +180,20 @@ func ParseWindowSize(s string) (int, int, error) {
 		return 0, 0, fmt.Errorf("invalid window size %q, expected W,H", s)
 	}
 	return w, h, nil
+}
+
+// Highlight é o tempo efetivo do destaque: em headless ninguém vê, então só liga se pedido.
+func (c Config) Highlight() time.Duration {
+	if c.NoOverlay {
+		return 0
+	}
+	if c.HighlightMs < 0 {
+		if c.Headless {
+			return 0
+		}
+		return 350 * time.Millisecond
+	}
+	return time.Duration(c.HighlightMs) * time.Millisecond
 }
 
 // IsAttach indica se o servidor deve conectar num Chrome existente em vez de lançar um.

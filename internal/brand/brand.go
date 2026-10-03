@@ -27,14 +27,19 @@ var (
 // MarkColor devolve a cor de preenchimento da marcação da ref N e a cor do texto da etiqueta.
 // A cor é estável: eN usa marks[(N-1) % 5]. Texto branco sobre Safira e Ametista, Chumbo nas demais.
 func MarkColor(ref int) (fill, text color.RGBA) {
-	if ref < 1 {
-		ref = 1
-	}
-	fill = markOrder[(ref-1)%len(markOrder)]
+	fill = markOrder[MarkIndex(ref)-1]
 	if fill == Sapphire || fill == Amethyst {
 		return fill, White
 	}
 	return fill, Ink
+}
+
+// MarkIndex é a posição (1 a 5) da cor da ref N na ordem das marcações; o CSS usa --vitral-markI.
+func MarkIndex(ref int) int {
+	if ref < 1 {
+		ref = 1
+	}
+	return (ref-1)%len(markOrder) + 1
 }
 
 // RefNumber extrai N de "eN" (0 se não for uma ref).

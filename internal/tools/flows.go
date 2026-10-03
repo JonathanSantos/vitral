@@ -27,17 +27,17 @@ type flowRunInput struct {
 }
 
 func registerFlows(s *mcp.Server, d Deps) {
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "flow_save",
 		Description: "Save the actions done so far (each action shows 'step #N') as a reusable flow. Use params to turn typed values into placeholders.",
 	}, flowSaveTool(d))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "flow_list",
 		Description: "List saved flows with their description and parameters.",
 	}, flowListTool(d))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "flow_run",
 		Description: "Run a saved flow step by step without AI. On failure it stops and shows the step, the reason and the page.",
 	}, flowRunTool(d))

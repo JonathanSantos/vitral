@@ -12,12 +12,11 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 
 	"github.com/JonathanSantos/vitral/internal/flow"
+	"github.com/JonathanSantos/vitral/internal/overlay"
 	"github.com/JonathanSantos/vitral/internal/security"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/ux"
 )
-
-// ErrPassword é devolvido quando a IA tenta digitar num campo de senha.
-var ErrPassword = errors.New("password fields must be filled by the user in the browser window")
 
 // Open navega para a URL e devolve o snapshot completo.
 func (s *Session) Open(ctx context.Context, rawURL string) (string, error) {
@@ -105,6 +104,7 @@ type hitInfo struct {
 	Disabled  bool     `json:"disabled"`
 	X         float64  `json:"x"`
 	Y         float64  `json:"y"`
+	Box       [4]int   `json:"box"`
 	CoveredBy *covered `json:"coveredBy"`
 }
 
@@ -124,25 +124,53 @@ func (c covered) String() string {
 func (s *Session) Click(ctx context.Context, ref string) (string, error) {
 	rec := &recording{ref: ref, step: func(sel *flow.Selector) flow.Step { return flow.Step{Click: sel} }}
 	return s.action(ctx, rec, func(p *rod.Page) error {
-		var hit hitInfo
-		if err := evalInto(ctx, p, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
+		hit, err := s.hit(ctx, p, ref)
+		if err != nil {
 			return err
 		}
-		if err := refError(ref, hit.Error); err != nil {
-			return err
+		s.ui.Highlight(ctx, p, ref, hit.Box)
+		if !hit.coveredByOverlay() {
+			return clickAt(ctx, p, ref, hit)
 		}
-		if hit.Disabled {
-			return refError(ref, "disabled")
-		}
-		if hit.CoveredBy != nil {
-			return fmt.Errorf("element %s is covered by %s. Close it first.", ref, hit.CoveredBy)
-		}
-		mouse := p.Context(ctx).Mouse
-		if err := mouse.MoveTo(proto.Point{X: hit.X, Y: hit.Y}); err != nil {
-			return fmt.Errorf("move mouse: %w", err)
-		}
-		return mouse.Click(proto.InputMouseButtonLeft, 1)
+		// O alvo está sob o selo do Vitral: esconde o selo só durante o clique.
+		return s.ui.Hidden(ctx, p, func() error {
+			hit, err := s.hit(ctx, p, ref)
+			if err != nil {
+				return err
+			}
+			return clickAt(ctx, p, ref, hit)
+		})
 	})
+}
+
+// hit rola até o elemento e confere se ele pode receber o clique.
+func (s *Session) hit(ctx context.Context, p *rod.Page, ref string) (hitInfo, error) {
+	var hit hitInfo
+	if err := evalInto(ctx, p, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
+		return hit, err
+	}
+	if err := refError(ref, hit.Error); err != nil {
+		return hit, err
+	}
+	if hit.Disabled {
+		return hit, refError(ref, "disabled")
+	}
+	return hit, nil
+}
+
+func (h hitInfo) coveredByOverlay() bool {
+	return h.CoveredBy != nil && h.CoveredBy.Role == overlay.Tag
+}
+
+func clickAt(ctx context.Context, p *rod.Page, ref string, hit hitInfo) error {
+	if hit.CoveredBy != nil {
+		return fmt.Errorf("element %s is covered by %s. Close it first.", ref, hit.CoveredBy)
+	}
+	mouse := p.Context(ctx).Mouse
+	if err := mouse.MoveTo(proto.Point{X: hit.X, Y: hit.Y}); err != nil {
+		return fmt.Errorf("move mouse: %w", err)
+	}
+	return mouse.Click(proto.InputMouseButtonLeft, 1)
 }
 
 type typeInfo struct {
@@ -153,6 +181,7 @@ type typeInfo struct {
 	Readonly   bool   `json:"readonly"`
 	Editable   bool   `json:"editable"`
 	HasContent bool   `json:"hasContent"`
+	Box        [4]int `json:"box"`
 }
 
 // Type foca o campo, limpa (por padrão) e digita o texto.
@@ -173,7 +202,9 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 		case info.Error != "":
 			return refError(ref, info.Error)
 		case info.Password:
-			return ErrPassword
+			// "Sua vez" (UX-3): pausa com o campo destacado até a pessoa digitar e clicar em Retomar.
+			s.ui.WaitForUser(ux.ReasonPassword, ref, info.Box)
+			return pausedResult(fmt.Sprintf(ux.PasswordMessage, ref))
 		case info.Disabled:
 			return refError(ref, "disabled")
 		case info.Readonly:
@@ -181,6 +212,7 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 		case !info.Editable:
 			return fmt.Errorf("element %s (%s) is not a text field. Use click or select instead.", ref, info.Role)
 		}
+		s.ui.Highlight(ctx, p, ref, info.Box)
 		pc := p.Context(ctx)
 		if clearFirst && info.HasContent {
 			if err := pc.Keyboard.Type(input.Backspace); err != nil {
@@ -212,6 +244,9 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 		return flow.Step{Select: &flow.SelectStep{Selector: *sel, Option: option}}
 	}}
 	return s.action(ctx, rec, func(p *rod.Page) error {
+		if err := s.revealAndHighlight(ctx, p, ref); err != nil {
+			return err
+		}
 		var info selectInfo
 		if err := evalInto(ctx, p, &info, `(r, o) => window.__vitral.selectOption(r, o)`, ref, option); err != nil {
 			return err
@@ -228,6 +263,22 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 		}
 		return refError(ref, info.Error)
 	})
+}
+
+// revealAndHighlight rola até o alvo (se preciso) e mostra o destaque antes da ação.
+func (s *Session) revealAndHighlight(ctx context.Context, p *rod.Page, ref string) error {
+	var res struct {
+		Error string `json:"error"`
+		Box   [4]int `json:"box"`
+	}
+	if err := evalInto(ctx, p, &res, `(r) => window.__vitral.reveal(r)`, ref); err != nil {
+		return err
+	}
+	if err := refError(ref, res.Error); err != nil {
+		return err
+	}
+	s.ui.Highlight(ctx, p, ref, res.Box)
+	return nil
 }
 
 func quoteAll(list []string) []string {
@@ -267,13 +318,7 @@ func (s *Session) Scroll(ctx context.Context, opts ScrollOptions) (string, error
 	}}
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		if opts.Ref != "" {
-			var code string
-			js := `(r) => { const el = window.__vitral.find(r); if (!el) return 'not_found';
-				el.scrollIntoView({block: 'center', behavior: 'instant'}); return ''; }`
-			if err := evalInto(ctx, p, &code, js, opts.Ref); err != nil {
-				return err
-			}
-			return refError(opts.Ref, code)
+			return s.revealAndHighlight(ctx, p, opts.Ref)
 		}
 		var vp [2]float64
 		if err := evalInto(ctx, p, &vp, `() => [window.innerWidth, window.innerHeight]`); err != nil {

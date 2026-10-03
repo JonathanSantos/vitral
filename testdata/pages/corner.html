@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Canto - Fixture</title>
+  <style>
+    body { margin: 0; }
+    #canto { position: fixed; right: 24px; bottom: 24px; width: 140px; height: 36px; }
+  </style>
+</head>
+<body>
+  <p id="estado" role="status">aguardando</p>
+  <button id="canto">Canto</button>
+  <script>
+    document.getElementById('canto').addEventListener('click', () => {
+      document.getElementById('estado').textContent = 'clicado';
+    });
+  </script>
+</body>
+</html>

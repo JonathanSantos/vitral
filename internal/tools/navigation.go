@@ -29,22 +29,22 @@ type waitForInput struct {
 type noInput struct{}
 
 func registerNavigation(s *mcp.Server, d Deps) {
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "open",
 		Description: "Open a URL in the browser. Returns a snapshot of the page with element refs (e1, e2…) to use in other tools.",
 	}, openTool(d.Session))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "snapshot",
 		Description: "Show the current page as text with element refs. Call it when you need to see the page again or after an error.",
 	}, snapshotTool(d.Session))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "wait_for",
 		Description: "Wait until a visible text (or element ref) appears, or disappears with gone=true. Use after actions that load data slowly.",
 	}, waitForTool(d.Session))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "back",
 		Description: "Go back to the previous page in history. Returns what changed.",
 	}, backTool(d.Session))

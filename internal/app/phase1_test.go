@@ -51,8 +51,10 @@ func TestValidationErrorAppears(t *testing.T) {
 func TestActionableErrors(t *testing.T) {
 	snap := h.ok(t, "open", map[string]any{"url": h.url("/pages/form.html")})
 
-	h.fail(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "Senha"), "text": "x"},
-		"password fields must be filled by the user in the browser window")
+	// Senha: não é erro, o Vitral entrega a vez para a pessoa (UX-3) e espera ela retomar.
+	out := h.ok(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "Senha"), "text": "x"})
+	mustContain(t, out, "password fields must be filled by the user in the browser window", `click "Retomar"`)
+	h.resume(t)
 	h.fail(t, "click", map[string]any{"ref": ref(t, snap, "button", "Rascunho")}, "is disabled.")
 	h.fail(t, "click", map[string]any{"ref": "e999"}, "ref e999 not found: page changed since last snapshot. Call snapshot.")
 	h.fail(t, "select", map[string]any{"ref": ref(t, snap, "combobox", "País"), "option": "Chile"}, `"Portugal"`)
@@ -60,7 +62,7 @@ func TestActionableErrors(t *testing.T) {
 	h.fail(t, "press", map[string]any{"key": "Banana"}, "unknown key")
 
 	// O overlay cobre a página: clicar em algo por baixo deve apontar o dialog.
-	out := h.ok(t, "click", map[string]any{"ref": ref(t, snap, "button", "Abrir aviso")})
+	out = h.ok(t, "click", map[string]any{"ref": ref(t, snap, "button", "Abrir aviso")})
 	mustContain(t, out, `dialog "Aviso importante" open modal`)
 	h.fail(t, "click", map[string]any{"ref": ref(t, snap, "button", "Enviar")}, "is covered by dialog")
 

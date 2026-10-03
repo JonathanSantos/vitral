@@ -32,6 +32,7 @@ var update = flag.Bool("update", false, "rewrite golden files")
 type harness struct {
 	site    *httptest.Server
 	session *mcp.ClientSession
+	app     *app.App
 }
 
 var h *harness
@@ -66,11 +67,11 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 		logOut, level = os.Stderr, slog.LevelDebug
 	}
 	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: level}))
-	server, closeBrowser := app.Build(cfg, logger)
+	a := app.Build(cfg, logger)
 
 	ctx := context.Background()
 	st, ct := mcp.NewInMemoryTransports()
-	if _, err := server.Connect(ctx, st, nil); err != nil {
+	if _, err := a.Server.Connect(ctx, st, nil); err != nil {
 		panic(err)
 	}
 	client := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil)
@@ -78,9 +79,9 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	if err != nil {
 		panic(err)
 	}
-	return &harness{site: site, session: cs}, func() {
+	return &harness{site: site, session: cs, app: a}, func() {
 		_ = cs.Close()
-		closeBrowser()
+		a.Close()
 		site.Close()
 		_ = os.RemoveAll(profile)
 	}

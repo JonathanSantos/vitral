@@ -44,11 +44,11 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	server, closeBrowser := app.Build(cfg, logger)
-	defer closeBrowser()
+	a := app.Build(cfg, logger)
+	defer a.Close()
 
 	logger.Info("server ready", "version", config.Version)
-	err = server.Run(ctx, &mcp.IOTransport{Reader: os.Stdin, Writer: protocolOut})
+	err = a.Server.Run(ctx, &mcp.IOTransport{Reader: os.Stdin, Writer: protocolOut})
 	if err != nil && ctx.Err() == nil {
 		return err
 	}

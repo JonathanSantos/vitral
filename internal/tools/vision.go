@@ -20,19 +20,19 @@ type inspectInput struct {
 }
 
 func registerVision(s *mcp.Server, d Deps) {
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "screenshot",
 		Description: "Take a picture of the page with element refs drawn on it. Use when layout, colors or images matter.",
 	}, screenshotTool(d.Session))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "inspect",
 		Description: "Show the computed styles of an element (color, background, font, border, size), its states and aria attributes.",
 	}, inspectTool(d.Session))
 }
 
 func screenshotTool(sess *session.Session) mcp.ToolHandlerFor[screenshotInput, any] {
-	return guard(func(ctx context.Context, _ *mcp.CallToolRequest, in screenshotInput) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, in screenshotInput) (*mcp.CallToolResult, any, error) {
 		shot, err := sess.Screenshot(ctx, session.ShotOptions{Marks: in.Marks == nil || *in.Marks, Ref: in.Ref, FullPage: in.FullPage})
 		if err != nil {
 			return nil, nil, err
@@ -41,7 +41,7 @@ func screenshotTool(sess *session.Session) mcp.ToolHandlerFor[screenshotInput, a
 			&mcp.ImageContent{Data: shot.PNG, MIMEType: "image/png"},
 			&mcp.TextContent{Text: shot.Caption},
 		}}, nil, nil
-	})
+	}
 }
 
 func inspectTool(sess *session.Session) mcp.ToolHandlerFor[inspectInput, any] {

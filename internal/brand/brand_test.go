@@ -28,6 +28,14 @@ func TestMarkColor(t *testing.T) {
 	}
 }
 
+func TestMarkIndex(t *testing.T) {
+	for ref, want := range map[int]int{1: 1, 5: 5, 6: 1, 12: 2, 0: 1} {
+		if got := MarkIndex(ref); got != want {
+			t.Errorf("MarkIndex(%d)=%d want %d", ref, got, want)
+		}
+	}
+}
+
 func TestRefNumberAndHex(t *testing.T) {
 	cases := map[string]int{"e1": 1, "e42": 42, "x3": 0, "e": 0, "": 0}
 	for in, want := range cases {

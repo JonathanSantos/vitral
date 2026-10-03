@@ -16,6 +16,24 @@ func fakeFS(files map[string]string) func(string) ([]byte, error) {
 	}
 }
 
+func TestHighlight(t *testing.T) {
+	tests := []struct {
+		cfg  Config
+		want time.Duration
+	}{
+		{Config{HighlightMs: -1}, 350 * time.Millisecond},
+		{Config{HighlightMs: -1, Headless: true}, 0},
+		{Config{HighlightMs: 200, Headless: true}, 200 * time.Millisecond},
+		{Config{HighlightMs: 0}, 0},
+		{Config{HighlightMs: 500, NoOverlay: true}, 0},
+	}
+	for _, tt := range tests {
+		if got := tt.cfg.Highlight(); got != tt.want {
+			t.Errorf("%+v: got %v want %v", tt.cfg, got, tt.want)
+		}
+	}
+}
+
 func TestLoad(t *testing.T) {
 	tests := []struct {
 		name    string

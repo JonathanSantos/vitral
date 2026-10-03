@@ -22,8 +22,9 @@ func recordForm(t *testing.T, nome string) int {
 	h.ok(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "E-mail"), "text": "contato@exemplo.com"})
 	h.ok(t, "select", map[string]any{"ref": ref(t, snap, "combobox", "País"), "option": "Brasil"})
 	h.ok(t, "click", map[string]any{"ref": ref(t, snap, "checkbox", "Aceito os termos")})
-	// Ação recusada não entra no fluxo.
-	h.fail(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "Senha"), "text": "x"}, "password")
+	// Senha é com a pessoa: não entra no fluxo.
+	mustContain(t, h.ok(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "Senha"), "text": "x"}), "password")
+	h.resume(t)
 	h.ok(t, "click", map[string]any{"ref": ref(t, snap, "button", "Enviar")})
 	h.ok(t, "wait_for", map[string]any{"text": "Cadastro enviado: " + nome})
 	return first

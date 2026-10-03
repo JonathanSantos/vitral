@@ -35,27 +35,27 @@ type scrollInput struct {
 }
 
 func registerActions(s *mcp.Server, d Deps) {
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "click",
 		Description: "Click an element by ref (button, link, checkbox…). Returns what changed on the page.",
 	}, clickTool(d.Session))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "type",
 		Description: "Type text into a field by ref. Clears it first unless clear=false; submit=true presses Enter. Never use for passwords.",
 	}, typeTool(d.Session))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "select",
 		Description: "Choose an option in a dropdown (combobox) by its label or value.",
 	}, selectTool(d.Session))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "press",
 		Description: "Press a keyboard key on the focused element, e.g. Enter, Escape, Tab.",
 	}, pressTool(d.Session))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "scroll",
 		Description: "Scroll to an element by ref, or the page up/down. Returns the elements that came into view.",
 	}, scrollTool(d.Session))

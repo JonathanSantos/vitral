@@ -28,17 +28,17 @@ type mockClearInput struct {
 
 func registerMock(s *mcp.Server, d Deps) {
 	sess := d.Session
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "mock_add",
 		Description: "Fake an API response or failure for matching requests (e.g. return 500 or slow down). The newest mock wins. Reload or repeat the action to see the effect.",
 	}, mockAddTool(d.Mocks, sess.Record))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "mock_list",
 		Description: "List active mocks and how many times each was used.",
 	}, mockListTool(d.Mocks))
 
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "mock_clear",
 		Description: "Remove one mock by id, or all mocks when no id is given.",
 	}, mockClearTool(d.Mocks))

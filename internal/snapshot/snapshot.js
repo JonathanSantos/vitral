@@ -13,11 +13,22 @@
   };
 
   // Observa mutações para saber quando o DOM "assentou". Ignora as do próprio data-vitral-ref.
+  // Mudanças do overlay do Vitral (selo, destaque) não contam como a página "se mexendo".
+  const OVERLAY_TAG = 'VITRAL-OVERLAY';
+  const isOverlay = (n) => n && n.nodeName === OVERLAY_TAG;
+  const isOverlayRecord = (r) => {
+    if (isOverlay(r.target)) return true;
+    if (r.type !== 'childList') return false;
+    const nodes = [...r.addedNodes, ...r.removedNodes];
+    return nodes.length > 0 && nodes.every(isOverlay);
+  };
+
   const observe = () => {
     try {
       new MutationObserver((records) => {
         for (const r of records) {
           if (r.type === 'attributes' && r.attributeName === REF_ATTR) continue;
+          if (isOverlayRecord(r)) continue;
           state.lastMutation = performance.now();
           return;
         }
@@ -36,7 +47,7 @@
     'contentinfo', 'complementary', 'form', 'region', 'search', 'group', 'label', 'error',
   ]);
   const COUNTED = { table: 'row', grid: 'row', list: 'listitem', listbox: 'option', menu: 'menuitem', tree: 'treeitem', combobox: 'option' };
-  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'META', 'LINK', 'svg', 'SVG']);
+  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'META', 'LINK', 'svg', 'SVG', 'VITRAL-OVERLAY']);
   const TEXT_INPUTS = new Set(['', 'text', 'email', 'tel', 'url', 'password', 'date', 'datetime-local', 'month', 'time', 'week']);
   const ERROR_CLASS = /(^|[\s_-])(error|errors|invalid|danger)([\s_-]|$)/i;
 
@@ -450,7 +461,20 @@
     const off = frameOffset(el.ownerDocument);
     info.x = cx + off.x;
     info.y = cy + off.y;
+    info.box = boxOf(el);
     return info;
+  }
+
+  // Rola até o elemento se ele não estiver inteiro na tela e devolve a caixa (para o destaque).
+  function reveal(ref) {
+    const el = find(ref);
+    if (!el) return { error: 'not_found' };
+    const r = el.getBoundingClientRect();
+    const win = el.ownerDocument.defaultView;
+    if (r.top < 0 || r.left < 0 || r.bottom > win.innerHeight || r.right > win.innerWidth) {
+      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    }
+    return { box: boxOf(el) };
   }
 
   function editableInfo(el) {
@@ -467,8 +491,11 @@
     try { info.disabled = el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'; } catch (_) {}
     info.readonly = !!el.readOnly;
     info.editable = editableInfo(el);
-    if (!info.editable || info.disabled || info.readonly || info.password) return info;
+    if (!info.editable || info.disabled || info.readonly) return info;
     el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    info.box = boxOf(el);
+    // Campo de senha: só rola até ele (para o destaque); quem digita é a pessoa.
+    if (info.password) return info;
     el.focus();
     if (!clear) {
       if (el.setSelectionRange && el.value != null) {
@@ -619,6 +646,7 @@
     findText,
     inspect,
     box: (ref) => { const el = find(ref); return el ? boxOf(el) : null; },
+    reveal,
     quietMs,
     roleOf,
     lastMutationAt: () => state.lastMutation,

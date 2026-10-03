@@ -81,3 +81,20 @@ Pré-requisitos: binário `vitral` no PATH (ou caminho absoluto em `command`) e 
    e lista vazia, e no fim remove os mocks.
 6. Rode `/executar-fluxo` com um fluxo salvo na Fase 5.
 7. Siga o README como se fosse uma pessoa não técnica (baixar, colar o `mcp.json`, Start, usar).
+
+## Fase 8: selo, destaque e pausa
+
+1. Abra uma página pelo chat. No canto inferior direito da janela aparece o selo
+   "Vitral está usando esta janela" com o botão "⏸ Pausar IA".
+2. Peça uma ação (ex.: clicar num botão). O elemento pisca com um contorno colorido e a etiqueta `eN`
+   antes do clique, e o selo mostra "A IA está trabalhando…".
+3. Clique em "⏸ Pausar IA". O selo mostra "Pausado. Você está no controle.". Peça outra ação:
+   a IA responde que você pausou e pede para clicar em "Retomar". Peça um print: funciona, e o selo
+   não aparece na imagem.
+4. Clique em "▶ Retomar" e peça a ação de novo: funciona e considera o que você mudou na tela.
+5. Numa tela de login, peça para a IA preencher a senha. O campo fica destacado e o selo mostra
+   "Sua vez: preencha a senha e clique em Retomar".
+6. Recolha o selo pelo "–"; ele vira um botão redondo com o ícone, e continua recolhido ao navegar.
+7. Rode um fluxo salvo e veja "Executando fluxo: nome · passo i de n". Pause no meio: o fluxo para
+   antes do próximo passo e a IA avisa onde parou.
+8. Rode com `"--no-overlay"` em `args`: sem destaque e sem texto de status, mas o botão de pausa continua.

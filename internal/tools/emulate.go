@@ -14,7 +14,7 @@ type emulateInput struct {
 }
 
 func registerEmulate(s *mcp.Server, d Deps) {
-	mcp.AddTool(s, &mcp.Tool{
+	addTool(s, d, &mcp.Tool{
 		Name:        "emulate",
 		Description: "Simulate a phone/tablet screen or a slow/offline network. Use desktop and none to go back to normal.",
 	}, emulateTool(d.Session))

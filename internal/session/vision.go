@@ -42,7 +42,17 @@ func (s *Session) Screenshot(ctx context.Context, opts ShotOptions) (Shot, error
 		}
 	}
 
-	snap, img, offset, err := s.captureImage(ctx, p, opts.FullPage)
+	// O selo e o destaque do Vitral nunca aparecem no print.
+	var (
+		snap   *snapshot.Page
+		img    image.Image
+		offset image.Point
+	)
+	err = s.ui.Hidden(ctx, p, func() error {
+		var err error
+		snap, img, offset, err = s.captureImage(ctx, p, opts.FullPage)
+		return err
+	})
 	if err != nil {
 		return Shot{}, err
 	}
