@@ -8,7 +8,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/network"
+	"github.com/JonathanSantos/vitral/internal/network"
 )
 
 // Eval avalia uma expressão JS na página e devolve o resultado serializado (só com --allow-eval).

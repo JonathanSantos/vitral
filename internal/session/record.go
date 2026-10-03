@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-rod/rod"
 
-	"github.com/jors/browser-mcp/internal/flow"
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/flow"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 // Recorder expõe os passos gravados (usado por flow_save).

@@ -11,9 +11,9 @@ import (
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/flow"
-	"github.com/jors/browser-mcp/internal/security"
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/flow"
+	"github.com/JonathanSantos/vitral/internal/security"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 // ErrPassword é devolvido quando a IA tenta digitar num campo de senha.
@@ -125,7 +125,7 @@ func (s *Session) Click(ctx context.Context, ref string) (string, error) {
 	rec := &recording{ref: ref, step: func(sel *flow.Selector) flow.Step { return flow.Step{Click: sel} }}
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		var hit hitInfo
-		if err := evalInto(ctx, p, &hit, `(r) => window.__mcp.hit(r)`, ref); err != nil {
+		if err := evalInto(ctx, p, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
 			return err
 		}
 		if err := refError(ref, hit.Error); err != nil {
@@ -166,7 +166,7 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 	}}
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		var info typeInfo
-		if err := evalInto(ctx, p, &info, `(r, c) => window.__mcp.prepareType(r, c)`, ref, clearFirst); err != nil {
+		if err := evalInto(ctx, p, &info, `(r, c) => window.__vitral.prepareType(r, c)`, ref, clearFirst); err != nil {
 			return err
 		}
 		switch {
@@ -213,7 +213,7 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 	}}
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		var info selectInfo
-		if err := evalInto(ctx, p, &info, `(r, o) => window.__mcp.selectOption(r, o)`, ref, option); err != nil {
+		if err := evalInto(ctx, p, &info, `(r, o) => window.__vitral.selectOption(r, o)`, ref, option); err != nil {
 			return err
 		}
 		switch info.Error {
@@ -268,7 +268,7 @@ func (s *Session) Scroll(ctx context.Context, opts ScrollOptions) (string, error
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		if opts.Ref != "" {
 			var code string
-			js := `(r) => { const el = window.__mcp.find(r); if (!el) return 'not_found';
+			js := `(r) => { const el = window.__vitral.find(r); if (!el) return 'not_found';
 				el.scrollIntoView({block: 'center', behavior: 'instant'}); return ''; }`
 			if err := evalInto(ctx, p, &code, js, opts.Ref); err != nil {
 				return err
@@ -354,10 +354,10 @@ func (s *Session) WaitFor(ctx context.Context, opts WaitOptions) (string, error)
 func (s *Session) probe(ctx context.Context, p *rod.Page, opts WaitOptions) (textMatch, error) {
 	var m textMatch
 	if opts.Text != "" {
-		err := evalInto(ctx, p, &m, `(t) => window.__mcp.findText(t)`, opts.Text)
+		err := evalInto(ctx, p, &m, `(t) => window.__vitral.findText(t)`, opts.Text)
 		return m, err
 	}
-	js := `(r) => { const el = window.__mcp.find(r); if (!el) return {found: false};
+	js := `(r) => { const el = window.__vitral.find(r); if (!el) return {found: false};
 		const r2 = el.getBoundingClientRect();
 		const vis = el.checkVisibility ? el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true}) : true;
 		return {found: vis && r2.width > 0 && r2.height > 0, ref: r}; }`

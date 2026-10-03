@@ -17,7 +17,7 @@ Servidor MCP local, distribuído como **binário único em Go**, que permite a u
 
 O público inclui pessoas não técnicas: instalação trivial e uso por fluxos prontos (prompt files).
 
-Nome provisório: `browser-mcp`, centralizado numa constante (`internal/config.Name`).
+Nome: **Vitral** (binário `vitral`), centralizado na constante `internal/config.Name`. Identidade em `docs/BRAND.md`.
 
 ## 2. Escopo
 
@@ -36,7 +36,7 @@ HTTP, UI própria, iframes cross-origin, upload e download de arquivos.
 | MCP | `github.com/modelcontextprotocol/go-sdk`, transporte stdio |
 | Browser | `github.com/go-rod/rod`; `proto` (CDP cru) onde o rod não cobrir |
 | Desenho do print | `image`, `image/draw`, `golang.org/x/image/font/basicfont` |
-| Config | flags de CLI e arquivo opcional `browser-mcp.yaml` |
+| Config | flags de CLI e arquivo opcional `vitral.yaml` |
 | YAML | `gopkg.in/yaml.v3` |
 
 ## 4. Padrões de código
@@ -52,7 +52,7 @@ HTTP, UI própria, iframes cross-origin, upload e download de arquivos.
 ## 5. Estrutura
 
 ```
-cmd/browser-mcp/main.go
+cmd/vitral/main.go
 internal/config/      flags + yaml, defaults, nome do app
 internal/browser/     launch/attach, página ativa, reabertura de aba
 internal/session/     sessão da página: mutex, ações, estabilidade, último snapshot
@@ -71,7 +71,7 @@ examples/vscode/      mcp.json, prompt files, CHECKLIST.md
 
 ## 6. Browser
 
-Modos: `launch` (padrão, visível, perfil persistente em `~/.browser-mcp/profile`, usa o Chrome
+Modos: `launch` (padrão, visível, perfil persistente em `~/.vitral/profile`, usa o Chrome
 instalado ou baixa o Chromium), `headless` e `attach` (`--attach ws://...` ou `--attach-port 9222`;
 o Chrome precisa de `--user-data-dir` separado).
 
@@ -82,10 +82,10 @@ Regras: subida preguiçosa; CDP só em `127.0.0.1`; ao encerrar fecha o browser 
 
 ### 7.1 Geração
 
-JS embutido (`go:embed`, `EvalOnNewDocument`) expõe `window.__mcpSnapshot(options)`. Percorre o DOM
+JS embutido (`go:embed`, `EvalOnNewDocument`) expõe `window.__vitralSnapshot(options)`. Percorre o DOM
 (shadow roots abertos e iframes same-origin) e inclui elementos visíveis, interativos e estrutura
 útil (headings, dialogs, tabelas, listas, landmarks, labels, alertas/erros). Cada elemento tem papel,
-nome acessível, valor, estados e uma ref curta (`e1`, `e2`…) em `data-mcp-ref`, estável enquanto o
+nome acessível, valor, estados e uma ref curta (`e1`, `e2`…) em `data-vitral-ref`, estável enquanto o
 elemento existir e nunca reaproveitada na mesma página. Navegação completa reinicia o contador.
 
 ### 7.2 Formato
@@ -125,7 +125,7 @@ terminam com `step #N`.
 
 ## 8. Ações
 
-- Localização por `[data-mcp-ref]`. `click` é clique real via CDP no centro, depois de rolar e
+- Localização por `[data-vitral-ref]`. `click` é clique real via CDP no centro, depois de rolar e
   checar cobertura (`elementFromPoint`). `type` foca, limpa (padrão) e digita; `submit: true` dá
   Enter. `select` aceita label ou value.
 - Estabilidade: rede ociosa por 500 ms **e** DOM sem mutações por 300 ms, ou timeout (10 s,
@@ -176,7 +176,7 @@ perfil sempre dedicado; headers sensíveis mascarados.
   `mock_add` e `emulate`. Ferramentas de leitura (`snapshot`, `screenshot`, `inspect`,
   `network_*`, `console_list`) e ações que falharam não são gravadas.
 - Cada ação gravada termina a resposta com `step #N`.
-- `flow_save` grava em `.browser-mcp/flows/<name>.yaml`, por padrão tudo desde o último
+- `flow_save` grava em `.vitral/flows/<name>.yaml`, por padrão tudo desde o último
   `flow_save` (ou desde o início da sessão); `fromStep: N` escolhe outro início.
 - `params` é um mapa `{nome: "valor gravado"}`. A substituição por `{{nome}}` acontece **só** em
   campos de valor: `type.text`, `select.option`, URL do `open` e texto do `wait_for` (como

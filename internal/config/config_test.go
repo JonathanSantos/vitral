@@ -27,7 +27,7 @@ func TestLoad(t *testing.T) {
 		{
 			name: "defaults without file",
 			check: func(t *testing.T, c Config) {
-				if c.ProfileDir != "/home/u/.browser-mcp/profile" || c.NavTimeout != 15*time.Second || c.NetworkBuffer != 500 {
+				if c.ProfileDir != "/home/u/.vitral/profile" || c.NavTimeout != 15*time.Second || c.NetworkBuffer != 500 {
 					t.Fatalf("unexpected defaults: %+v", c)
 				}
 			},

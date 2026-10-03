@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jors/browser-mcp/internal/config"
+	"github.com/JonathanSantos/vitral/internal/config"
 )
 
 func clearMocks(t *testing.T) {

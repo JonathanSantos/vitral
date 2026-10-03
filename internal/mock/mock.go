@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/security"
+	"github.com/JonathanSantos/vitral/internal/security"
 )
 
 // Rule é uma regra de mock. Times 0 significa sem limite.

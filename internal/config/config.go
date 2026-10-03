@@ -1,4 +1,4 @@
-// Package config lê flags de CLI e o arquivo opcional browser-mcp.yaml.
+// Package config lê flags de CLI e o arquivo opcional vitral.yaml.
 package config
 
 import (
@@ -16,7 +16,7 @@ import (
 )
 
 // Name é o nome do produto. Centralizado aqui porque ainda pode mudar.
-const Name = "browser-mcp"
+const Name = "vitral"
 
 // Version é sobrescrita no build via -ldflags.
 var Version = "dev"

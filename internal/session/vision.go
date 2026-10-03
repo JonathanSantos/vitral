@@ -8,8 +8,8 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/screenshot"
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/screenshot"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 // maxFullPageHeight limita prints de página inteira para não gerar imagens gigantes.
@@ -57,7 +57,7 @@ func (s *Session) Screenshot(ctx context.Context, opts ShotOptions) (Shot, error
 	}
 	if opts.Ref != "" {
 		var box *[4]int
-		if err := evalInto(ctx, p, &box, `(r) => window.__mcp.box(r)`, opts.Ref); err != nil {
+		if err := evalInto(ctx, p, &box, `(r) => window.__vitral.box(r)`, opts.Ref); err != nil {
 			return Shot{}, err
 		}
 		if box == nil {
@@ -76,7 +76,7 @@ func (s *Session) Screenshot(ctx context.Context, opts ShotOptions) (Shot, error
 
 func scrollIntoView(ctx context.Context, p *rod.Page, ref string) error {
 	var code string
-	js := `(r) => { const el = window.__mcp.find(r); if (!el) return 'not_found';
+	js := `(r) => { const el = window.__vitral.find(r); if (!el) return 'not_found';
 		el.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'}); return ''; }`
 	if err := evalInto(ctx, p, &code, js, ref); err != nil {
 		return err
@@ -132,7 +132,7 @@ func (s *Session) Inspect(ctx context.Context, ref string, props []string) (stri
 	if props == nil {
 		props = []string{}
 	}
-	data, err := evalJSON(ctx, p, `(r, props) => window.__mcp.inspect(r, props)`, ref, props)
+	data, err := evalJSON(ctx, p, `(r, props) => window.__vitral.inspect(r, props)`, ref, props)
 	if err != nil {
 		return "", err
 	}

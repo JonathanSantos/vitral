@@ -1,13 +1,13 @@
 # Release multiplataforma: goreleaser release --clean (requer uma tag git).
 version: 2
-project_name: browser-mcp
+project_name: vitral
 builds:
-  - main: ./cmd/browser-mcp
-    binary: browser-mcp
+  - main: ./cmd/vitral
+    binary: vitral
     env: [CGO_ENABLED=0]
     flags: [-trimpath]
     ldflags:
-      - -s -w -X github.com/jors/browser-mcp/internal/config.Version={{.Version}}
+      - -s -w -X github.com/JonathanSantos/vitral/internal/config.Version={{.Version}}
     goos: [darwin, linux, windows]
     goarch: [amd64, arm64]
 archives:

@@ -6,7 +6,7 @@ import (
 	"image/draw"
 	"testing"
 
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 func white(w, h int) *image.RGBA {

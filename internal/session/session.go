@@ -15,12 +15,12 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/browser"
-	"github.com/jors/browser-mcp/internal/config"
-	"github.com/jors/browser-mcp/internal/console"
-	"github.com/jors/browser-mcp/internal/flow"
-	"github.com/jors/browser-mcp/internal/network"
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/browser"
+	"github.com/JonathanSantos/vitral/internal/config"
+	"github.com/JonathanSantos/vitral/internal/console"
+	"github.com/JonathanSantos/vitral/internal/flow"
+	"github.com/JonathanSantos/vitral/internal/network"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 // Tempos da espera por estabilidade (seção 8.2 da spec).
@@ -109,7 +109,7 @@ func evalJSON(ctx context.Context, p *rod.Page, js string, args ...any) ([]byte,
 
 // ensureScript injeta o script em documentos abertos antes do EvalOnNewDocument (ex.: attach).
 func ensureScript(ctx context.Context, p *rod.Page) error {
-	res, err := p.Context(ctx).Evaluate(rod.Eval(`() => !!window.__mcp`))
+	res, err := p.Context(ctx).Evaluate(rod.Eval(`() => !!window.__vitral`))
 	if err != nil {
 		return fmt.Errorf("evaluate in page: %w", err)
 	}
@@ -130,7 +130,7 @@ func evalInto(ctx context.Context, p *rod.Page, out any, js string, args ...any)
 
 // capture tira um snapshot estruturado.
 func capture(ctx context.Context, p *rod.Page, opts snapshot.Options) (*snapshot.Page, error) {
-	data, err := evalJSON(ctx, p, `(o) => window.__mcp.snapshot(o)`, opts)
+	data, err := evalJSON(ctx, p, `(o) => window.__vitral.snapshot(o)`, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (s *Session) domQuietFor(ctx context.Context, p *rod.Page, start time.Time)
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	// Durante uma navegação a avaliação falha: tratamos como "ainda mexendo".
-	if err := evalInto(ctx, p, &ms, `() => window.__mcp.quietMs()`); err != nil {
+	if err := evalInto(ctx, p, &ms, `() => window.__vitral.quietMs()`); err != nil {
 		return 0
 	}
 	quiet := time.Duration(ms) * time.Millisecond

@@ -1,4 +1,4 @@
-module github.com/jors/browser-mcp
+module github.com/JonathanSantos/vitral
 
 go 1.26.4
 

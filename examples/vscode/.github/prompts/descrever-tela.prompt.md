@@ -3,9 +3,9 @@ name: descrever-tela
 description: Abre uma página no navegador e descreve o que aparece na tela
 argument-hint: endereço da página (ex.: https://portal.empresa.com/pedidos)
 agent: agent
-tools: ['browser/*']
+tools: ['vitral/*']
 ---
-Você controla um navegador real pelas ferramentas do servidor `browser`.
+Você controla um navegador real pelas ferramentas do servidor `vitral`.
 
 1. Use `open` com o endereço ${input:url:endereço da página}.
 2. Leia o snapshot. Cada elemento aparece como `[eN] papel "nome"`.

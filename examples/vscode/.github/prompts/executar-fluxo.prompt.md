@@ -3,9 +3,9 @@ name: executar-fluxo
 description: Executa um fluxo salvo (passo a passo, sem improvisar) e explica o resultado
 argument-hint: nome do fluxo e os valores dos parâmetros (ex.: buscar-pedido numero=2048)
 agent: agent
-tools: ['browser/*']
+tools: ['vitral/*']
 ---
-Execute um fluxo gravado usando as ferramentas do servidor `browser`.
+Execute um fluxo gravado usando as ferramentas do servidor `vitral`.
 
 1. Use `flow_list` para ver os fluxos disponíveis e os parâmetros de cada um.
 2. O pedido da pessoa é: ${input:pedido:nome do fluxo e valores}. Escolha o fluxo certo. Se faltar

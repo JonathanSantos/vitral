@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 // contextRoles são ancestrais que ajudam a desambiguar um elemento repetido.

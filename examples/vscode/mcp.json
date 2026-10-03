@@ -1,9 +1,9 @@
 {
   "servers": {
-    "browser": {
+    "vitral": {
       "type": "stdio",
-      "command": "browser-mcp",
-      "args": ["--profile-dir", "${userHome}/.browser-mcp/profile"]
+      "command": "vitral",
+      "args": ["--profile-dir", "${userHome}/.vitral/profile"]
     }
   }
 }

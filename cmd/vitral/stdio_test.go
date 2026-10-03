@@ -16,11 +16,11 @@ import (
 
 // Sobe o binário de verdade via stdio (como o Copilot faz) e confere que o protocolo não é poluído.
 func TestStdioServer(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "browser-mcp")
+	bin := filepath.Join(t.TempDir(), "vitral")
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
-	profile, err := os.MkdirTemp("", "browser-mcp-stdio-*")
+	profile, err := os.MkdirTemp("", "vitral-stdio-*")
 	if err != nil {
 		t.Fatal(err)
 	}

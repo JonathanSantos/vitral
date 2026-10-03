@@ -22,8 +22,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/jors/browser-mcp/internal/app"
-	"github.com/jors/browser-mcp/internal/config"
+	"github.com/JonathanSantos/vitral/internal/app"
+	"github.com/JonathanSantos/vitral/internal/config"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 // newHarness aceita mudanças de configuração (ex.: allowedHosts) para harnesses extras.
 func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	site := httptest.NewServer(fixtureMux())
-	profile, err := os.MkdirTemp("", "browser-mcp-test-*")
+	profile, err := os.MkdirTemp("", "vitral-test-*")
 	if err != nil {
 		panic(err)
 	}
@@ -62,7 +62,7 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	}
 	logOut := io.Discard
 	level := slog.LevelInfo
-	if os.Getenv("BROWSER_MCP_TEST_LOG") != "" {
+	if os.Getenv("VITRAL_TEST_LOG") != "" {
 		logOut, level = os.Stderr, slog.LevelDebug
 	}
 	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: level}))

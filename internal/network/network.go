@@ -8,7 +8,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/ring"
+	"github.com/JonathanSantos/vitral/internal/ring"
 )
 
 // Entry é uma request observada. Corpos de resposta nunca são guardados aqui.

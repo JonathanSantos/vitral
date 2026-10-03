@@ -1,9 +1,9 @@
-// Injetado em todo documento novo. Expõe window.__mcp (e window.__mcpSnapshot).
+// Injetado em todo documento novo. Expõe window.__vitral (e window.__vitralSnapshot).
 // Só coleta dados: formatação, compactação e diff acontecem em Go.
 (() => {
-  if (window.__mcp) return;
+  if (window.__vitral) return;
 
-  const REF_ATTR = 'data-mcp-ref';
+  const REF_ATTR = 'data-vitral-ref';
   const NAME_MAX = 300;
   const state = {
     counter: 0,
@@ -12,7 +12,7 @@
     lastMutation: performance.now(),
   };
 
-  // Observa mutações para saber quando o DOM "assentou". Ignora as do próprio data-mcp-ref.
+  // Observa mutações para saber quando o DOM "assentou". Ignora as do próprio data-vitral-ref.
   const observe = () => {
     try {
       new MutationObserver((records) => {
@@ -560,7 +560,7 @@
     let last = state.lastMutation;
     for (const f of document.querySelectorAll('iframe')) {
       try {
-        const m = f.contentWindow?.__mcp;
+        const m = f.contentWindow?.__vitral;
         if (m) last = Math.max(last, m.lastMutationAt() - performance.timeOrigin + f.contentWindow.performance.timeOrigin);
       } catch (_) {}
     }
@@ -610,7 +610,7 @@
     };
   }
 
-  window.__mcp = {
+  window.__vitral = {
     snapshot,
     find,
     hit,
@@ -624,5 +624,5 @@
     lastMutationAt: () => state.lastMutation,
     docId: () => state.docId,
   };
-  window.__mcpSnapshot = snapshot;
+  window.__vitralSnapshot = snapshot;
 })();

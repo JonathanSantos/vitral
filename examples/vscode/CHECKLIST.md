@@ -1,11 +1,11 @@
 # Checklist de validação manual no VS Code (Copilot)
 
-Pré-requisitos: binário `browser-mcp` no PATH (ou caminho absoluto em `command`) e o
+Pré-requisitos: binário `vitral` no PATH (ou caminho absoluto em `command`) e o
 `mcp.json` desta pasta copiado para `.vscode/mcp.json` do projeto de teste.
 
 ## Fase 1: base
 
-1. Abra o projeto no VS Code e rode **MCP: List Servers**. O servidor `browser` deve aparecer.
+1. Abra o projeto no VS Code e rode **MCP: List Servers**. O servidor `vitral` deve aparecer.
    Clique em **Start**. O status vira "Running" sem abrir nenhuma janela de browser ainda.
 2. Abra o chat do Copilot no modo **Agent** e confira em **Tools** (ícone de ferramentas) que aparecem
    `open`, `snapshot`, `click`, `type`, `select`, `press`, `scroll`, `wait_for` e `back`, e que **não**
@@ -65,7 +65,7 @@ Pré-requisitos: binário `browser-mcp` no PATH (ou caminho absoluto em `command
 2. Peça: *"Salve isso como fluxo `buscar-pedido`, com o número do pedido como parâmetro `numero`."*
    A IA chama `flow_save` com `params: {numero: "1023"}`. A resposta lista os passos e cada substituição
    (`step 2 type.text: "1023" → "{{numero}}"`).
-3. Confira o arquivo `.browser-mcp/flows/buscar-pedido.yaml` no projeto.
+3. Confira o arquivo `.vitral/flows/buscar-pedido.yaml` no projeto.
 4. Peça: *"Liste os fluxos"* (`flow_list`) e *"rode o fluxo buscar-pedido com o número 2048"*
    (`flow_run`). Os passos rodam sozinhos e a resposta mostra `ok` em cada um.
 5. Edite o YAML trocando o nome de um botão para algo que não existe e rode de novo. O relatório para
@@ -73,7 +73,7 @@ Pré-requisitos: binário `browser-mcp` no PATH (ou caminho absoluto em `command
 
 ## Fase 6: experiência
 
-1. Gere o binário (`make build` ou `make dist`) e rode `browser-mcp --version`.
+1. Gere o binário (`make build` ou `make dist`) e rode `vitral --version`.
 2. Copie `examples/vscode/.github/prompts` para `.github/prompts` do projeto de teste.
 3. No chat, digite `/`: devem aparecer `descrever-tela`, `testar-api-fora` e `executar-fluxo`.
 4. Rode `/descrever-tela` com uma URL. O VS Code pede o endereço e a IA abre e descreve a tela.

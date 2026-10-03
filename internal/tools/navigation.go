@@ -6,7 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/jors/browser-mcp/internal/session"
+	"github.com/JonathanSantos/vitral/internal/session"
 )
 
 type openInput struct {

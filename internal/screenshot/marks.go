@@ -14,7 +14,7 @@ import (
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 // Mark é uma caixa a desenhar, em pixels CSS relativos à imagem.

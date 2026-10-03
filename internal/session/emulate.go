@@ -8,7 +8,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/flow"
+	"github.com/JonathanSantos/vitral/internal/flow"
 )
 
 // Device é um perfil simples de tela.

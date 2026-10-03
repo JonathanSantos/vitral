@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// Inspection é o resultado de window.__mcp.inspect.
+// Inspection é o resultado de window.__vitral.inspect.
 type Inspection struct {
 	Error      string            `json:"error"`
 	Ref        string            `json:"ref"`

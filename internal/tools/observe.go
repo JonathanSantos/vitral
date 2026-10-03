@@ -7,8 +7,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/jors/browser-mcp/internal/console"
-	"github.com/jors/browser-mcp/internal/network"
+	"github.com/JonathanSantos/vitral/internal/console"
+	"github.com/JonathanSantos/vitral/internal/network"
 )
 
 type networkListInput struct {

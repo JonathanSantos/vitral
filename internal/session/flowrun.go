@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jors/browser-mcp/internal/flow"
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/flow"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 // MockAdder registra um mock (nil quando o mock está desabilitado).

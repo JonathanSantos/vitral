@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jors/browser-mcp/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
 func pageWith(nodes ...*snapshot.Node) *snapshot.Page { return &snapshot.Page{Nodes: nodes} }

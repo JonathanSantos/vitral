@@ -7,8 +7,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/jors/browser-mcp/internal/flow"
-	"github.com/jors/browser-mcp/internal/mock"
+	"github.com/JonathanSantos/vitral/internal/flow"
+	"github.com/JonathanSantos/vitral/internal/mock"
 )
 
 type mockAddInput struct {

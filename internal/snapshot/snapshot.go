@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-// Script é injetado em todo documento novo e expõe window.__mcp.
+// Script é injetado em todo documento novo e expõe window.__vitral.
 //
 //go:embed snapshot.js
 var Script string
@@ -28,7 +28,7 @@ type Node struct {
 	Children       []*Node `json:"children,omitempty"`
 }
 
-// Page é o resultado de window.__mcp.snapshot.
+// Page é o resultado de window.__vitral.snapshot.
 type Page struct {
 	DocID     string   `json:"docId"`
 	URL       string   `json:"url"`

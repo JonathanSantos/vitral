@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/jors/browser-mcp/internal/security"
+	"github.com/JonathanSantos/vitral/internal/security"
 )
 
 // Filter seleciona entradas em network_list.

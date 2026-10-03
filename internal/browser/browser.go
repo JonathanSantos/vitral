@@ -17,7 +17,7 @@ import (
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/config"
+	"github.com/JonathanSantos/vitral/internal/config"
 )
 
 // PageHook prepara cada página nova (scripts, listeners de rede/console, mocks).

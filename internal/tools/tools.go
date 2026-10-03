@@ -7,12 +7,12 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/jors/browser-mcp/internal/config"
-	"github.com/jors/browser-mcp/internal/console"
-	"github.com/jors/browser-mcp/internal/flow"
-	"github.com/jors/browser-mcp/internal/mock"
-	"github.com/jors/browser-mcp/internal/network"
-	"github.com/jors/browser-mcp/internal/session"
+	"github.com/JonathanSantos/vitral/internal/config"
+	"github.com/JonathanSantos/vitral/internal/console"
+	"github.com/JonathanSantos/vitral/internal/flow"
+	"github.com/JonathanSantos/vitral/internal/mock"
+	"github.com/JonathanSantos/vitral/internal/network"
+	"github.com/JonathanSantos/vitral/internal/session"
 )
 
 // Deps são as dependências compartilhadas pelos handlers.

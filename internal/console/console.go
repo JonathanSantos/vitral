@@ -9,7 +9,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 
-	"github.com/jors/browser-mcp/internal/ring"
+	"github.com/JonathanSantos/vitral/internal/ring"
 )
 
 // Message é uma mensagem de console, exceção ou log do browser.

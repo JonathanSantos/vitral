@@ -1,4 +1,4 @@
-// Comando browser-mcp: servidor MCP (stdio) que controla um Chromium.
+// Comando vitral: servidor MCP (stdio) que controla um Chromium.
 package main
 
 import (
@@ -11,8 +11,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/jors/browser-mcp/internal/app"
-	"github.com/jors/browser-mcp/internal/config"
+	"github.com/JonathanSantos/vitral/internal/app"
+	"github.com/JonathanSantos/vitral/internal/config"
 )
 
 func main() {

@@ -3,10 +3,10 @@ name: testar-api-fora
 description: Testa como uma tela se comporta quando a API está fora do ar, lenta ou devolvendo erro
 argument-hint: endereço da tela e, se souber, o caminho da API (ex.: /api/pedidos)
 agent: agent
-tools: ['browser/*']
+tools: ['vitral/*']
 ---
 Você vai testar a tela ${input:url:endereço da tela} simulando problemas na API, sem mexer em
-nenhum servidor de verdade. Use as ferramentas do servidor `browser`.
+nenhum servidor de verdade. Use as ferramentas do servidor `vitral`.
 
 1. Abra a tela com `open` e use `network_list` (filtro `type: fetch` ou `xhr`) para descobrir quais
    chamadas de API ela faz. Se a pessoa informou o caminho (${input:api:caminho da API, opcional}),
