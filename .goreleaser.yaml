@@ -1,0 +1,22 @@
+# Release multiplataforma: goreleaser release --clean (requer uma tag git).
+version: 2
+project_name: browser-mcp
+builds:
+  - main: ./cmd/browser-mcp
+    binary: browser-mcp
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/jors/browser-mcp/internal/config.Version={{.Version}}
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - examples/**/*
+checksum:
+  name_template: checksums.txt

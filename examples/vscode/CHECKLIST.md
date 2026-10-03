@@ -70,3 +70,14 @@ Pré-requisitos: binário `browser-mcp` no PATH (ou caminho absoluto em `command
    (`flow_run`). Os passos rodam sozinhos e a resposta mostra `ok` em cada um.
 5. Edite o YAML trocando o nome de um botão para algo que não existe e rode de novo. O relatório para
    no passo certo com `FAILED`, o motivo e a lista de botões que existem na tela.
+
+## Fase 6: experiência
+
+1. Gere o binário (`make build` ou `make dist`) e rode `browser-mcp --version`.
+2. Copie `examples/vscode/.github/prompts` para `.github/prompts` do projeto de teste.
+3. No chat, digite `/`: devem aparecer `descrever-tela`, `testar-api-fora` e `executar-fluxo`.
+4. Rode `/descrever-tela` com uma URL. O VS Code pede o endereço e a IA abre e descreve a tela.
+5. Rode `/testar-api-fora` numa tela com API. A IA passa pelos cenários de erro 500, sem conexão, lentidão
+   e lista vazia, e no fim remove os mocks.
+6. Rode `/executar-fluxo` com um fluxo salvo na Fase 5.
+7. Siga o README como se fosse uma pessoa não técnica (baixar, colar o `mcp.json`, Start, usar).

@@ -23,6 +23,10 @@ func main() {
 }
 
 func run() error {
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
+		fmt.Println(config.Name, config.Version)
+		return nil
+	}
 	// stdout pertence ao protocolo MCP: qualquer escrita perdida de dependências vai para stderr.
 	protocolOut := os.Stdout
 	os.Stdout = os.Stderr
