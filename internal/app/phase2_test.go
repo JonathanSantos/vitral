@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/JonathanSantos/vitral/internal/brand"
 )
 
 // shot chama screenshot e devolve a imagem decodificada e a legenda.
@@ -64,7 +66,11 @@ func near(a, b color.RGBA) bool {
 	return d(a.R, b.R) < 40 && d(a.G, b.G) < 40 && d(a.B, b.B) < 40
 }
 
-var markPink = color.RGBA{230, 0, 120, 255}
+// markColor é a cor que a ref recebe no print (docs/BRAND.md, seção 5.1).
+func markColor(ref string) color.RGBA {
+	fill, _ := brand.MarkColor(brand.RefNumber(ref))
+	return fill
+}
 
 // Critério de aceite da Fase 2: refs do print batem com o snapshot e inspect lê as cores certas.
 func TestScreenshotMarksMatchSnapshot(t *testing.T) {
@@ -81,11 +87,13 @@ func TestScreenshotMarksMatchSnapshot(t *testing.T) {
 	}
 
 	// A borda da marca fica exatamente sobre a borda do botão informada pelo snapshot.
-	left := image.Pt(box.Min.X, box.Min.Y+box.Dy()/2)
-	if got := rgba(marked.At(left.X, left.Y)); got != markPink {
-		t.Fatalf("mark border at %v = %v, want %v", left, got, markPink)
+	// O contorno fica 6 px fora da caixa, com 3 px de espessura.
+	want := markColor(button)
+	left := image.Pt(box.Min.X-5, box.Min.Y+box.Dy()/2)
+	if got := rgba(marked.At(left.X, left.Y)); got != want {
+		t.Fatalf("mark border at %v = %v, want %v", left, got, want)
 	}
-	if got := rgba(plain.At(left.X, left.Y)); got == markPink {
+	if got := rgba(plain.At(left.X, left.Y)); got == want {
 		t.Fatal("unmarked screenshot should not have the mark color")
 	}
 	// Dentro do botão a cor real (#0055aa) continua visível.
@@ -94,8 +102,8 @@ func TestScreenshotMarksMatchSnapshot(t *testing.T) {
 		t.Fatalf("button background at %v = %v", center, got)
 	}
 	// Etiqueta com a ref logo acima da caixa.
-	label := image.Pt(box.Min.X+1, box.Min.Y-2)
-	if got := rgba(marked.At(label.X, label.Y)); !near(got, markPink) {
+	label := image.Pt(box.Min.X-5, box.Min.Y-12)
+	if got := rgba(marked.At(label.X, label.Y)); got != want {
 		t.Fatalf("label background at %v = %v", label, got)
 	}
 }
@@ -137,7 +145,8 @@ func TestScreenshotCropAndFullPage(t *testing.T) {
 	// O link do fim da página também recebe marca, na posição do documento.
 	all := h.ok(t, "snapshot", map[string]any{"full": true})
 	link := boxOf(t, h.ok(t, "inspect", map[string]any{"ref": ref(t, all, "link", "Voltar ao topo")}))
-	if got := rgba(full.At(link.Min.X, link.Min.Y+link.Dy()/2)); got != markPink {
+	linkRef := ref(t, all, "link", "Voltar ao topo")
+	if got := rgba(full.At(link.Max.X-10, link.Min.Y-5)); got != markColor(linkRef) {
 		t.Fatalf("footer link mark at %v = %v", link, got)
 	}
 }

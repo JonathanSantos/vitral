@@ -6,12 +6,15 @@ import (
 	"image/draw"
 	"testing"
 
+	"github.com/JonathanSantos/vitral/internal/brand"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
 
+var paperWhite = color.RGBA{255, 255, 255, 255}
+
 func white(w, h int) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+	draw.Draw(img, img.Bounds(), image.NewUniform(paperWhite), image.Point{}, draw.Src)
 	return img
 }
 
@@ -27,75 +30,117 @@ func TestMarksFrom(t *testing.T) {
 	if len(marks) != 2 {
 		t.Fatalf("want 2 marks (container and empty box skipped), got %+v", marks)
 	}
-	if marks[0].Ref != "e2" || marks[0].Rect != image.Rect(10, 120, 40, 160) || marks[0].Kind != KindAction {
+	if marks[0].Ref != "e2" || marks[0].Rect != image.Rect(10, 120, 40, 160) {
 		t.Fatalf("unexpected mark %+v", marks[0])
-	}
-	if marks[1].Kind != KindText {
-		t.Fatalf("heading should be text kind: %+v", marks[1])
 	}
 }
 
-func TestAnnotate(t *testing.T) {
-	src := white(200, 100)
-	m := Mark{Ref: "e12", Rect: image.Rect(50, 40, 150, 80), Kind: KindAction}
+func TestAnnotateOutline(t *testing.T) {
+	src := white(300, 200)
+	m := Mark{Ref: "e2", Rect: image.Rect(100, 80, 200, 120)} // e2 = Rubi
 	out := Annotate(src, []Mark{m})
+	ruby, _ := brand.MarkColor(2)
 
 	if out.Bounds() != src.Bounds() {
 		t.Fatalf("dimensions changed: %v", out.Bounds())
 	}
-	pink := palette[KindAction]
 	tests := []struct {
 		name string
 		x, y int
 		want color.RGBA
 	}{
-		{"left border", 50, 60, pink},
-		{"right border", 149, 60, pink},
-		{"bottom border", 100, 79, pink},
-		{"inside untouched", 100, 60, color.RGBA{255, 255, 255, 255}},
-		{"outside untouched", 10, 10, color.RGBA{255, 255, 255, 255}},
+		{"left stroke, 6px outside the box", 94, 100, ruby},
+		{"left stroke inner edge", 96, 100, ruby},
+		{"gap between stroke and box", 98, 100, paperWhite},
+		{"inside the box untouched", 150, 100, paperWhite},
+		{"right stroke", 205, 100, ruby},
+		{"bottom stroke", 150, 125, ruby},
+		{"rounded corner stays clear", 94, 125, paperWhite},
+		{"outside untouched", 10, 10, paperWhite},
 	}
 	for _, tt := range tests {
 		if got := out.RGBAAt(tt.x, tt.y); got != tt.want {
 			t.Errorf("%s at (%d,%d) = %v, want %v", tt.name, tt.x, tt.y, got, tt.want)
 		}
 	}
-	if src.RGBAAt(50, 60) != (color.RGBA{255, 255, 255, 255}) {
+	if src.RGBAAt(94, 100) != paperWhite {
 		t.Error("source image must not be modified")
 	}
+}
 
-	// Etiqueta acima da caixa: fundo rosa com texto branco dentro.
-	label := LabelRect(m, src.Bounds())
-	if label != image.Rect(50, 10, 50+(3*7+4)*2, 40) {
-		t.Fatalf("label rect = %v", label)
+func TestLabelColorsAndPosition(t *testing.T) {
+	tests := []struct {
+		ref      string
+		textDark bool
+	}{
+		{"e1", false}, // Safira: texto branco
+		{"e2", true},  // Rubi: texto Chumbo
+		{"e5", false}, // Ametista: texto branco
 	}
-	hasText := false
-	for x := label.Min.X; x < label.Max.X; x++ {
-		for y := label.Min.Y; y < label.Max.Y; y++ {
-			if out.RGBAAt(x, y).R == 255 && out.RGBAAt(x, y).G == 255 {
-				hasText = true
+	for _, tt := range tests {
+		m := Mark{Ref: tt.ref, Rect: image.Rect(100, 80, 200, 120)}
+		out := Annotate(white(300, 200), []Mark{m})
+		label := LabelRect(m, out.Bounds())
+
+		// A etiqueta fica no canto superior esquerdo, cruzando a linha do contorno.
+		if label.Min.X != 94 || label.Min.Y >= 74 || label.Max.Y <= 74 {
+			t.Fatalf("%s label rect = %v", tt.ref, label)
+		}
+		fill, text := brand.MarkColor(brand.RefNumber(tt.ref))
+		var sawFill, sawText bool
+		for x := label.Min.X; x < label.Max.X; x++ {
+			for y := label.Min.Y; y < label.Max.Y; y++ {
+				switch out.RGBAAt(x, y) {
+				case fill:
+					sawFill = true
+				case text:
+					sawText = true
+				}
 			}
 		}
+		if !sawFill || !sawText {
+			t.Errorf("%s label should have fill %v and text %v", tt.ref, fill, text)
+		}
+		if (text == brand.Ink) != tt.textDark {
+			t.Errorf("%s text color = %v", tt.ref, text)
+		}
 	}
-	if !hasText {
-		t.Error("label should contain white text pixels")
+}
+
+func TestLabelRectsAvoidOverlap(t *testing.T) {
+	bounds := image.Rect(0, 0, 400, 400)
+	a := Mark{Ref: "e1", Rect: image.Rect(100, 100, 200, 140)}
+	b := Mark{Ref: "e2", Rect: image.Rect(110, 104, 180, 130)} // etiqueta cairia em cima da de e1
+	rects := LabelRects([]Mark{a, b}, bounds)
+	if rects[0] != LabelRect(a, bounds) {
+		t.Fatalf("first label must stay on top: %v", rects[0])
+	}
+	if rects[1].Overlaps(rects[0]) || rects[1].Min.Y != Outline(b).Max.Y {
+		t.Fatalf("second label should move below its outline: %v (outline %v)", rects[1], Outline(b))
 	}
 }
 
 func TestLabelRectClamps(t *testing.T) {
 	bounds := image.Rect(0, 0, 100, 100)
-	tests := []struct {
-		name string
-		mark image.Rectangle
-		want image.Rectangle
-	}{
-		{"top edge goes inside", image.Rect(10, 0, 50, 20), image.Rect(10, 0, 10+36, 30)},
-		{"right edge shifts left", image.Rect(95, 50, 99, 60), image.Rect(100-36, 20, 100, 50)},
+	r := LabelRect(Mark{Ref: "e1", Rect: image.Rect(2, 0, 50, 20)}, bounds)
+	if !r.In(bounds) {
+		t.Fatalf("label must stay inside the image: %v", r)
 	}
-	for _, tt := range tests {
-		if got := LabelRect(Mark{Ref: "e1", Rect: tt.mark}, bounds); got != tt.want {
-			t.Errorf("%s: got %v want %v", tt.name, got, tt.want)
-		}
+	r = LabelRect(Mark{Ref: "e1", Rect: image.Rect(95, 50, 99, 60)}, bounds)
+	if r.Max.X != 100 {
+		t.Fatalf("label at right edge should shift left: %v", r)
+	}
+}
+
+func TestVisibleUsesOutline(t *testing.T) {
+	bounds := image.Rect(0, 0, 100, 100)
+	marks := []Mark{
+		{Ref: "e1", Rect: image.Rect(10, 10, 20, 20)},
+		{Ref: "e2", Rect: image.Rect(103, 10, 110, 20)}, // só o contorno entra na imagem
+		{Ref: "e3", Rect: image.Rect(200, 10, 210, 20)},
+	}
+	if got := Visible(marks, bounds); len(got) != 2 {
+		t.Fatalf("visible = %+v", got)
 	}
 }
 

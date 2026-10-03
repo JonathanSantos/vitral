@@ -4,7 +4,7 @@ LDFLAGS := -s -w -X github.com/JonathanSantos/vitral/internal/config.Version=$(V
 PLATFORMS := darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 STATICCHECK := go run honnef.co/go/tools/cmd/staticcheck@latest
 
-.PHONY: build dist test integration lint check clean
+.PHONY: build dist test integration lint check clean brand
 
 # Binário para a máquina atual em bin/.
 build:
@@ -30,6 +30,10 @@ lint:
 	$(STATICCHECK) ./... && $(STATICCHECK) -tags integration ./...
 
 check: lint test integration
+
+# Regenera os PNGs de assets/brand a partir dos SVGs (usa o Chrome local, funciona offline).
+brand:
+	go run ./tools/brandgen
 
 clean:
 	rm -rf bin dist

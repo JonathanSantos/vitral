@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Vitral">
+  <defs>
+    <clipPath id="vitral-glass"><path d="M124 436 V208 A132 132 0 0 1 388 208 V436 Z"/></clipPath>
+  </defs>
+  <path d="M96 464 V208 A160 160 0 0 1 416 208 V464 Z" fill="#1E1B2E"/>
+  <g clip-path="url(#vitral-glass)">
+    <rect x="124" y="40" width="120" height="180" fill="#3E63DD"/>
+    <rect x="268" y="40" width="120" height="180" fill="#F5A524"/>
+    <rect x="124" y="244" width="120" height="192" fill="#30A46C"/>
+    <rect x="268" y="244" width="120" height="192" fill="#E5484D"/>
+  </g>
+</svg>
