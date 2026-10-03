@@ -36,6 +36,9 @@ func Register(s *mcp.Server, d Deps) {
 		registerMock(s, d)
 	}
 	registerFlows(s, d)
+	if d.Config.AllowEval {
+		registerEval(s, d)
+	}
 }
 
 func text(s string) *mcp.CallToolResult {

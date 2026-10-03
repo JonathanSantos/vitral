@@ -104,3 +104,15 @@ func TestSecurityFlags(t *testing.T) {
 	}
 	strict.fail(t, "open", map[string]any{"url": strict.url("/pages/api.html")}, "host not allowed")
 }
+
+func TestEvalJSWhenAllowed(t *testing.T) {
+	open, cleanup := newHarness(func(c *config.Config) { c.AllowEval = true })
+	defer cleanup()
+	open.ok(t, "open", map[string]any{"url": open.url("/pages/api.html")})
+
+	mustContain(t, open.ok(t, "eval_js", map[string]any{"expression": "document.title"}), `"Pedidos - Fixture"`)
+	mustContain(t, open.ok(t, "eval_js", map[string]any{"expression": "({a: 1, b: [2]})"}), "\"a\": 1")
+	mustContain(t, open.ok(t, "eval_js", map[string]any{"expression": "Promise.resolve(41 + 1)"}), "42")
+	mustContain(t, open.ok(t, "eval_js", map[string]any{"expression": "undefined"}), "undefined")
+	open.fail(t, "eval_js", map[string]any{"expression": "nope.x"}, "javascript error: ReferenceError")
+}
