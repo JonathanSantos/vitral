@@ -22,7 +22,7 @@ jobs:
       - name: Cache do Chrome for Testing de teste
         uses: actions/cache@v4
         with:
-          path: ~/.vitral/browsers
+          path: ~/.cache/vitral-e2e/browsers
           key: cft-${{ runner.os }}-${{ hashFiles('internal/browser/install/cft.go') }}
       - name: Gate
         run: make check

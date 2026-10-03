@@ -27,7 +27,7 @@ coverage:
   internal/overlay: {criterion: combined, min: 70}
   internal/world:   {criterion: combined, min: 70}
   internal/app:     {criterion: combined, min: 70}
-  internal/browser: {criterion: combined, min: 66, target: 70, note: "cobrir attach e reabertura de aba no e2e (etapa 2)"}
+  internal/browser: {criterion: combined, min: 67, target: 70, note: "cobrir attach e reabertura de aba (etapa 3, vazamento/encerramento)"}
 
   # Cola e ferramentas: cobertos por integração/e2e ou fora do binário.
   cmd/vitral:        {criterion: none}

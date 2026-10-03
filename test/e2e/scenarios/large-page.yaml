@@ -1,0 +1,11 @@
+name: large-page-budget-and-scope
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/large.html" }
+    expect: { contains: ['navigation "Menu principal"', 'list items=120 (showing 5)'], notContains: ['row "#1001'], maxTokens: 2500 }
+  - call: snapshot
+    args: { full: true }
+    expect: { contains: ['list items=120 (showing 5)', 'table "Pedidos" rows=500 (showing 5)'], maxTokens: 2500 }
+  - call: snapshot
+    args: { scope: "{{ref 'table' 'Pedidos'}}", maxLines: 40 }
+    expect: { contains: ['… ', 'more elements'], maxTokens: 1200 }

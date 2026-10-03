@@ -64,8 +64,8 @@ func TestFlowRecordSaveRun(t *testing.T) {
 	h.fail(t, "flow_run", map[string]any{"name": "nao-existe"}, `flow "nao-existe" not found`)
 
 	// A tela mudou: o replay para no passo 6 e explica o que existe agora.
-	renameSubmit.Store(true)
-	defer renameSubmit.Store(false)
+	h.site.RenameSubmit.Store(true)
+	defer h.site.RenameSubmit.Store(false)
 	h.fail(t, "flow_run", map[string]any{"name": "cadastro", "params": map[string]any{"nome": "Ana Lima"}},
 		`6. FAILED click button "Enviar"`)
 	out, _ = h.call(t, "flow_run", map[string]any{"name": "cadastro", "params": map[string]any{"nome": "Ana Lima"}})

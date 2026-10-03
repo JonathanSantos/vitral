@@ -1,0 +1,19 @@
+name: form-submit
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/form.html" }
+    expect: { contains: ['textbox "Nome"', 'combobox "País"'], isError: false }
+  - call: type
+    args: { ref: "{{ref 'textbox' 'Nome'}}", text: "Maria" }
+    expect: { contains: ['value="Maria"'] }
+  - call: type
+    args: { ref: "{{ref 'textbox' 'E-mail'}}", text: "maria@exemplo.test" }
+  - call: select
+    args: { ref: "{{ref 'combobox' 'País'}}", option: "Brasil" }
+    expect: { contains: ['value="Brasil"'] }
+  - call: click
+    args: { ref: "{{ref 'checkbox' 'Aceito os termos'}}" }
+    expect: { contains: ["checked"] }
+  - call: click
+    args: { ref: "{{ref 'button' 'Enviar'}}" }
+    expect: { contains: ["Cadastro enviado: Maria / maria@exemplo.test / Brasil"] }

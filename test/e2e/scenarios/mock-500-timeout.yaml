@@ -1,0 +1,21 @@
+name: mock-500-and-timeout
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/api.html" }
+  - call: mock_add
+    args: { urlPattern: "*/api/orders*", status: 500, body: '{"error":"boom"}' }
+    expect: { contains: ["mock added", "→ 500"] }
+  - call: click
+    args: { ref: "{{ref 'button' 'Carregar pedidos'}}" }
+    expect: { contains: ['alert "Erro ao carregar pedidos (HTTP 500)"', "mocked"] }
+  - call: mock_clear
+  - call: mock_add
+    args: { urlPattern: "/api/orders", fail: "timeout" }
+  - call: click
+    args: { ref: "{{ref 'button' 'Carregar pedidos'}}" }
+    expect: { contains: ['alert "Sem conexão com o servidor"'] }
+  - call: network_list
+    args: { filter: "/api/orders" }
+    expect: { regex: 'GET 500 .*mocked', contains: ["failed", "net::ERR_TIMED_OUT"] }
+  - call: mock_clear
+    expect: { contains: ["mock(s) removed"] }

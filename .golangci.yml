@@ -2,7 +2,7 @@
 version: "2"
 
 run:
-  build-tags: [integration, network]
+  build-tags: [integration, network, e2e]
 
 linters:
   default: none
@@ -23,7 +23,7 @@ linters:
       locale: US
       # Comentários e mensagens para pessoas são em português (padrão do projeto); estas palavras
       # existem em português e não são erros de inglês.
-      ignore-rules: [comando, comandos, progresso, argumentos, respondendo, reinstale, resolvendo]
+      ignore-rules: [comando, comandos, progresso, argumentos, respondendo, reinstale, resolvendo, processos]
     errcheck:
       # Best-effort: fechar arquivo/corpo depois de ler, apagar temporários e escrever no terminal.
       # Caminhos de escrita conferem o Close explicitamente.

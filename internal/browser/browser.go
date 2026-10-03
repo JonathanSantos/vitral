@@ -3,6 +3,7 @@ package browser
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -99,7 +100,41 @@ func (m *Manager) ensureBrowser() error {
 		return fmt.Errorf("connect to browser at %s: %w", controlURL, err)
 	}
 	m.browser = b
+	m.writeDebugInfo(controlURL)
 	return nil
+}
+
+// DebugInfo é o que o Vitral expõe para testes e diagnóstico (--debug-info): onde está o CDP
+// e qual processo ele lançou (0 no attach).
+type DebugInfo struct {
+	ControlURL string `json:"controlURL"`
+	PID        int    `json:"pid"`
+	ProfileDir string `json:"profileDir"`
+	Attached   bool   `json:"attached"`
+}
+
+// LaunchedPIDs devolve os processos de navegador que este Vitral lançou.
+func (m *Manager) LaunchedPIDs() []int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.launched == nil {
+		return nil
+	}
+	return []int{m.launched.PID()}
+}
+
+func (m *Manager) writeDebugInfo(controlURL string) {
+	if m.cfg.DebugInfoFile == "" {
+		return
+	}
+	info := DebugInfo{ControlURL: controlURL, ProfileDir: m.cfg.ProfileDir, Attached: m.launched == nil}
+	if m.launched != nil {
+		info.PID = m.launched.PID()
+	}
+	data, _ := json.Marshal(info)
+	if err := os.WriteFile(m.cfg.DebugInfoFile, data, 0o600); err != nil {
+		m.log.Warn("write debug info", "err", err)
+	}
 }
 
 func (m *Manager) controlURL() (string, error) {
@@ -137,6 +172,9 @@ func (m *Manager) launch() (string, error) {
 		Set("window-size", strconv.Itoa(w), strconv.Itoa(h)).
 		Set("remote-debugging-address", "127.0.0.1").
 		Logger(m.chromeLogWriter())
+	if m.cfg.Lang != "" {
+		l = l.Set("lang", m.cfg.Lang)
+	}
 	m.log.Info("launching browser", "bin", bin, "headless", m.cfg.Headless, "profile", m.cfg.ProfileDir)
 	u, err := l.Launch()
 	if err != nil {

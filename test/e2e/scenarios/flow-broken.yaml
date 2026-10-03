@@ -1,0 +1,24 @@
+name: flow-broken-renamed-button
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/form.html" }
+    save: { first: 'step #(\d+)' }
+  - call: type
+    args: { ref: "{{ref 'textbox' 'Nome'}}", text: "Ana Lima" }
+  - call: click
+    args: { ref: "{{ref 'checkbox' 'Aceito os termos'}}" }
+  - call: click
+    args: { ref: "{{ref 'button' 'Enviar'}}" }
+  - call: flow_save
+    args: { name: "envio", fromStep: '{{var "first"}}' }
+  - fixture: { renameSubmit: true }
+  - call: flow_run
+    args: { name: "envio" }
+    expect:
+      isError: true
+      contains:
+        - '4. FAILED click button "Enviar"'
+        - 'reason: no button "Enviar" found. button elements on the page:'
+        - '"Confirmar"'
+        - "stopped at step 4 of 4."
+        - "current page:"

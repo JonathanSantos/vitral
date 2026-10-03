@@ -3,20 +3,15 @@
 package app_test
 
 import (
-	"bytes"
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,13 +21,14 @@ import (
 	"github.com/JonathanSantos/vitral/internal/app"
 	"github.com/JonathanSantos/vitral/internal/browser"
 	"github.com/JonathanSantos/vitral/internal/config"
+	"github.com/JonathanSantos/vitral/test/fixtures"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
 // harness sobe um único Chromium headless para o pacote inteiro, falando via cliente MCP real.
 type harness struct {
-	site    *httptest.Server
+	site    *fixtures.Server
 	session *mcp.ClientSession
 	app     *app.App
 }
@@ -50,7 +46,7 @@ func TestMain(m *testing.M) {
 
 // newHarness aceita mudanças de configuração (ex.: allowedHosts) para harnesses extras.
 func newHarness(tweak func(*config.Config)) (*harness, func()) {
-	site := httptest.NewServer(fixtureMux())
+	site := fixtures.New()
 	profile, err := os.MkdirTemp("", "vitral-test-*")
 	if err != nil {
 		panic(err)
@@ -91,9 +87,6 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	}
 }
 
-// renameSubmit simula uma mudança na tela: o botão "Enviar" do form.html vira "Confirmar".
-var renameSubmit atomic.Bool
-
 // testBrowserPath escolhe o navegador dos testes: VITRAL_BROWSER_PATH, o Chrome for Testing
 // gerenciado se já estiver baixado, ou o Chrome instalado na máquina.
 func testBrowserPath() string {
@@ -108,32 +101,6 @@ func testBrowserPath() string {
 	}
 	p, _ := launcher.LookPath()
 	return p
-}
-
-// fixtureMux serve testdata/pages e uma API fake usada pelas fixtures.
-func fixtureMux() *http.ServeMux {
-	mux := http.NewServeMux()
-	dir := filepath.Join("..", "..", "testdata", "pages")
-	pages := http.FileServer(http.Dir(dir))
-	mux.Handle("/pages/", http.StripPrefix("/pages/", pages))
-	mux.HandleFunc("/pages/form.html", func(w http.ResponseWriter, r *http.Request) {
-		html, err := os.ReadFile(filepath.Join(dir, "form.html"))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if renameSubmit.Load() {
-			html = bytes.ReplaceAll(html, []byte(`<button type="submit">Enviar</button>`), []byte(`<button type="submit">Confirmar</button>`))
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(html)
-	})
-	mux.HandleFunc("/api/orders", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Set-Cookie", "session=secret")
-		fmt.Fprint(w, `{"orders":[{"id":1023,"status":"Aprovado","total":450},{"id":1024,"status":"Pendente","total":99.9}]}`)
-	})
-	return mux
 }
 
 func (h *harness) url(path string) string { return h.site.URL + path }

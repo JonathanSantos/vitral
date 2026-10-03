@@ -1,0 +1,12 @@
+name: navigation-and-back
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/form.html" }
+  - call: scroll
+    args: { direction: "down", amount: 2000 }
+    expect: { contains: ['link "Link do rodapé"'] }
+  - call: click
+    args: { ref: "{{ref 'link' 'Link do rodapé'}}" }
+    expect: { contains: ["bottom=1", "page: "] }
+  - call: back
+    expect: { regex: '/pages/form\.html\)' }

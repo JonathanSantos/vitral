@@ -1,0 +1,23 @@
+name: flow-record-and-rerun
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/form.html" }
+    save: { first: 'step #(\d+)' }
+  - call: type
+    args: { ref: "{{ref 'textbox' 'Nome'}}", text: "Maria Silva" }
+  - call: select
+    args: { ref: "{{ref 'combobox' 'País'}}", option: "Brasil" }
+  - call: click
+    args: { ref: "{{ref 'checkbox' 'Aceito os termos'}}" }
+  - call: click
+    args: { ref: "{{ref 'button' 'Enviar'}}" }
+  - call: wait_for
+    args: { text: "Cadastro enviado: Maria Silva" }
+  - call: flow_save
+    args: { name: "cadastro", fromStep: '{{var "first"}}', params: { nome: "Maria Silva" } }
+    expect: { contains: ['step 2 type.text: "Maria Silva" → "{{nome}}"', 'wait_for.text: "Cadastro enviado: Maria Silva" → "Cadastro enviado: {{nome}}"'] }
+  - call: flow_list
+    expect: { contains: ["cadastro (params: nome; 6 steps)"] }
+  - call: flow_run
+    args: { name: "cadastro", params: { nome: "João Souza" } }
+    expect: { contains: ["done: 6/6 steps passed.", 'alert "Cadastro enviado: João Souza'] }

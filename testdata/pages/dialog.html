@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Dialog cobrindo - Fixture</title>
+  <style>
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; }
+    .overlay.closed { display: none; }
+    .overlay [role=dialog] { background: #fff; padding: 16px; }
+  </style>
+</head>
+<body>
+  <form id="f" aria-label="Contato">
+    <label for="nome">Nome</label>
+    <input id="nome">
+    <button type="submit">Enviar</button>
+  </form>
+  <p id="estado" role="status"></p>
+  <div class="overlay" id="overlay">
+    <div role="dialog" aria-modal="true" aria-labelledby="t">
+      <h2 id="t">Aceite os cookies</h2>
+      <button type="button" id="fechar">Fechar</button>
+    </div>
+  </div>
+  <script>
+    document.getElementById('fechar').addEventListener('click', () => document.getElementById('overlay').classList.add('closed'));
+    document.getElementById('f').addEventListener('submit', (e) => {
+      e.preventDefault();
+      document.getElementById('estado').textContent = 'Mensagem enviada por ' + document.getElementById('nome').value;
+    });
+  </script>
+</body>
+</html>

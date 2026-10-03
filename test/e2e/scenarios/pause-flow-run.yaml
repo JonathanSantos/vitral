@@ -1,0 +1,31 @@
+name: pause-in-the-middle-of-flow-run
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/api.html" }
+    save: { first: 'step #(\d+)' }
+  - call: mock_add
+    args: { urlPattern: "/api/orders", delayMs: 3000, body: '{"orders":[{"id":9,"status":"Lento","total":1}]}' }
+  - call: click
+    args: { ref: "{{ref 'button' 'Carregar pedidos'}}" }
+  - call: wait_for
+    args: { text: "1 pedidos carregados", timeoutMs: 10000 }
+  - call: wait_for
+    args: { text: "Lento" }
+  - call: flow_save
+    args: { name: "lento", fromStep: '{{var "first"}}' }
+  - call: mock_clear
+  - call: flow_run
+    args: { name: "lento" }
+    async: run
+  - waitOverlay: "Executando fluxo: lento · passo 4 de 5"
+  - pause: true
+  - await: run
+    expect: { contains: ["4. ok wait_for", "Flow lento stopped before step 5 of 5: paused by the user"] }
+  - call: click
+    args: { ref: "{{ref 'button' 'Carregar pedidos'}}" }
+    expect: { contains: ["Paused by the user"], isError: false }
+  - call: snapshot
+    expect: { contains: ['button "Carregar pedidos"'] }
+  - call: network_list
+  - resume: true
+  - call: mock_clear

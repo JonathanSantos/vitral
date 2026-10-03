@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Re-render - Fixture</title>
+</head>
+<body>
+  <label for="nome">Nome</label>
+  <input id="nome">
+  <div id="acoes"></div>
+  <p id="estado" role="status"></p>
+  <script>
+    // Simula um framework que recria os botões (elementos novos, refs novas).
+    let versao = 0;
+    window.rerender = () => {
+      versao++;
+      const acoes = document.getElementById('acoes');
+      acoes.innerHTML = '';
+      const b = document.createElement('button');
+      b.textContent = 'Salvar';
+      b.dataset.versao = String(versao);
+      b.addEventListener('click', () => {
+        document.getElementById('estado').textContent = 'Salvo: ' + document.getElementById('nome').value;
+      });
+      acoes.appendChild(b);
+    };
+    window.rerender();
+  </script>
+</body>
+</html>

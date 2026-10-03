@@ -53,6 +53,11 @@ type Config struct {
 	HighlightMs int  `yaml:"highlightMs"`
 	NoOverlay   bool `yaml:"noOverlay"`
 
+	// Lang fixa o idioma do navegador (ex.: pt-BR); vazio = idioma do sistema.
+	Lang string `yaml:"lang"`
+	// DebugInfoFile recebe a URL do CDP e o PID do navegador lançado (testes e diagnóstico).
+	DebugInfoFile string `yaml:"debugInfoFile"`
+
 	FlowsDir string `yaml:"flowsDir"`
 	LogLevel string `yaml:"logLevel"`
 }
@@ -167,6 +172,8 @@ func parseFlags(cfg *Config, args []string) error {
 	fset.IntVar(&cfg.ConsoleBuffer, "console-buffer", cfg.ConsoleBuffer, "max console messages kept")
 	fset.IntVar(&cfg.HighlightMs, "highlight-ms", cfg.HighlightMs, "how long the target blinks before each action (0 disables; default 350, off in headless)")
 	fset.BoolVar(&cfg.NoOverlay, "no-overlay", cfg.NoOverlay, "hide the highlight and status badge (the pause button stays)")
+	fset.StringVar(&cfg.Lang, "lang", cfg.Lang, "browser language, e.g. pt-BR (default: system)")
+	fset.StringVar(&cfg.DebugInfoFile, "debug-info", cfg.DebugInfoFile, "write the browser CDP URL and PID to this file (tests and diagnostics)")
 	fset.StringVar(&cfg.FlowsDir, "flows-dir", cfg.FlowsDir, "directory for saved flows")
 	fset.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "debug, info, warn or error")
 

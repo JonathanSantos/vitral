@@ -1,0 +1,15 @@
+name: mock-delay-shows-loading
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/api.html" }
+  - call: mock_add
+    args: { urlPattern: "/api/orders", delayMs: 2500, body: '{"orders":[{"id":7,"status":"Lento","total":1}]}' }
+  - call: click
+    args: { ref: "{{ref 'button' 'Carregar pedidos'}}" }
+    expect: { contains: ['status "Carregando pedidos…"'], notContains: ["did not settle"] }
+  - call: wait_for
+    args: { text: "Carregando pedidos" }
+  - call: wait_for
+    args: { text: "1 pedidos carregados" }
+    expect: { contains: ['row "#7 | Lento | R$ 1"'] }
+  - call: mock_clear
