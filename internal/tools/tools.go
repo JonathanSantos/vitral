@@ -26,6 +26,7 @@ func Register(s *mcp.Server, d Deps) {
 	registerNavigation(s, d)
 	registerActions(s, d)
 	registerVision(s, d)
+	registerObserve(s, d)
 }
 
 func text(s string) *mcp.CallToolResult {

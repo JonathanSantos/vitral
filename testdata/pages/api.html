@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Pedidos - Fixture</title>
+</head>
+<body>
+  <h1>Pedidos</h1>
+  <button id="carregar">Carregar pedidos</button>
+  <button id="salvar">Salvar pedido</button>
+  <button id="quebrar">Gerar erro</button>
+  <p id="estado" role="status"></p>
+  <table aria-label="Pedidos"><tbody id="linhas"></tbody></table>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const setState = (text, isError) => {
+      const el = $('estado');
+      el.textContent = text;
+      el.setAttribute('role', isError ? 'alert' : 'status');
+    };
+    $('carregar').addEventListener('click', async () => {
+      setState('Carregando pedidos…');
+      $('linhas').innerHTML = '';
+      try {
+        const res = await fetch('/api/orders', { headers: { Authorization: 'Bearer segredo-123' } });
+        if (!res.ok) {
+          console.error('falha ao carregar pedidos', res.status);
+          setState(`Erro ao carregar pedidos (HTTP ${res.status})`, true);
+          return;
+        }
+        const data = await res.json();
+        for (const o of data.orders) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>#${o.id}</td><td>${o.status}</td><td>R$ ${o.total}</td>`;
+          $('linhas').appendChild(tr);
+        }
+        console.log('pedidos carregados', data.orders.length);
+        setState(`${data.orders.length} pedidos carregados`);
+      } catch (err) {
+        console.error('erro de conexão', err.message);
+        setState('Sem conexão com o servidor', true);
+      }
+    });
+    $('salvar').addEventListener('click', async () => {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 1025, status: 'Novo' }),
+      });
+      setState(res.ok ? 'Pedido salvo' : `Erro ao salvar (HTTP ${res.status})`, !res.ok);
+    });
+    $('quebrar').addEventListener('click', () => {
+      setTimeout(() => { const pedido = null; pedido.total; }, 0);
+    });
+  </script>
+</body>
+</html>

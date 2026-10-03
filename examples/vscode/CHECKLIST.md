@@ -32,3 +32,14 @@ Pré-requisitos: binário `browser-mcp` no PATH (ou caminho absoluto em `command
    hex (ex.: `color: #ffffff`, `background: #0055aa`).
 3. Peça: *"Tire um print só do botão X"* (`screenshot` com `ref`). Vem só o recorte do elemento.
 4. Peça: *"Tire um print da página inteira"* (`fullPage`). A imagem inclui o rodapé.
+
+## Fase 3: rede e console
+
+1. Abra uma tela que chama uma API (ex.: a listagem do seu sistema) e peça:
+   *"Quais chamadas de API a tela fez?"*. A IA usa `network_list` e mostra linhas
+   `id METHOD STATUS URL (ms, tamanho)`.
+2. Peça: *"Mostre o retorno da chamada X"*. Em `network_get` vem o JSON formatado, e headers como
+   `Authorization` e `Cookie` aparecem como `***`.
+3. Peça: *"Tem algum erro no console?"*. Em `console_list` vêm as mensagens com `arquivo:linha`.
+4. Clique em algo que gera erro. A resposta da própria ação já traz `console: N new error(s)` e/ou
+   `network: N failed request(s)`.

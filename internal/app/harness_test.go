@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -146,6 +147,15 @@ func ref(t *testing.T, snapshot, role, name string) string {
 		t.Fatalf("no %s %q in:\n%s", role, name, snapshot)
 	}
 	return m[1]
+}
+
+func atoi(t *testing.T, s string) int {
+	t.Helper()
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
 
 func mustContain(t *testing.T, text string, wants ...string) {
