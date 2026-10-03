@@ -86,20 +86,29 @@ func TestLabelColorsAndPosition(t *testing.T) {
 		if label.Min.X != 94 || label.Min.Y >= 74 || label.Max.Y <= 74 {
 			t.Fatalf("%s label rect = %v", tt.ref, label)
 		}
+		if label.Dy() != labelH || label.Dx() < 30 {
+			t.Fatalf("%s label size = %v", tt.ref, label.Size())
+		}
 		fill, text := brand.MarkColor(brand.RefNumber(tt.ref))
-		var sawFill, sawText bool
+		var sawFill, sawText, sawBlend bool
 		for x := label.Min.X; x < label.Max.X; x++ {
 			for y := label.Min.Y; y < label.Max.Y; y++ {
-				switch out.RGBAAt(x, y) {
-				case fill:
+				switch c := out.RGBAAt(x, y); {
+				case c == fill:
 					sawFill = true
-				case text:
+				case c == text:
 					sawText = true
+				case c != paperWhite:
+					sawBlend = true
 				}
 			}
 		}
 		if !sawFill || !sawText {
 			t.Errorf("%s label should have fill %v and text %v", tt.ref, fill, text)
+		}
+		// Go Mono com antialias: as bordas das letras misturam texto e fundo (a bitmap não tinha isso).
+		if !sawBlend {
+			t.Errorf("%s label text should be anti-aliased", tt.ref)
 		}
 		if (text == brand.Ink) != tt.textDark {
 			t.Errorf("%s text color = %v", tt.ref, text)

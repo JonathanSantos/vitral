@@ -115,6 +115,17 @@ internal/network, console, mock, flow, browser, security, brand, config, ring
 tools/brandgen      gera os PNGs da marca (não entra no binário)
 ```
 
+### Limitações conhecidas
+
+- **Pausar só com o teclado não funciona na v1.** Os botões do selo têm `tabindex="-1"` para que um
+  `press Tab` da IA não caia neles e mude o foco da página. Quem usa apenas o teclado ainda não consegue
+  pausar.
+
+### Próxima versão
+
+- Atalho de teclado para pausar e retomar, resolvendo a limitação acima sem expor os botões do selo
+  à navegação por Tab da página.
+
 ### Testes e build
 
 ```bash

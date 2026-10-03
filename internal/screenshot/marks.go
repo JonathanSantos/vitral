@@ -9,10 +9,13 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"sync"
 
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font/gofont/gomono"
+	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 
 	"github.com/JonathanSantos/vitral/internal/brand"
@@ -75,14 +78,31 @@ const (
 	Stroke       = 3
 	OutlineGap   = 6
 	OutlineRound = 6
-	labelPadX    = 3
-	charWidth    = 7
-	// glyphH cobre só a altura útil das refs (letras minúsculas e dígitos, sem descendentes).
-	glyphH     = 12
-	labelRound = 6
-	// labelScale amplia a fonte bitmap 7x13: em tamanho natural ela fica ilegível para modelos de visão.
-	labelScale = 2
+	labelRound   = 6
+	// Etiqueta em Go Mono 22 px: legível para modelos de visão e do mesmo tamanho da versão em bitmap.
+	labelFontSize = 22
+	labelPadX     = 6
+	labelH        = 24
 )
+
+// labelFace é a Go Mono lisa (antialias). Uma opentype.Face não é segura para uso concorrente.
+var (
+	labelMu   sync.Mutex
+	labelFace = loadLabelFace()
+)
+
+// loadLabelFace carrega a fonte embutida no x/image; se falhar, cai na fonte bitmap.
+func loadLabelFace() font.Face {
+	f, err := opentype.Parse(gomono.TTF)
+	if err != nil {
+		return basicfont.Face7x13
+	}
+	face, err := opentype.NewFace(f, &opentype.FaceOptions{Size: labelFontSize, DPI: 72, Hinting: font.HintingFull})
+	if err != nil {
+		return basicfont.Face7x13
+	}
+	return face
+}
 
 // Outline é o retângulo externo do contorno: a bounding box afastada OutlineGap px.
 func Outline(m Mark) image.Rectangle {
@@ -171,7 +191,9 @@ func fillRoundedRect(img *image.RGBA, r image.Rectangle, rad int, c color.RGBA) 
 }
 
 func labelSize(ref string) image.Point {
-	return image.Pt((len(ref)*charWidth+2*labelPadX)*labelScale, glyphH*labelScale)
+	labelMu.Lock()
+	defer labelMu.Unlock()
+	return image.Pt(font.MeasureString(labelFace, ref).Ceil()+2*labelPadX, labelH)
 }
 
 // LabelRect posiciona a etiqueta no canto superior esquerdo do contorno, sobrepondo a linha.
@@ -225,16 +247,19 @@ func drawLabel(img *image.RGBA, ref string, r image.Rectangle) {
 	fill, text := brand.MarkColor(brand.RefNumber(ref))
 	fillRoundedRect(img, r, labelRound, fill)
 
-	// Desenha o texto em tamanho natural num rascunho transparente e amplia com vizinho mais próximo.
-	small := image.NewRGBA(image.Rect(0, 0, r.Dx()/labelScale, r.Dy()/labelScale))
+	labelMu.Lock()
+	defer labelMu.Unlock()
+	// Centraliza verticalmente pela caixa real dos glifos (refs não têm descendentes).
+	bounds, _ := font.BoundString(labelFace, ref)
+	glyphTop, glyphBottom := bounds.Min.Y.Floor(), bounds.Max.Y.Ceil()
+	baseline := r.Min.Y + (r.Dy()-(glyphBottom-glyphTop))/2 - glyphTop
 	d := font.Drawer{
-		Dst:  small,
+		Dst:  img,
 		Src:  image.NewUniform(text),
-		Face: basicfont.Face7x13,
-		Dot:  fixed.P(labelPadX, basicfont.Face7x13.Ascent),
+		Face: labelFace,
+		Dot:  fixed.P(r.Min.X+labelPadX, baseline),
 	}
 	d.DrawString(ref)
-	xdraw.NearestNeighbor.Scale(img, r, small, small.Bounds(), xdraw.Over, nil)
 }
 
 // Crop recorta a imagem (com margem) em volta de r.
