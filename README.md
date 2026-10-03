@@ -1,123 +1,129 @@
-# Vitral
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-dark.png">
+    <img src="assets/brand/logo.png" alt="vitral" width="300">
+  </picture>
+</p>
 
-Deixa o **GitHub Copilot** (no VS Code) usar um navegador de verdade por você: abrir telas, clicar,
-preencher formulários, tirar prints, olhar as chamadas de API e repetir tarefas gravadas.
+<p align="center"><strong>Uma janela que a IA consegue ler.</strong></p>
 
-Você continua vendo tudo: o navegador abre numa janela normal na sua tela.
+O Vitral deixa o GitHub Copilot usar um navegador de verdade enquanto você acompanha: abrir telas,
+preencher formulários, tirar prints, conferir o que a API respondeu e repetir tarefas gravadas. Cada
+pedaço da tela ganha um número e uma cor, e você vê na janela o que a IA vai fazer antes de ela fazer.
 
-## 1. Instalar
+<!-- TODO: GIF da demonstração (roteiro em docs/demo.md) -->
 
-1. Baixe o arquivo do seu computador na página de releases:
-   - Windows: `vitral_..._windows_amd64.zip`
-   - Mac com chip Apple (M1, M2…): `vitral_..._darwin_arm64.tar.gz`
-   - Mac com Intel: `vitral_..._darwin_amd64.tar.gz`
-   - Linux: `vitral_..._linux_amd64.tar.gz`
-2. Descompacte e guarde o programa `vitral` (no Windows, `vitral.exe`) numa pasta fixa, por
-   exemplo `C:\Ferramentas\` ou `~/ferramentas/`.
-3. **Só no Mac:** na primeira vez, abra o Terminal e rode o comando abaixo (troque o caminho se
-   tiver guardado em outro lugar). Ele libera o programa baixado da internet:
+## Comece em 3 passos
+
+1. **Baixe** o Vitral do seu computador na [página de versões](https://github.com/JonathanSantos/vitral/releases)
+   e descompacte.
+2. **Rode** dentro da pasta do seu projeto, no terminal:
 
    ```bash
-   xattr -d com.apple.quarantine ~/ferramentas/vitral
+   vitral setup
    ```
 
-Se você tiver o Google Chrome instalado, ele é usado. Se não tiver, o programa baixa o Chromium
-sozinho na primeira vez (pode levar um ou dois minutos).
+   (no Mac, se aparecer um aviso de segurança na primeira vez: `xattr -d com.apple.quarantine vitral`)
+3. **Abra o Copilot** no VS Code, no modo Agent, digite `/` e escolha um prompt do Vitral.
 
-## 2. Ligar no VS Code
+## O que dá para pedir
 
-1. No seu projeto, crie o arquivo `.vscode/mcp.json` com o conteúdo abaixo.
-2. Troque `vitral` em `command` pelo caminho completo do programa, por exemplo
-   `C:\\Ferramentas\\vitral.exe` ou `/Users/voce/ferramentas/vitral`.
-
-```json
-{
-  "servers": {
-    "vitral": {
-      "type": "stdio",
-      "command": "vitral",
-      "args": ["--profile-dir", "${userHome}/.vitral/profile"]
-    }
-  }
-}
-```
-
-3. Salve o arquivo. Aparece um botão **Start** em cima do servidor `vitral`: clique nele.
-4. Abra o chat do Copilot no modo **Agent**. Pronto.
-
-## 3. Usar
-
-Peça em português mesmo, por exemplo:
-
-- *"Abra https://portal.empresa.com/pedidos e me diga o que tem na tela."*
-- *"Busque o pedido 1023 e me mostre os detalhes."*
-- *"Tire um print da tela."*
-- *"A tela mostrou erro. O que a API respondeu?"*
-
-### Prompts prontos
-
-Copie a pasta [`examples/vscode/.github/prompts`](examples/vscode/.github/prompts) para dentro do seu
-projeto (fica `.github/prompts`). No chat, digite `/` e escolha:
-
-| Prompt | Para quê |
+| Prompt | O que faz |
 |---|---|
-| `/descrever-tela` | Abre uma página e explica o que tem nela. |
-| `/testar-api-fora` | Mostra como a tela fica com a API com erro, lenta ou fora do ar (sem mexer no servidor real). |
-| `/executar-fluxo` | Repete uma tarefa gravada, passo a passo. |
+| `/vitral-descrever-tela` | Abre uma página e explica a tela em linguagem simples. |
+| `/vitral-preencher-formulario` | Preenche um formulário com os dados que você colar e para antes de enviar. |
+| `/vitral-testar-api-fora` | Mostra como a tela fica quando a API dá erro, demora ou cai. |
+| `/vitral-gravar-fluxo` | Faz uma tarefa com você e salva para repetir depois. |
+| `/vitral-executar-fluxo` | Repete uma tarefa gravada, passo a passo. |
 
-### Gravar e repetir tarefas
+Ou peça do seu jeito: *"Abra o portal de pedidos e busque o pedido 1023."*
 
-Depois de fazer uma tarefa pelo chat, peça: *"Salve isso como fluxo `buscar-pedido`, com o número do
-pedido como parâmetro."* Da próxima vez: *"Rode o fluxo buscar-pedido com o número 2048."* O fluxo roda
-sozinho, sem a IA improvisar. Os fluxos ficam em `.vitral/flows/` no seu projeto.
+## É seguro?
 
-## Segurança
+- **A IA usa um navegador separado do seu**, com perfil próprio. Seus logins do dia a dia não são usados.
+- **Quem digita senhas é você.** Quando aparece um campo de senha, o Vitral pausa e mostra "Sua vez".
+- **Você pode pausar a qualquer momento** pelo botão "⏸ Pausar IA" no canto da janela do navegador.
+- **Nada sai do seu computador** além do que a IA já vê no chat.
 
-- **Login é sempre com você.** A IA não digita senhas. Quando aparecer uma tela de login, entre pela
-  janela do navegador. O navegador usa um perfil próprio (`~/.vitral/profile`), separado do seu
-  Chrome do dia a dia, e lembra o login nas próximas vezes.
-- Valores de `Authorization`, `Cookie` e afins aparecem como `***` para a IA.
-- Para limitar os sites, adicione em `args`: `"--allowed-hosts", "portal.empresa.com,*.empresa.com"`.
-
-## Problemas comuns
-
-| Problema | O que fazer |
-|---|---|
-| O servidor não inicia | Confira o caminho em `command`. No VS Code: **MCP: List Servers → browser → Show Output**. |
-| "profile may be in use" | Outra janela do VS Code já está usando o navegador. Feche-a, ou use outro `--profile-dir`. |
-| A IA diz "ref not found" | A tela mudou. Ela mesma deve pedir um `snapshot` novo; se não pedir, peça você. |
-| Quero o navegador escondido | Adicione `"--headless"` em `args`. |
+Algo estranho? Rode `vitral doctor`: ele confere tudo e diz o que fazer.
 
 ---
 
 ## Para desenvolvedores
 
-Requer Go (versão estável mais recente). A spec completa está em [`docs/SPEC.md`](docs/SPEC.md) e o
-roteiro de validação manual no Copilot em [`examples/vscode/CHECKLIST.md`](examples/vscode/CHECKLIST.md).
+Servidor MCP (stdio) em Go, binário único, que controla um Chromium via [rod](https://github.com/go-rod/rod).
+Especificação em [`docs/SPEC.md`](docs/SPEC.md), identidade em [`docs/BRAND.md`](docs/BRAND.md), experiência
+de uso em [`docs/UX-TASKS.md`](docs/UX-TASKS.md) e roteiro de validação manual em
+[`examples/vscode/CHECKLIST.md`](examples/vscode/CHECKLIST.md).
+
+### Ferramentas MCP
+
+| Grupo | Ferramentas |
+|---|---|
+| Navegação e ações | `open`, `snapshot`, `click`, `type`, `select`, `press`, `scroll`, `wait_for`, `back` |
+| Visão | `screenshot` (com marcações por ref), `inspect` |
+| Rede e console | `network_list`, `network_get`, `console_list` |
+| Simulação | `mock_add`, `mock_list`, `mock_clear`, `emulate` |
+| Fluxos | `flow_save`, `flow_list`, `flow_run` |
+| Opcional | `eval_js` (só com `--allow-eval`) |
+
+As ações devolvem só o que mudou na tela. Enquanto a pessoa pausa, as ferramentas que agem respondem
+(sem erro) que estão pausadas, e as de leitura continuam funcionando.
+
+### Comandos e configuração
 
 ```bash
-make build        # bin/vitral
-make dist         # binários de todas as plataformas em dist/
-make check        # vet + staticcheck + testes unitários + integração (Chromium headless)
+vitral                   # no terminal: ajuda; sem terminal (VS Code): servidor MCP
+vitral setup [--global] [--yes]
+vitral doctor
+vitral version
 ```
 
-Os releases saem com `goreleaser release --clean` a partir de uma tag.
+O `setup` instala o binário em `~/.vitral/bin` e aponta o `.vscode/mcp.json` (ou o do usuário, com
+`--global`) para ele, preservando comentários. Rodar de novo com um binário novo é a forma de atualizar.
 
-Principais flags (também aceitas em `vitral.yaml` no diretório de trabalho):
+Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
 
 | Flag | Padrão | Descrição |
 |---|---|---|
 | `--headless` | `false` | Navegador sem janela. |
-| `--attach ws://…` / `--attach-port 9222` | | Conecta num Chrome já aberto com `--remote-debugging-port` (o Chrome exige um `--user-data-dir` separado). Nunca fecha esse Chrome. |
+| `--attach ws://…` / `--attach-port 9222` | | Conecta num Chrome aberto com `--remote-debugging-port` e um `--user-data-dir` separado. Nunca o fecha. |
 | `--profile-dir` | `~/.vitral/profile` | Perfil dedicado do navegador. |
 | `--allowed-hosts` | | Hosts permitidos para navegação e mock (globs, separados por vírgula). |
-| `--allow-eval` | `false` | Registra a ferramenta `eval_js`. |
+| `--allow-eval` | `false` | Registra `eval_js`. |
 | `--disable-mock` | `false` | Remove as ferramentas de mock. |
+| `--highlight-ms` | `350` (0 em headless) | Tempo do destaque antes de cada ação; `0` desliga. |
+| `--no-overlay` | `false` | Sem destaque e sem texto no selo; o botão de pausa continua. |
 | `--stability-timeout` | `10s` | Espera máxima para a página assentar depois de cada ação. |
 | `--nav-timeout` | `15s` | Tempo máximo de navegação. |
 | `--flows-dir` | `.vitral/flows` | Onde os fluxos são salvos. |
-| `--log-level` | `info` | Logs vão sempre para stderr; stdout é só do protocolo MCP. |
+| `--log-level` | `info` | Logs sempre em stderr; stdout é só do protocolo MCP. |
 
-Ferramentas: `open`, `snapshot`, `click`, `type`, `select`, `press`, `scroll`, `wait_for`, `back`,
-`screenshot`, `inspect`, `network_list`, `network_get`, `console_list`, `mock_add`, `mock_list`,
-`mock_clear`, `emulate`, `flow_save`, `flow_list`, `flow_run` e `eval_js` (opcional).
+### Arquitetura
+
+```
+cmd/vitral          entrada: comandos para pessoas ou servidor MCP
+internal/cli        setup, doctor, version e mensagens em PT-BR
+internal/app        monta o servidor
+internal/tools      ferramentas MCP (guard: pausa, selo "trabalhando", proteção contra panic)
+internal/session    ações, espera por estabilidade, diff, gravação e replay de fluxos
+internal/snapshot   JS embutido que lê a página + formatação e diff em Go
+internal/overlay    selo, destaque e pausa injetados na página (shadow root fechado)
+internal/ux         máquina de estados do selo (pura)
+internal/screenshot marcações desenhadas em Go
+internal/network, console, mock, flow, browser, security, brand, config, ring
+tools/brandgen      gera os PNGs da marca (não entra no binário)
+```
+
+### Testes e build
+
+```bash
+make test          # unitários
+make integration   # integração com Chromium headless e páginas de testdata/
+make lint          # go vet + staticcheck
+make build         # bin/vitral
+make dist          # binários para Windows, macOS e Linux em dist/
+make brand         # regenera os PNGs de assets/brand
+```
+
+Releases com `goreleaser release --clean` a partir de uma tag.

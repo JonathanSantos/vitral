@@ -12,6 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/JonathanSantos/vitral/internal/app"
+	"github.com/JonathanSantos/vitral/internal/cli"
 	"github.com/JonathanSantos/vitral/internal/config"
 )
 
@@ -23,19 +24,20 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
-		fmt.Println(config.Name, config.Version)
-		return nil
+	env, err := cli.DefaultEnv()
+	if err != nil {
+		return err
 	}
+	// Comandos para pessoas (setup, doctor, version, ajuda). O resto é o servidor MCP.
+	if handled, code := cli.Main(os.Args[1:], env, loadConfig(env.Home)); handled {
+		os.Exit(code)
+	}
+
 	// stdout pertence ao protocolo MCP: qualquer escrita perdida de dependências vai para stderr.
 	protocolOut := os.Stdout
 	os.Stdout = os.Stderr
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("find home dir: %w", err)
-	}
-	cfg, err := config.Load(os.Args[1:], home, config.ReadFile)
+	cfg, err := loadConfig(env.Home)(os.Args[1:])
 	if err != nil {
 		return err
 	}
@@ -45,6 +47,7 @@ func run() error {
 	defer stop()
 
 	a := app.Build(cfg, logger)
+	a.Browser.SetDownloadLogger(cli.DownloadLogger{W: os.Stderr})
 	defer a.Close()
 
 	logger.Info("server ready", "version", config.Version)
@@ -53,6 +56,12 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+func loadConfig(home string) func([]string) (config.Config, error) {
+	return func(args []string) (config.Config, error) {
+		return config.Load(args, home, config.ReadFile)
+	}
 }
 
 func newLogger(level string) *slog.Logger {

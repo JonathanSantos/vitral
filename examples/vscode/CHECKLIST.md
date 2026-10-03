@@ -1,7 +1,7 @@
 # Checklist de validação manual no VS Code (Copilot)
 
-Pré-requisitos: binário `vitral` no PATH (ou caminho absoluto em `command`) e o
-`mcp.json` desta pasta copiado para `.vscode/mcp.json` do projeto de teste.
+Pré-requisitos: `vitral setup` rodado na pasta do projeto de teste (ou o `mcp.json` desta pasta
+copiado para `.vscode/mcp.json`, com o caminho do binário em `command`).
 
 ## Fase 1: base
 
@@ -71,16 +71,26 @@ Pré-requisitos: binário `vitral` no PATH (ou caminho absoluto em `command`) e 
 5. Edite o YAML trocando o nome de um botão para algo que não existe e rode de novo. O relatório para
    no passo certo com `FAILED`, o motivo e a lista de botões que existem na tela.
 
-## Fase 6: experiência
+## Fase 6 e 9: experiência (CLI, prompts e README)
 
-1. Gere o binário (`make build` ou `make dist`) e rode `vitral --version`.
-2. Copie `examples/vscode/.github/prompts` para `.github/prompts` do projeto de teste.
-3. No chat, digite `/`: devem aparecer `descrever-tela`, `testar-api-fora` e `executar-fluxo`.
-4. Rode `/descrever-tela` com uma URL. O VS Code pede o endereço e a IA abre e descreve a tela.
-5. Rode `/testar-api-fora` numa tela com API. A IA passa pelos cenários de erro 500, sem conexão, lentidão
-   e lista vazia, e no fim remove os mocks.
-6. Rode `/executar-fluxo` com um fluxo salvo na Fase 5.
-7. Siga o README como se fosse uma pessoa não técnica (baixar, colar o `mcp.json`, Start, usar).
+1. Gere o binário (`make build` ou `make dist`). No terminal, rode `vitral` sem argumentos: aparece a
+   ajuda em português e o comando termina (não fica esperando).
+2. Numa pasta de teste, rode `vitral setup`:
+   - o binário é copiado para `~/.vitral/bin/vitral` e a saída mostra a versão;
+   - `.vscode/mcp.json` ganha a entrada `vitral` apontando para esse caminho (se já existia, as outras
+     entradas e os comentários continuam e há um `.bak` ao lado);
+   - `.github/prompts/` recebe os 5 prompts `vitral-*`;
+   - se a pasta `.vscode` estiver no git, aparece o aviso sugerindo `--global`.
+3. Edite um dos prompts e rode o setup de novo: ele pergunta antes de substituir.
+4. Rode `vitral setup --global`: ele mostra o caminho do `mcp.json` do usuário (VS Code e/ou Insiders) e
+   pede confirmação antes de gravar.
+5. Rode `vitral doctor`: todos os itens com ✓. Apague `~/.vitral/bin/vitral` e rode de novo: o item da
+   instalação aparece com ✗ e a ação sugerida.
+6. No VS Code, digite `/` no chat e confira os prompts `vitral-descrever-tela`, `vitral-preencher-formulario`,
+   `vitral-testar-api-fora`, `vitral-gravar-fluxo` e `vitral-executar-fluxo`. Rode cada um uma vez:
+   - o `preencher-formulario` para antes de enviar e pede "sim";
+   - o `testar-api-fora` termina sem mocks ativos (`mock_list` vazio).
+7. Siga o README como uma pessoa não técnica: a parte de cima deve caber em uma tela.
 
 ## Fase 8: selo, destaque e pausa
 

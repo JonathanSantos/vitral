@@ -1,9 +1,11 @@
 {
+  // Normalmente o "vitral setup" escreve este arquivo sozinho.
+  // Para configurar à mão, troque o caminho pelo do seu binário (ex.: ~/.vitral/bin/vitral).
   "servers": {
     "vitral": {
       "type": "stdio",
-      "command": "vitral",
-      "args": ["--profile-dir", "${userHome}/.vitral/profile"]
+      "command": "${userHome}/.vitral/bin/vitral",
+      "args": []
     }
   }
 }

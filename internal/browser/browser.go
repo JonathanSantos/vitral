@@ -16,6 +16,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/go-rod/rod/lib/utils"
 
 	"github.com/JonathanSantos/vitral/internal/config"
 )
@@ -30,6 +31,9 @@ type Manager struct {
 	log   *slog.Logger
 	hooks []PageHook
 
+	// download recebe o progresso do download do Chromium (a CLI traduz para PT-BR).
+	download utils.Logger
+
 	mu       sync.Mutex
 	launched *launcher.Launcher
 	browser  *rod.Browser
@@ -41,6 +45,9 @@ type Manager struct {
 func New(cfg config.Config, logger *slog.Logger) *Manager {
 	return &Manager{cfg: cfg, log: logger}
 }
+
+// SetDownloadLogger define quem mostra o progresso do download do Chromium (padrão: stderr cru).
+func (m *Manager) SetDownloadLogger(l utils.Logger) { m.download = l }
 
 // OnNewPage registra um preparo executado em toda página nova. Chamar antes do primeiro uso.
 func (m *Manager) OnNewPage(h PageHook) {
@@ -146,6 +153,9 @@ func (m *Manager) browserBin() (string, error) {
 	dl := launcher.NewBrowser()
 	// O logger padrão do rod escreve em stdout, que é reservado ao protocolo MCP.
 	dl.Logger = log.New(os.Stderr, "[download] ", log.LstdFlags)
+	if m.download != nil {
+		dl.Logger = m.download
+	}
 	bin, err := dl.Get()
 	if err != nil {
 		return "", fmt.Errorf("download Chromium: %w", err)
