@@ -25,6 +25,7 @@ type Deps struct {
 func Register(s *mcp.Server, d Deps) {
 	registerNavigation(s, d)
 	registerActions(s, d)
+	registerVision(s, d)
 }
 
 func text(s string) *mcp.CallToolResult {
@@ -33,17 +34,23 @@ func text(s string) *mcp.CallToolResult {
 
 // textHandler adapta uma função que devolve texto para o formato do SDK.
 func textHandler[In any](fn func(ctx context.Context, in In) (string, error)) mcp.ToolHandlerFor[In, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in In) (res *mcp.CallToolResult, _ any, err error) {
-		// Rede de segurança: um panic numa dependência não pode derrubar o servidor.
-		defer func() {
-			if r := recover(); r != nil {
-				res, err = nil, fmt.Errorf("internal error: %v. Call snapshot and try again.", r)
-			}
-		}()
+	return guard(func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		out, err := fn(ctx, in)
 		if err != nil {
 			return nil, nil, err
 		}
 		return text(out), nil, nil
+	})
+}
+
+// guard é a rede de segurança: um panic numa dependência vira erro de ferramenta, não derruba o servidor.
+func guard[In any](h mcp.ToolHandlerFor[In, any]) mcp.ToolHandlerFor[In, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in In) (res *mcp.CallToolResult, out any, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				res, out, err = nil, nil, fmt.Errorf("internal error: %v. Call snapshot and try again.", r)
+			}
+		}()
+		return h(ctx, req, in)
 	}
 }

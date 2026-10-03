@@ -567,6 +567,49 @@
     return performance.now() - last;
   }
 
+
+  const STYLE_PROPS = [
+    'color', 'background-color', 'background-image', 'font-family', 'font-size', 'font-weight', 'font-style',
+    'line-height', 'text-align', 'text-decoration-line', 'text-transform', 'border-top-width', 'border-top-style',
+    'border-top-color', 'border-right-width', 'border-bottom-width', 'border-left-width', 'border-radius',
+    'padding', 'margin', 'opacity', 'cursor', 'display', 'visibility', 'box-shadow', 'outline', 'z-index', 'position',
+  ];
+  const ATTRS = ['id', 'class', 'type', 'name', 'href', 'placeholder', 'title', 'tabindex', 'for', 'value'];
+
+  function effectiveBackground(el) {
+    for (let n = el; n && n.nodeType === Node.ELEMENT_NODE; n = n.parentElement || n.getRootNode()?.host) {
+      const bg = getComputedStyle(n).backgroundColor;
+      if (bg && bg !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(bg)) {
+        const ref = n.getAttribute(REF_ATTR);
+        return { color: bg, source: ref && find(ref) === n ? ref : n.tagName.toLowerCase() };
+      }
+    }
+    return { color: 'rgb(255, 255, 255)', source: 'default' };
+  }
+
+  // Estilos computados e atributos para a ferramenta inspect.
+  function inspect(ref, props) {
+    const el = find(ref);
+    if (!el) return { error: 'not_found' };
+    const st = getComputedStyle(el);
+    const styles = {};
+    for (const p of STYLE_PROPS) styles[p] = st.getPropertyValue(p);
+    const extra = {};
+    for (const p of props || []) extra[p] = st.getPropertyValue(p);
+    const aria = {};
+    const attrs = {};
+    for (const a of el.attributes) {
+      if (a.name.startsWith('aria-') || a.name === 'role') aria[a.name] = a.value;
+      else if (ATTRS.includes(a.name)) attrs[a.name] = a.name === 'value' && el.type === 'password' ? '••••' : a.value;
+    }
+    const role = roleOf(el) || el.tagName.toLowerCase();
+    return {
+      ref, role, name: nameOf(el, role), tag: el.tagName.toLowerCase(), box: boxOf(el),
+      styles, extra, aria, attrs, states: statesOf(el, role), background: effectiveBackground(el),
+      text: cut(norm(el.innerText || '')).slice(0, 120),
+    };
+  }
+
   window.__mcp = {
     snapshot,
     find,
@@ -574,6 +617,8 @@
     prepareType,
     selectOption,
     findText,
+    inspect,
+    box: (ref) => { const el = find(ref); return el ? boxOf(el) : null; },
     quietMs,
     roleOf,
     lastMutationAt: () => state.lastMutation,

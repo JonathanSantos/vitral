@@ -21,3 +21,14 @@ Pré-requisitos: binário `browser-mcp` no PATH (ou caminho absoluto em `command
 8. Em **MCP: List Servers → browser → Show Output**, confira que não há erros de protocolo
    (logs do servidor aparecem como stderr).
 9. Pare o servidor (**Stop**). A janela do Chrome lançada por ele fecha.
+
+## Fase 2: visão
+
+1. Com uma página aberta, peça: *"Tire um print da tela."*
+   - O chat mostra a imagem com caixas rosa (elementos clicáveis) e azuis (textos/títulos), cada uma com
+     a etiqueta `eN`.
+   - Peça um `snapshot` e confira que as refs do print batem com as do texto.
+2. Peça: *"Qual é a cor e o fundo do botão principal?"*. A IA usa `inspect` e responde com valores
+   hex (ex.: `color: #ffffff`, `background: #0055aa`).
+3. Peça: *"Tire um print só do botão X"* (`screenshot` com `ref`). Vem só o recorte do elemento.
+4. Peça: *"Tire um print da página inteira"* (`fullPage`). A imagem inclui o rodapé.
