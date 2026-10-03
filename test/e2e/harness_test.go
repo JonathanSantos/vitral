@@ -25,6 +25,7 @@ import (
 
 	"github.com/JonathanSantos/vitral/test/fakeagent"
 	"github.com/JonathanSantos/vitral/test/fixtures"
+	"github.com/JonathanSantos/vitral/test/procs"
 	"github.com/JonathanSantos/vitral/test/tokens"
 )
 
@@ -44,6 +45,10 @@ func TestMain(m *testing.M) {
 	}
 	code := m.Run()
 	site.Close()
+	if err := writeBudget(); err != nil {
+		fmt.Fprintln(os.Stderr, "e2e: write token report:", err)
+		code = 1
+	}
 	os.Exit(code)
 }
 
@@ -102,10 +107,12 @@ type Session struct {
 	t          *testing.T
 	cs         *mcp.ClientSession
 	cmd        *exec.Cmd
+	stdin      io.WriteCloser
 	home       string
 	debugInfo  string
 	stdout     *jsonLineChecker
 	stderr     *bytes.Buffer
+	closeOnce  sync.Once
 	mu         sync.Mutex
 	transcript []fakeagent.Exchange
 	lastText   string
@@ -130,6 +137,7 @@ func start(t *testing.T, extraArgs ...string) *Session {
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.stdin = stdin
 	stdout, err := s.cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -149,11 +157,19 @@ func start(t *testing.T, extraArgs ...string) *Session {
 	return s
 }
 
-// close salva artefatos em falha, fecha o stdin e exige que o processo termine sozinho.
+// close salva artefatos em falha, fecha o stdin e exige que o processo termine sozinho e leve
+// junto o navegador que lançou (docs/TESTING.md, seção 9). Pode ser chamado mais de uma vez.
 func (s *Session) close() {
+	s.closeOnce.Do(s.doClose)
+}
+
+func (s *Session) doClose() {
 	if s.t.Failed() {
 		s.saveArtifacts()
 	}
+	// Como o VS Code ao parar o servidor: fecha o stdin primeiro (o Close do cliente esperaria
+	// as chamadas pendentes terminarem).
+	_ = s.stdin.Close()
 	_ = s.cs.Close()
 	done := make(chan error, 1)
 	go func() { done <- s.cmd.Wait() }()
@@ -162,6 +178,12 @@ func (s *Session) close() {
 	case <-time.After(20 * time.Second):
 		_ = s.cmd.Process.Kill()
 		s.t.Errorf("vitral did not exit after stdin was closed\nstderr:\n%s", s.stderr.String())
+	}
+	info := s.readDebugInfo()
+	if !info.Attached {
+		if err := procs.WaitGone(15*time.Second, []int{info.PID}, filepath.Join(s.home, "profile")); err != nil {
+			s.t.Errorf("browser leaked after the server exited: %v", err)
+		}
 	}
 	if strings.Contains(s.stderr.String(), "DATA RACE") {
 		s.t.Errorf("data race in the server:\n%s", s.stderr.String())
@@ -174,8 +196,7 @@ func (s *Session) close() {
 func (s *Session) saveArtifacts() {
 	dir := filepath.Join(outDir, sanitize(s.t.Name()))
 	_ = os.MkdirAll(dir, 0o750)
-	data, _ := json.MarshalIndent(s.transcript, "", "  ")
-	_ = os.WriteFile(filepath.Join(dir, "transcript.json"), data, 0o600)
+	s.writeTranscript(filepath.Join(dir, "transcript.json"))
 	_ = os.WriteFile(filepath.Join(dir, "stderr.log"), s.stderr.Bytes(), 0o600)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -190,6 +211,15 @@ func (s *Session) saveArtifacts() {
 		}
 	}
 	s.t.Logf("artifacts saved in %s", dir)
+}
+
+// writeTranscript salva o transcript com os headers sensíveis mascarados.
+func (s *Session) writeTranscript(path string) {
+	s.mu.Lock()
+	masked := fakeagent.MaskTranscript(s.transcript)
+	s.mu.Unlock()
+	data, _ := json.MarshalIndent(masked, "", "  ")
+	_ = os.WriteFile(path, data, 0o600)
 }
 
 func sanitize(name string) string {
@@ -224,6 +254,21 @@ func (s *Session) Call(ctx context.Context, tool string, args map[string]any) (s
 	s.tokens += tokens.Estimate(text)
 	s.mu.Unlock()
 	return text, res.IsError, nil
+}
+
+// debugInfo é o que o Vitral grava com --debug-info (URL do CDP, PID do navegador lançado).
+type debugInfo struct {
+	ControlURL string `json:"controlURL"`
+	PID        int    `json:"pid"`
+	Attached   bool   `json:"attached"`
+}
+
+func (s *Session) readDebugInfo() debugInfo {
+	var info debugInfo
+	if data, err := os.ReadFile(s.debugInfo); err == nil {
+		_ = json.Unmarshal(data, &info)
+	}
+	return info
 }
 
 // history devolve os textos das respostas, do mais antigo ao mais recente.

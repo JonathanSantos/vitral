@@ -1,0 +1,462 @@
+[
+  {
+    "name": "back",
+    "description": "Go back to the previous page in history. Returns what changed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  {
+    "name": "click",
+    "description": "Click an element by ref (button, link, checkbox…). Returns what changed on the page.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "description": "element ref from the snapshot, e.g. e5",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "console_list",
+    "description": "List browser console messages and uncaught errors with their source file:line.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "description": "error, warn (warnings and errors) or all (default)",
+          "type": "string"
+        },
+        "limit": {
+          "description": "max messages, newest last (default 20)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "emulate",
+    "description": "Simulate a phone/tablet screen or a slow/offline network. Use desktop and none to go back to normal.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "description": "mobile, tablet or desktop",
+          "type": "string"
+        },
+        "network": {
+          "description": "offline, slow3g, fast3g or none",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "flow_list",
+    "description": "List saved flows with their description and parameters.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  {
+    "name": "flow_run",
+    "description": "Run a saved flow step by step without AI. On failure it stops and shows the step, the reason and the page.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "flow name from flow_list",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "values for the flow parameters, e.g. {numero: 2048}",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "flow_save",
+    "description": "Save the actions done so far (each action shows 'step #N') as a reusable flow. Use params to turn typed values into placeholders.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "description": "what the flow does, in one sentence",
+          "type": "string"
+        },
+        "fromStep": {
+          "description": "first step number to save (default: everything since the last flow_save)",
+          "type": "integer"
+        },
+        "name": {
+          "description": "file name: lowercase letters, digits, - and _",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "turn typed values into parameters: {name: value used in this session}, e.g. {numero: 1023}",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "inspect",
+    "description": "Show the computed styles of an element (color, background, font, border, size), its states and aria attributes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "props": {
+          "description": "extra CSS properties to read, e.g. outline-color",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "ref": {
+          "description": "element ref from the snapshot",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "mock_add",
+    "description": "Fake an API response or failure for matching requests (e.g. return 500 or slow down). The newest mock wins. Reload or repeat the action to see the effect.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "description": "response body, e.g. a JSON string",
+          "type": "string"
+        },
+        "delayMs": {
+          "description": "wait this long before answering (to see loading states)",
+          "type": "integer"
+        },
+        "fail": {
+          "description": "simulate a network failure instead: timeout, connection_refused, offline, dns, aborted…",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "response headers",
+          "type": "object"
+        },
+        "method": {
+          "description": "only this HTTP method (default: any)",
+          "type": "string"
+        },
+        "status": {
+          "description": "HTTP status to return (default 200)",
+          "type": "integer"
+        },
+        "times": {
+          "description": "apply only N times, then expire (default: unlimited)",
+          "type": "integer"
+        },
+        "urlPattern": {
+          "description": "URL glob like */api/orders* (text without * matches anywhere in the URL)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "urlPattern"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "mock_clear",
+    "description": "Remove one mock by id, or all mocks when no id is given.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "mock id like m1; without id removes all mocks",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "mock_list",
+    "description": "List active mocks and how many times each was used.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  {
+    "name": "network_get",
+    "description": "Show one request from network_list: headers, request payload and response body (JSON formatted).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "description": "include the response body (default true)",
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "id": {
+          "description": "request id from network_list",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "network_list",
+    "description": "List the page's network requests (id METHOD STATUS URL). Use to check which API calls ran and which failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "filter": {
+          "description": "text that the URL must contain",
+          "type": "string"
+        },
+        "limit": {
+          "description": "max requests to show, newest last (default 20)",
+          "type": "integer"
+        },
+        "method": {
+          "description": "HTTP method, e.g. GET or POST",
+          "type": "string"
+        },
+        "status": {
+          "description": "2xx, 3xx, 4xx, 5xx, failed, error (4xx/5xx/failed), pending or an exact code",
+          "type": "string"
+        },
+        "type": {
+          "description": "resource type: xhr, fetch, document, script, stylesheet, image…",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "open",
+    "description": "Open a URL in the browser. Returns a snapshot of the page with element refs (e1, e2…) to use in other tools.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "description": "address to open, e.g. https://example.com or localhost:3000",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "press",
+    "description": "Press a keyboard key on the focused element, e.g. Enter, Escape, Tab.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "key name like Enter, Escape, Tab, ArrowDown, or a combo like Control+A",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "screenshot",
+    "description": "Take a picture of the page with element refs drawn on it. Use when layout, colors or images matter.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "fullPage": {
+          "description": "capture the whole page, not only the visible area",
+          "type": "boolean"
+        },
+        "marks": {
+          "description": "draw element refs on the image (default true)",
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "ref": {
+          "description": "crop the image around this element",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "scroll",
+    "description": "Scroll to an element by ref, or the page up/down. Returns the elements that came into view.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "description": "pixels to scroll (default: most of the screen)",
+          "type": "integer"
+        },
+        "direction": {
+          "description": "up or down (when no ref)",
+          "type": "string"
+        },
+        "ref": {
+          "description": "scroll until this element is visible",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "select",
+    "description": "Choose an option in a dropdown (combobox) by its label or value.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "option": {
+          "description": "label or value of the option",
+          "type": "string"
+        },
+        "ref": {
+          "description": "ref of the select (combobox)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "option"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "snapshot",
+    "description": "Show the current page as text with element refs. Call it when you need to see the page again or after an error.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "full": {
+          "description": "include elements outside the visible area",
+          "type": "boolean"
+        },
+        "maxLines": {
+          "description": "max lines in the output (default 300)",
+          "type": "integer"
+        },
+        "scope": {
+          "description": "ref of an element to show only its subtree (shows all its items)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "type",
+    "description": "Type text into a field by ref. Clears it first unless clear=false; submit=true presses Enter. Never use for passwords.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "clear": {
+          "description": "clear the field before typing (default true)",
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "ref": {
+          "description": "ref of the text field",
+          "type": "string"
+        },
+        "submit": {
+          "description": "press Enter after typing",
+          "type": "boolean"
+        },
+        "text": {
+          "description": "text to type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "wait_for",
+    "description": "Wait until a visible text (or element ref) appears, or disappears with gone=true. Use after actions that load data slowly.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "gone": {
+          "description": "wait until the text or element disappears",
+          "type": "boolean"
+        },
+        "ref": {
+          "description": "element ref to wait for",
+          "type": "string"
+        },
+        "text": {
+          "description": "visible text to wait for",
+          "type": "string"
+        },
+        "timeoutMs": {
+          "description": "max wait in milliseconds (default 10000, max 60000)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  }
+]

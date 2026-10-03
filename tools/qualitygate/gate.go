@@ -20,6 +20,7 @@ type Row struct {
 // Report é o resultado do gate.
 type Report struct {
 	Rows        []Row
+	Tokens      []TokenRow
 	Quarantines []Quarantine
 	Failures    []string
 }
@@ -35,6 +36,8 @@ type Input struct {
 	Combined   map[string]Coverage // nil quando não medido (ex.: check-fast)
 	Quarantine []Quarantine
 	Now        time.Time
+	TokenNow   map[string]int // nil quando não medido
+	TokenBase  map[string]int
 }
 
 func pct(m map[string]Coverage, pkg string) *float64 {
@@ -85,6 +88,11 @@ func Evaluate(in Input) Report {
 			r.Failures = append(r.Failures, pkg+": está no thresholds.yaml mas o pacote não existe")
 		}
 	}
+	if in.TokenNow != nil {
+		var failures []string
+		r.Tokens, failures = EvaluateTokens(in.Thresholds.Tokens, in.TokenNow, in.TokenBase)
+		r.Failures = append(r.Failures, failures...)
+	}
 	slices.Sort(r.Failures)
 	for _, q := range in.Quarantine {
 		r.Quarantines = append(r.Quarantines, q)
@@ -118,6 +126,7 @@ func Format(r Report) string {
 		}
 		fmt.Fprintf(&b, "%-26s %9s %10s  %-9s %6s %6s  %s\n", row.Package, show(row.Unit), show(row.Combined), crit, minimum, target, status)
 	}
+	b.WriteString(FormatTokens(r.Tokens))
 	if len(r.Quarantines) > 0 {
 		b.WriteString("\nquarentena:\n")
 		for _, q := range r.Quarantines {

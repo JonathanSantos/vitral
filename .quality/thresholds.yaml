@@ -11,9 +11,9 @@ coverage:
   internal/brand:           {criterion: unit, min: 85}
   internal/network:         {criterion: unit, min: 85}
   internal/security:        {criterion: unit, min: 85}
-  internal/mock:            {criterion: unit, min: 73, target: 85, note: "intercept.go fala com o Fetch; unit-testar handle/respond com página falsa (etapa 3)"}
-  internal/cli:             {criterion: unit, min: 62, target: 85, note: "faltam testes de doctor e install-browser sem rede (etapa 3)"}
-  internal/browser/install: {criterion: unit, min: 76, target: 85, note: "faltam erros de rede do download e RunVersion (etapa 3)"}
+  internal/mock:            {criterion: unit, min: 85}
+  internal/cli:             {criterion: unit, min: 85}
+  internal/browser/install: {criterion: unit, min: 85}
 
   # Demais pacotes sem browser.
   internal/config:     {criterion: unit, min: 70}
@@ -27,9 +27,34 @@ coverage:
   internal/overlay: {criterion: combined, min: 70}
   internal/world:   {criterion: combined, min: 70}
   internal/app:     {criterion: combined, min: 70}
-  internal/browser: {criterion: combined, min: 67, target: 70, note: "cobrir attach e reabertura de aba (etapa 3, vazamento/encerramento)"}
+  internal/browser: {criterion: combined, min: 70}
 
   # Cola e ferramentas: cobertos por integração/e2e ou fora do binário.
   cmd/vitral:        {criterion: none}
   tools/brandgen:    {criterion: none}
   tools/qualitygate: {criterion: none}
+
+# Orçamento de tokens (estimativa ceil(len/4), test/tokens). Primeiro padrão que casar define o teto.
+# Tetos = medição com ~20% de folga. Base em .quality/token-baseline.json (make tokens-baseline).
+tokens:
+  # Snapshot padrão (viewport) logo depois do open.
+  - {match: "snapshot/form.html", max: 275}
+  - {match: "snapshot/api.html", max: 70}
+  - {match: "snapshot/styles.html", max: 60}
+  - {match: "snapshot/dialog.html", max: 90}
+  - {match: "snapshot/rerender.html", max: 50}
+  - {match: "snapshot/large.html", max: 145}
+  # Snapshot completo (full=true): a large.html estressa a compactação (500 linhas, menu de 120 itens).
+  - {match: "snapshot-full/form.html", max: 285}
+  - {match: "snapshot-full/api.html", max: 65}
+  - {match: "snapshot-full/styles.html", max: 65}
+  - {match: "snapshot-full/dialog.html", max: 90}
+  - {match: "snapshot-full/rerender.html", max: 50}
+  - {match: "snapshot-full/large.html", max: 290}
+  # Respostas das ações dos cenários e2e.
+  - {match: "action/*/*-open", max: 280}
+  - {match: "action/*/*-snapshot", max: 480}
+  - {match: "action/*/*-flow_run", max: 400}
+  - {match: "action/*/*-wait_for", max: 330}
+  - {match: "action/*/*-click", max: 280}
+  - {match: "action/*/*", max: 170}

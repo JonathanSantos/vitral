@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync/atomic"
 )
 
@@ -53,6 +54,13 @@ func (s *Server) mux() *http.ServeMux {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(html)
+	})
+	// Página com link para outro host (o mesmo servidor por "localhost"), para o --allowed-hosts.
+	mux.HandleFunc("/pages/external.html", func(w http.ResponseWriter, r *http.Request) {
+		other := strings.Replace(s.URL, "127.0.0.1", "localhost", 1)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><title>Externo</title></head>
+<body><h1>Links</h1><a href="%s/pages/form.html">Site de fora</a></body></html>`, other)
 	})
 	mux.HandleFunc("/api/orders", func(w http.ResponseWriter, r *http.Request) {
 		if code := s.OrdersStatus.Load(); code != 0 {

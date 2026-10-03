@@ -5,6 +5,7 @@ package app_test
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -17,14 +18,14 @@ import (
 
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.uber.org/goleak"
 
 	"github.com/JonathanSantos/vitral/internal/app"
 	"github.com/JonathanSantos/vitral/internal/browser"
 	"github.com/JonathanSantos/vitral/internal/config"
 	"github.com/JonathanSantos/vitral/test/fixtures"
+	"github.com/JonathanSantos/vitral/test/procs"
 )
-
-var update = flag.Bool("update", false, "rewrite golden files")
 
 // harness sobe um único Chromium headless para o pacote inteiro, falando via cliente MCP real.
 type harness struct {
@@ -35,12 +36,25 @@ type harness struct {
 
 var h *harness
 
+// leaked marca vazamento de processo detectado em algum harness.
+var leaked bool
+
 func TestMain(m *testing.M) {
 	flag.Parse()
+	// O que já roda antes dos testes (runtime, flags) não conta como vazamento.
+	baseline := goleak.IgnoreCurrent()
 	var cleanup func()
 	h, cleanup = newHarness(nil)
 	code := m.Run()
 	cleanup()
+	if leaked {
+		code = 1
+	}
+	// Goroutines: depois de fechar navegador e servidor, nada do Vitral pode continuar rodando.
+	if err := goleak.Find(baseline); err != nil {
+		fmt.Fprintln(os.Stderr, "goroutine leak:", err)
+		code = 1
+	}
 	os.Exit(code)
 }
 
@@ -80,9 +94,15 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 		panic(err)
 	}
 	return &harness{site: site, session: cs, app: a}, func() {
+		pids := a.Browser.LaunchedPIDs()
 		_ = cs.Close()
 		a.Close()
 		site.Close()
+		// Vazamento de processos: o navegador lançado (e os filhos, pelo perfil) precisa ter morrido.
+		if err := procs.WaitGone(15*time.Second, pids, profile); err != nil {
+			fmt.Fprintln(os.Stderr, "process leak:", err)
+			leaked = true
+		}
 		_ = os.RemoveAll(profile)
 	}
 }

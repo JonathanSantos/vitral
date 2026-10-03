@@ -251,6 +251,11 @@ func (s *Session) events(netMark, conMark int) string {
 			bad = append(bad, network.Line(e))
 		}
 	}
+	for _, e := range s.net.Entries() {
+		if e.ID > netMark && strings.EqualFold(e.Type, "document") && strings.Contains(e.Failed, "ERR_BLOCKED_BY_CLIENT") && len(s.cfg.AllowedHosts) > 0 {
+			lines = append(lines, fmt.Sprintf("blocked: navigation to %s is outside --allowed-hosts (%s). Tell the user or stay on the allowed hosts.", e.URL, strings.Join(s.cfg.AllowedHosts, ", ")))
+		}
+	}
 	if len(bad) > 0 {
 		shown := bad
 		if len(shown) > 3 {

@@ -3,6 +3,8 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -18,9 +20,11 @@ func main() {
 	thresholds := flag.String("thresholds", ".quality/thresholds.yaml", "thresholds file")
 	unit := flag.String("unit", "", "comma separated coverprofiles from unit tests")
 	combined := flag.String("combined", "", "comma separated coverprofiles for combined coverage (unit + integration + e2e)")
+	tokensFile := flag.String("tokens", "", "token report from the e2e (JSON key -> tokens)")
+	tokenBase := flag.String("token-baseline", ".quality/token-baseline.json", "versioned token baseline")
 	flag.Parse()
 
-	if err := run(*thresholds, split(*unit), split(*combined)); err != nil {
+	if err := run(*thresholds, split(*unit), split(*combined), *tokensFile, *tokenBase); err != nil {
 		fmt.Fprintln(os.Stderr, "qualitygate:", err)
 		os.Exit(1)
 	}
@@ -36,7 +40,7 @@ func split(s string) []string {
 	return out
 }
 
-func run(thresholdsPath string, unitFiles, combinedFiles []string) error {
+func run(thresholdsPath string, unitFiles, combinedFiles []string, tokensFile, tokenBase string) error {
 	data, err := os.ReadFile(thresholdsPath)
 	if err != nil {
 		return err
@@ -56,6 +60,14 @@ func run(thresholdsPath string, unitFiles, combinedFiles []string) error {
 	// A cobertura combinada inclui os unitários.
 	if len(combinedFiles) > 0 {
 		if in.Combined, err = load(th.Module, append(unitFiles, combinedFiles...)); err != nil {
+			return err
+		}
+	}
+	if tokensFile != "" {
+		if in.TokenNow, err = readTokens(tokensFile, true); err != nil {
+			return err
+		}
+		if in.TokenBase, err = readTokens(tokenBase, false); err != nil {
 			return err
 		}
 	}
@@ -84,6 +96,22 @@ func load(module string, files []string) (map[string]Coverage, error) {
 		readers = append(readers, fh)
 	}
 	return ParseProfiles(module, readers...)
+}
+
+// readTokens lê um relatório de tokens; a base pode não existir ainda.
+func readTokens(file string, required bool) (map[string]int, error) {
+	data, err := os.ReadFile(file)
+	if errors.Is(err, fs.ErrNotExist) && !required {
+		return map[string]int{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]int{}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
+	return out, nil
 }
 
 // modulePackages lista os pacotes com código Go (go list), relativos ao módulo.

@@ -149,3 +149,37 @@ func mustAdd(t *testing.T, reg *Registry, r Rule) {
 		t.Fatal(err)
 	}
 }
+
+func TestDecideAndPatterns(t *testing.T) {
+	reg := NewRegistry(nil)
+	mustAdd(t, reg, Rule{URLPattern: "/api", Status: 500})
+	allowed := []string{"portal.local"}
+	tests := []struct {
+		name     string
+		reg      *Registry
+		allowed  []string
+		url      string
+		resource proto.NetworkResourceType
+		block    bool
+		mocked   bool
+	}{
+		{"navigation outside the list is blocked", reg, allowed, "http://evil.test/", proto.NetworkResourceTypeDocument, true, false},
+		{"navigation inside the list goes on", reg, allowed, "http://portal.local/", proto.NetworkResourceTypeDocument, false, false},
+		{"no list: nothing is blocked", reg, nil, "http://evil.test/", proto.NetworkResourceTypeDocument, false, false},
+		{"xhr is not a navigation", reg, allowed, "http://evil.test/x", proto.NetworkResourceTypeXHR, false, false},
+		{"mock on allowed host", reg, allowed, "http://portal.local/api", proto.NetworkResourceTypeFetch, false, true},
+		{"mock disabled", nil, allowed, "http://portal.local/api", proto.NetworkResourceTypeFetch, false, false},
+	}
+	for _, tt := range tests {
+		d := Decide(tt.reg, tt.allowed, tt.url, "GET", tt.resource)
+		if d.Block != tt.block || (d.Rule != nil) != tt.mocked {
+			t.Errorf("%s: %+v", tt.name, d)
+		}
+	}
+	if got := Patterns([]string{"*/api*"}, true); len(got) != 2 || got[1].ResourceType != proto.NetworkResourceTypeDocument {
+		t.Fatalf("patterns = %+v", got)
+	}
+	if got := Patterns(nil, false); len(got) != 0 {
+		t.Fatal("no rules and no list: Fetch stays off")
+	}
+}

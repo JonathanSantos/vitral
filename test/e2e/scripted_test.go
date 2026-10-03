@@ -128,6 +128,7 @@ func runScenario(t *testing.T, sc Scenario) {
 				continue
 			}
 			text, isErr, err := s.Call(context.Background(), step.Call, args)
+			recordTokens(fmt.Sprintf("action/%s/%02d-%s", sc.Name, i+1, step.Call), text)
 			check(t, label+" "+step.Call, response{text, isErr, err}, step.Expect, vars, step.Save)
 		default:
 			t.Fatalf("%s: empty step", label)

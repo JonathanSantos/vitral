@@ -28,8 +28,10 @@ type Installer struct {
 	Version  string
 	Platform string
 	Mirror   string // base URL alternativa (mesmo layout de paths); vazio = oficial
-	Client   *http.Client
-	Progress Logger
+	// VersionJSON é o endpoint JSON da versão (o oficial; trocado nos testes).
+	VersionJSON string
+	Client      *http.Client
+	Progress    Logger
 	// VersionOf roda o executável com --version e devolve a versão (injetável em testes).
 	VersionOf func(exe string) (string, error)
 }
@@ -40,9 +42,10 @@ func NewInstaller(root, platform, mirror string, progress Logger) *Installer {
 	transport.Proxy = http.ProxyFromEnvironment
 	return &Installer{
 		Root: root, Version: PinnedVersion, Platform: platform, Mirror: mirror,
-		Client:    &http.Client{Transport: transport},
-		Progress:  progress,
-		VersionOf: RunVersion,
+		VersionJSON: VersionURL(PinnedVersion),
+		Client:      &http.Client{Transport: transport},
+		Progress:    progress,
+		VersionOf:   RunVersion,
 	}
 }
 
@@ -66,7 +69,11 @@ func (i *Installer) DownloadURL(ctx context.Context) (string, error) {
 	if i.Mirror != "" {
 		return ZipURL(i.Mirror, i.Version, i.Platform), nil
 	}
-	data, err := i.get(ctx, VersionURL(i.Version))
+	endpoint := i.VersionJSON
+	if endpoint == "" {
+		endpoint = VersionURL(i.Version)
+	}
+	data, err := i.get(ctx, endpoint)
 	if err != nil {
 		return ZipURL(DefaultBaseURL, i.Version, i.Platform), nil
 	}

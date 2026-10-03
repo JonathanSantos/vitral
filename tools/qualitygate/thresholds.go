@@ -25,6 +25,7 @@ type PackageThreshold struct {
 type Thresholds struct {
 	Module   string                      `yaml:"module"`
 	Coverage map[string]PackageThreshold `yaml:"coverage"`
+	Tokens   []TokenRule                 `yaml:"tokens"`
 }
 
 // ParseThresholds lê e valida o arquivo de limiares.
@@ -47,6 +48,11 @@ func ParseThresholds(data []byte) (Thresholds, error) {
 		}
 		if th.Target != 0 && th.Target < th.Min {
 			return t, fmt.Errorf("thresholds: %s target %.1f is below min %.1f", pkg, th.Target, th.Min)
+		}
+	}
+	for _, r := range t.Tokens {
+		if r.Match == "" || r.Max <= 0 {
+			return t, fmt.Errorf("thresholds: token rule %q needs match and max > 0", r.Match)
 		}
 	}
 	return t, nil

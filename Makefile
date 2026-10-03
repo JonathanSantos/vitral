@@ -10,7 +10,7 @@ QUALITYGATE := go run ./tools/qualitygate
 OUT         := .quality/out
 
 .PHONY: build dist test unit integration integration-cover e2e network lint fmt vuln \
-        gate gate-fast check check-fast nightly release-check clean brand
+        gate gate-fast check check-fast nightly release-check clean brand tokens-baseline
 
 # ---------- build ----------
 
@@ -76,7 +76,11 @@ gate-fast:
 	$(QUALITYGATE) -unit $(OUT)/unit.out
 
 gate:
-	$(QUALITYGATE) -unit $(OUT)/unit.out -combined $(OUT)/integration.out,$(OUT)/e2e.out
+	$(QUALITYGATE) -unit $(OUT)/unit.out -combined $(OUT)/integration.out,$(OUT)/e2e.out -tokens $(OUT)/tokens.json
+
+# Atualiza a base de tokens com a última medição do e2e (o diff aparece no PR).
+tokens-baseline:
+	cp $(OUT)/tokens.json .quality/token-baseline.json
 
 # pre-push local (.githooks/pre-push): lint + unitários com race + cobertura unitária.
 check-fast: lint unit gate-fast

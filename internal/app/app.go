@@ -50,7 +50,10 @@ func Build(cfg config.Config, logger *slog.Logger) *App {
 	var mocks *mock.Registry
 	if !cfg.DisableMock {
 		mocks = mock.NewRegistry(cfg.AllowedHosts)
-		mgr.OnNewPage(mock.NewInterceptor(mocks, logger, net.MarkMocked).Attach)
+	}
+	// O interceptador também barra navegação fora do --allowed-hosts, mesmo sem mock.
+	if mocks != nil || len(cfg.AllowedHosts) > 0 {
+		mgr.OnNewPage(mock.NewInterceptor(mocks, cfg.AllowedHosts, logger, net.MarkMocked).Attach)
 	}
 
 	server := mcp.NewServer(&mcp.Implementation{Name: config.Name, Version: config.Version}, &mcp.ServerOptions{
