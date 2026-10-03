@@ -7,6 +7,8 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
+
+	"github.com/jors/browser-mcp/internal/flow"
 )
 
 // Device é um perfil simples de tela.
@@ -80,7 +82,10 @@ func (s *Session) Emulate(ctx context.Context, device, network string) (string, 
 	}
 	// A troca de viewport muda o layout: o próximo diff seria só ruído.
 	s.last = nil
-	return describeEmulation(s.emulation), nil
+	rec := &recording{step: func(*flow.Selector) flow.Step {
+		return flow.Step{Emulate: &flow.EmulateStep{Device: device, Network: network}}
+	}}
+	return joinNonEmpty(describeEmulation(s.emulation), s.record(rec, nil, "")), nil
 }
 
 func describeEmulation(e Emulation) string {

@@ -57,3 +57,16 @@ Pré-requisitos: binário `browser-mcp` no PATH (ou caminho absoluto em `command
 5. Peça: *"Simule ficar sem internet"* (`network: offline`) e clique em algo que chama a API.
    Volte com `network: none`.
 6. Rode o servidor com `--disable-mock` em `args` e confira que as ferramentas `mock_*` somem.
+
+## Fase 5: fluxos
+
+1. Faça um fluxo pelo chat (ex.: abrir a tela, buscar o pedido `1023`, filtrar). Cada ação bem-sucedida
+   termina com `step #N`.
+2. Peça: *"Salve isso como fluxo `buscar-pedido`, com o número do pedido como parâmetro `numero`."*
+   A IA chama `flow_save` com `params: {numero: "1023"}`. A resposta lista os passos e cada substituição
+   (`step 2 type.text: "1023" → "{{numero}}"`).
+3. Confira o arquivo `.browser-mcp/flows/buscar-pedido.yaml` no projeto.
+4. Peça: *"Liste os fluxos"* (`flow_list`) e *"rode o fluxo buscar-pedido com o número 2048"*
+   (`flow_run`). Os passos rodam sozinhos e a resposta mostra `ok` em cada um.
+5. Edite o YAML trocando o nome de um botão para algo que não existe e rode de novo. O relatório para
+   no passo certo com `FAILED`, o motivo e a lista de botões que existem na tela.

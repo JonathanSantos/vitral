@@ -24,3 +24,4 @@ viewport: 1280x713, scroll: 0/1382
     [e22] listitem "Diego"
     [e23] listitem "Eva"
   [e26] link "Ir para o rodapé"
+step #N

@@ -3,6 +3,7 @@
 package app_test
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -54,6 +56,7 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	cfg.Headless = true
 	cfg.ProfileDir = profile
 	cfg.StabilityTimeout = 5 * time.Second
+	cfg.FlowsDir = filepath.Join(profile, "flows")
 	if tweak != nil {
 		tweak(&cfg)
 	}
@@ -83,11 +86,27 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	}
 }
 
+// renameSubmit simula uma mudança na tela: o botão "Enviar" do form.html vira "Confirmar".
+var renameSubmit atomic.Bool
+
 // fixtureMux serve testdata/pages e uma API fake usada pelas fixtures.
 func fixtureMux() *http.ServeMux {
 	mux := http.NewServeMux()
-	pages := http.FileServer(http.Dir(filepath.Join("..", "..", "testdata", "pages")))
+	dir := filepath.Join("..", "..", "testdata", "pages")
+	pages := http.FileServer(http.Dir(dir))
 	mux.Handle("/pages/", http.StripPrefix("/pages/", pages))
+	mux.HandleFunc("/pages/form.html", func(w http.ResponseWriter, r *http.Request) {
+		html, err := os.ReadFile(filepath.Join(dir, "form.html"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if renameSubmit.Load() {
+			html = bytes.ReplaceAll(html, []byte(`<button type="submit">Enviar</button>`), []byte(`<button type="submit">Confirmar</button>`))
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(html)
+	})
 	mux.HandleFunc("/api/orders", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Set-Cookie", "session=secret")
@@ -171,6 +190,8 @@ func mustContain(t *testing.T, text string, wants ...string) {
 func golden(t *testing.T, name, got string) {
 	t.Helper()
 	got = strings.ReplaceAll(got, h.site.URL, "http://fixture")
+	// O número do passo gravado depende da ordem dos testes.
+	got = regexp.MustCompile(`step #\d+`).ReplaceAllString(got, "step #N")
 	path := filepath.Join("..", "..", "testdata", "golden", name)
 	if *update {
 		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {

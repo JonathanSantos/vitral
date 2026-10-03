@@ -9,6 +9,7 @@ import (
 
 	"github.com/jors/browser-mcp/internal/config"
 	"github.com/jors/browser-mcp/internal/console"
+	"github.com/jors/browser-mcp/internal/flow"
 	"github.com/jors/browser-mcp/internal/mock"
 	"github.com/jors/browser-mcp/internal/network"
 	"github.com/jors/browser-mcp/internal/session"
@@ -21,6 +22,7 @@ type Deps struct {
 	Network *network.Tracker
 	Console *console.Buffer
 	Mocks   *mock.Registry // nil quando o mock está desabilitado
+	Flows   flow.Store
 }
 
 // Register adiciona todas as ferramentas ao servidor.
@@ -33,6 +35,7 @@ func Register(s *mcp.Server, d Deps) {
 	if d.Mocks != nil {
 		registerMock(s, d)
 	}
+	registerFlows(s, d)
 }
 
 func text(s string) *mcp.CallToolResult {

@@ -11,6 +11,7 @@ import (
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 
+	"github.com/jors/browser-mcp/internal/flow"
 	"github.com/jors/browser-mcp/internal/security"
 	"github.com/jors/browser-mcp/internal/snapshot"
 )
@@ -45,7 +46,8 @@ func (s *Session) Open(ctx context.Context, rawURL string) (string, error) {
 		return "", fmt.Errorf("page opened, but snapshot failed: %w. Call snapshot.", err)
 	}
 	s.last = page
-	return joinNonEmpty(snapshot.Format(page, s.format), s.events(netMark, conMark), warning), nil
+	rec := &recording{step: func(*flow.Selector) flow.Step { return flow.Step{Open: target} }}
+	return joinNonEmpty(snapshot.Format(page, s.format), s.events(netMark, conMark), warning, s.record(rec, nil, "")), nil
 }
 
 func (s *Session) navigate(ctx context.Context, p *rod.Page, target string) error {
@@ -85,7 +87,8 @@ func waitDOMReady(ctx context.Context, p *rod.Page) error {
 
 // Back volta uma página no histórico.
 func (s *Session) Back(ctx context.Context) (string, error) {
-	return s.action(ctx, func(p *rod.Page) error {
+	rec := &recording{step: func(*flow.Selector) flow.Step { return flow.Step{Back: true} }}
+	return s.action(ctx, rec, func(p *rod.Page) error {
 		hist, err := proto.PageGetNavigationHistory{}.Call(p)
 		if err == nil && hist.CurrentIndex == 0 {
 			return errors.New("no previous page in history.")
@@ -119,7 +122,8 @@ func (c covered) String() string {
 
 // Click faz um clique real (CDP) no centro do elemento, depois de checar se está livre.
 func (s *Session) Click(ctx context.Context, ref string) (string, error) {
-	return s.action(ctx, func(p *rod.Page) error {
+	rec := &recording{ref: ref, step: func(sel *flow.Selector) flow.Step { return flow.Step{Click: sel} }}
+	return s.action(ctx, rec, func(p *rod.Page) error {
 		var hit hitInfo
 		if err := evalInto(ctx, p, &hit, `(r) => window.__mcp.hit(r)`, ref); err != nil {
 			return err
@@ -153,7 +157,14 @@ type typeInfo struct {
 
 // Type foca o campo, limpa (por padrão) e digita o texto.
 func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit bool) (string, error) {
-	return s.action(ctx, func(p *rod.Page) error {
+	rec := &recording{ref: ref, step: func(sel *flow.Selector) flow.Step {
+		step := &flow.TypeStep{Selector: *sel, Text: text, Submit: submit}
+		if !clearFirst {
+			step.Clear = &clearFirst
+		}
+		return flow.Step{Type: step}
+	}}
+	return s.action(ctx, rec, func(p *rod.Page) error {
 		var info typeInfo
 		if err := evalInto(ctx, p, &info, `(r, c) => window.__mcp.prepareType(r, c)`, ref, clearFirst); err != nil {
 			return err
@@ -197,7 +208,10 @@ type selectInfo struct {
 
 // Select escolhe uma opção de <select> pelo label ou value.
 func (s *Session) Select(ctx context.Context, ref, option string) (string, error) {
-	return s.action(ctx, func(p *rod.Page) error {
+	rec := &recording{ref: ref, step: func(sel *flow.Selector) flow.Step {
+		return flow.Step{Select: &flow.SelectStep{Selector: *sel, Option: option}}
+	}}
+	return s.action(ctx, rec, func(p *rod.Page) error {
 		var info selectInfo
 		if err := evalInto(ctx, p, &info, `(r, o) => window.__mcp.selectOption(r, o)`, ref, option); err != nil {
 			return err
@@ -230,7 +244,8 @@ func (s *Session) Press(ctx context.Context, combo string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s.action(ctx, func(p *rod.Page) error {
+	rec := &recording{step: func(*flow.Selector) flow.Step { return flow.Step{Press: combo} }}
+	return s.action(ctx, rec, func(p *rod.Page) error {
 		return p.Context(ctx).KeyActions().Press(mods...).Type(key).Do()
 	})
 }
@@ -247,7 +262,10 @@ func (s *Session) Scroll(ctx context.Context, opts ScrollOptions) (string, error
 	if opts.Ref == "" && opts.Direction != "up" && opts.Direction != "down" {
 		return "", errors.New("provide ref, or direction \"up\" or \"down\"")
 	}
-	return s.action(ctx, func(p *rod.Page) error {
+	rec := &recording{ref: opts.Ref, step: func(sel *flow.Selector) flow.Step {
+		return flow.Step{Scroll: &flow.ScrollStep{Selector: sel, Direction: opts.Direction, Amount: opts.Amount}}
+	}}
+	return s.action(ctx, rec, func(p *rod.Page) error {
 		if opts.Ref != "" {
 			var code string
 			js := `(r) => { const el = window.__mcp.find(r); if (!el) return 'not_found';
@@ -297,6 +315,7 @@ func (s *Session) WaitFor(ctx context.Context, opts WaitOptions) (string, error)
 	if opts.Text == "" && opts.Ref == "" {
 		return "", errors.New("provide text or ref to wait for")
 	}
+	recordedTimeout := int(opts.Timeout.Milliseconds())
 	if opts.Timeout <= 0 {
 		opts.Timeout = s.cfg.StabilityTimeout
 	}
@@ -307,11 +326,19 @@ func (s *Session) WaitFor(ctx context.Context, opts WaitOptions) (string, error)
 	if err != nil {
 		return "", err
 	}
+	rec := &recording{ref: opts.Ref, step: func(sel *flow.Selector) flow.Step {
+		return flow.Step{WaitFor: &flow.WaitStep{Text: opts.Text, Element: sel, Gone: opts.Gone, TimeoutMs: recordedTimeout}}
+	}}
+	sel, note := s.selectorFor(ctx, p, rec)
 	deadline := time.Now().Add(opts.Timeout)
 	for {
 		match, err := s.probe(ctx, p, opts)
 		if err == nil && match.Found != opts.Gone {
-			return s.waitResult(ctx, p, opts, match)
+			out, err := s.waitResult(ctx, p, opts, match)
+			if err != nil {
+				return "", err
+			}
+			return joinNonEmpty(out, s.record(rec, sel, note)), nil
 		}
 		if time.Now().After(deadline) {
 			return "", waitTimeoutError(opts)

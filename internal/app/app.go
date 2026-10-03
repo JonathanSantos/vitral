@@ -9,6 +9,7 @@ import (
 	"github.com/jors/browser-mcp/internal/browser"
 	"github.com/jors/browser-mcp/internal/config"
 	"github.com/jors/browser-mcp/internal/console"
+	"github.com/jors/browser-mcp/internal/flow"
 	"github.com/jors/browser-mcp/internal/mock"
 	"github.com/jors/browser-mcp/internal/network"
 	"github.com/jors/browser-mcp/internal/session"
@@ -37,6 +38,7 @@ func Build(cfg config.Config, logger *slog.Logger) (*mcp.Server, func()) {
 		Instructions: instructions,
 		Logger:       logger,
 	})
-	tools.Register(server, tools.Deps{Config: cfg, Session: sess, Network: net, Console: con, Mocks: mocks})
+	tools.Register(server, tools.Deps{Config: cfg, Session: sess, Network: net, Console: con, Mocks: mocks,
+		Flows: flow.Store{Dir: cfg.FlowsDir}})
 	return server, mgr.Close
 }

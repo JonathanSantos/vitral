@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -17,6 +18,7 @@ import (
 	"github.com/jors/browser-mcp/internal/browser"
 	"github.com/jors/browser-mcp/internal/config"
 	"github.com/jors/browser-mcp/internal/console"
+	"github.com/jors/browser-mcp/internal/flow"
 	"github.com/jors/browser-mcp/internal/network"
 	"github.com/jors/browser-mcp/internal/snapshot"
 )
@@ -38,6 +40,9 @@ type Session struct {
 	console *console.Buffer
 	format  snapshot.FormatOptions
 
+	rec       *flow.Recorder
+	replaying atomic.Bool
+
 	mu        sync.Mutex
 	last      *snapshot.Page
 	current   *rod.Page
@@ -46,7 +51,7 @@ type Session struct {
 
 // New cria a sessão e registra o preparo de páginas novas no gerenciador.
 func New(cfg config.Config, logger *slog.Logger, b *browser.Manager, net *network.Tracker, con *console.Buffer) *Session {
-	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, format: snapshot.DefaultFormat()}
+	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, format: snapshot.DefaultFormat(), rec: &flow.Recorder{}}
 	b.OnNewPage(s.preparePage)
 	return s
 }
@@ -178,18 +183,22 @@ func (s *Session) domQuietFor(ctx context.Context, p *rod.Page, start time.Time)
 	return quiet
 }
 
+// recording diz como gravar uma ação no fluxo: a ref do alvo (se houver) e o passo resultante.
+type recording struct {
+	ref  string
+	step func(sel *flow.Selector) flow.Step
+}
+
 // action roda do() e devolve o diff da página, com eventos de rede/console disparados.
-func (s *Session) action(ctx context.Context, do func(p *rod.Page) error) (string, error) {
+func (s *Session) action(ctx context.Context, rec *recording, do func(p *rod.Page) error) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, err := s.page()
 	if err != nil {
 		return "", err
 	}
-	return s.actionLocked(ctx, p, do)
-}
-
-func (s *Session) actionLocked(ctx context.Context, p *rod.Page, do func(p *rod.Page) error) (string, error) {
+	// O seletor é calculado antes: depois do clique o elemento pode nem existir mais.
+	sel, note := s.selectorFor(ctx, p, rec)
 	netMark, conMark := s.net.Mark(), s.console.Mark()
 	start := time.Now()
 	if err := do(p); err != nil {
@@ -202,7 +211,7 @@ func (s *Session) actionLocked(ctx context.Context, p *rod.Page, do func(p *rod.
 	}
 	text := snapshot.Summarize(s.last, curr, s.format)
 	s.last = curr
-	return joinNonEmpty(text, s.events(netMark, conMark), warning), nil
+	return joinNonEmpty(text, s.events(netMark, conMark), warning, s.record(rec, sel, note)), nil
 }
 
 // events resume erros de console e requests com problema desde as marcas.

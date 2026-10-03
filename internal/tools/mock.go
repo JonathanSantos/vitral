@@ -7,6 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/jors/browser-mcp/internal/flow"
 	"github.com/jors/browser-mcp/internal/mock"
 )
 
@@ -26,10 +27,11 @@ type mockClearInput struct {
 }
 
 func registerMock(s *mcp.Server, d Deps) {
+	sess := d.Session
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "mock_add",
 		Description: "Fake an API response or failure for matching requests (e.g. return 500 or slow down). The newest mock wins. Reload or repeat the action to see the effect.",
-	}, mockAddTool(d.Mocks))
+	}, mockAddTool(d.Mocks, sess.Record))
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "mock_list",
@@ -42,16 +44,22 @@ func registerMock(s *mcp.Server, d Deps) {
 	}, mockClearTool(d.Mocks))
 }
 
-func mockAddTool(reg *mock.Registry) mcp.ToolHandlerFor[mockAddInput, any] {
+// mockAddTool grava o mock como passo de fluxo, para que fluxos possam montar o cenário sozinhos.
+func mockAddTool(reg *mock.Registry, record func(flow.Step) string) mcp.ToolHandlerFor[mockAddInput, any] {
 	return textHandler(func(_ context.Context, in mockAddInput) (string, error) {
-		rule, err := reg.Add(mock.Rule{
+		step := flow.MockStep{
 			URLPattern: in.URLPattern, Method: in.Method, Status: in.Status, Body: in.Body,
 			Headers: in.Headers, Fail: in.Fail, DelayMs: in.DelayMs, Times: in.Times,
-		})
+		}
+		rule, err := reg.Add(mockRule(step))
 		if err != nil {
 			return "", err
 		}
-		return "mock added: " + mock.Summary(rule), nil
+		out := "mock added: " + mock.Summary(rule)
+		if line := record(flow.Step{Mock: &step}); line != "" {
+			out += "\n" + line
+		}
+		return out, nil
 	})
 }
 

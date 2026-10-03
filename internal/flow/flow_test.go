@@ -1,0 +1,301 @@
+package flow
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/jors/browser-mcp/internal/snapshot"
+)
+
+func pageWith(nodes ...*snapshot.Node) *snapshot.Page { return &snapshot.Page{Nodes: nodes} }
+
+func samplePage() *snapshot.Page {
+	return pageWith(
+		&snapshot.Node{Ref: "e1", Role: "textbox", Name: "Buscar pedido"},
+		&snapshot.Node{Ref: "e2", Role: "button", Name: "Filtrar"},
+		&snapshot.Node{Ref: "e3", Role: "table", Name: "Pedidos", Children: []*snapshot.Node{
+			{Ref: "e4", Role: "row", Name: "#1023 | Aprovado", Children: []*snapshot.Node{{Ref: "e5", Role: "link", Name: "Ver detalhes"}}},
+			{Ref: "e6", Role: "row", Name: "#1024 | Pendente", Children: []*snapshot.Node{{Ref: "e7", Role: "link", Name: "Ver detalhes"}}},
+		}},
+		&snapshot.Node{Ref: "e8", Role: "button", Name: "Excluir"},
+		&snapshot.Node{Ref: "e9", Role: "dialog", Name: "Confirmar", Children: []*snapshot.Node{
+			{Ref: "e10", Role: "button", Name: "Excluir"},
+		}},
+		&snapshot.Node{Ref: "e11", Role: "button", Name: ""},
+		&snapshot.Node{Ref: "e12", Role: "button", Name: ""},
+	)
+}
+
+func TestDescribeAndResolveRoundTrip(t *testing.T) {
+	page := samplePage()
+	tests := []struct {
+		ref  string
+		want Selector
+	}{
+		{"e2", Selector{Role: "button", Name: "Filtrar"}},
+		{"e7", Selector{Role: "link", Name: "Ver detalhes", Within: &Context{Role: "row", Name: "#1024 | Pendente"}}},
+		{"e10", Selector{Role: "button", Name: "Excluir", Within: &Context{Role: "dialog", Name: "Confirmar"}}},
+		{"e8", Selector{Role: "button", Name: "Excluir"}},
+		{"e12", Selector{Role: "button", Name: "", Nth: 2}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ref, func(t *testing.T) {
+			got, err := Describe(page, tt.ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Describe() != tt.want.Describe() {
+				t.Fatalf("Describe = %s, want %s", got.Describe(), tt.want.Describe())
+			}
+			ref, err := Resolve(page, got)
+			if err != nil || ref != tt.ref {
+				t.Fatalf("Resolve = %s, %v; want %s", ref, err, tt.ref)
+			}
+		})
+	}
+	if _, err := Describe(page, "e99"); err == nil {
+		t.Fatal("unknown ref should fail")
+	}
+}
+
+func TestResolveErrors(t *testing.T) {
+	page := samplePage()
+	_, err := Resolve(page, Selector{Role: "button", Name: "Buscar"})
+	if err == nil || !strings.Contains(err.Error(), `no button "Buscar" found`) || !strings.Contains(err.Error(), `"Filtrar"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_, err = Resolve(page, Selector{Role: "link", Name: "Ver detalhes", Nth: 3})
+	if err == nil || !strings.Contains(err.Error(), "only 2") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_, err = Resolve(page, Selector{Role: "checkbox", Name: "x"})
+	if err == nil || !strings.Contains(err.Error(), "There is no checkbox") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Espaços e caixa diferentes ainda casam.
+	if ref, err := Resolve(page, Selector{Role: "textbox", Name: "buscar  PEDIDO"}); err != nil || ref != "e1" {
+		t.Fatalf("normalized match failed: %s %v", ref, err)
+	}
+}
+
+func recordedSteps() []Step {
+	return []Step{
+		{Open: "https://portal/pedidos?busca=1023"},
+		{Type: &TypeStep{Selector: Selector{Role: "textbox", Name: "Buscar pedido 1023"}, Text: "1023"}},
+		{Click: &Selector{Role: "button", Name: "Filtrar"}},
+		{Select: &SelectStep{Selector: Selector{Role: "combobox", Name: "Status"}, Option: "Aprovado"}},
+		{WaitFor: &WaitStep{Text: "#1023 | Aprovado"}},
+	}
+}
+
+func TestParameterize(t *testing.T) {
+	steps := recordedSteps()
+	out, subs, err := Parameterize(steps, map[string]string{"numero": "1023", "status": "Aprovado"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		`step 1 open.url: "https://portal/pedidos?busca=1023" → "https://portal/pedidos?busca={{numero}}"`,
+		`step 2 type.text: "1023" → "{{numero}}"`,
+		`step 4 select.option: "Aprovado" → "{{status}}"`,
+		`step 5 wait_for.text: "#1023 | Aprovado" → "#{{numero}} | {{status}}"`,
+	}
+	if len(subs) != len(want) {
+		t.Fatalf("subs = %v", subs)
+	}
+	for i := range want {
+		if subs[i].String() != want[i] {
+			t.Errorf("sub %d = %s\nwant %s", i, subs[i], want[i])
+		}
+	}
+	if out[1].Type.Name != "Buscar pedido 1023" {
+		t.Fatal("selectors must never be parameterized")
+	}
+	if steps[1].Type.Text != "1023" {
+		t.Fatal("input steps must not be modified")
+	}
+}
+
+func TestParameterizeErrors(t *testing.T) {
+	tests := []struct {
+		params map[string]string
+		want   string
+	}{
+		{map[string]string{"n": "12"}, "too short"},
+		{map[string]string{"cliente": "Maria"}, `param "cliente" (value "Maria") was not found`},
+		{map[string]string{"bad-name": "1023"}, "invalid param name"},
+		{map[string]string{"botao": "Filtrar"}, "was not found"}, // só em seletor: não conta
+	}
+	for _, tt := range tests {
+		_, _, err := Parameterize(recordedSteps(), tt.params)
+		if err == nil || !strings.Contains(err.Error(), tt.want) {
+			t.Errorf("Parameterize(%v) error = %v, want %q", tt.params, err, tt.want)
+		}
+	}
+}
+
+func TestBind(t *testing.T) {
+	steps, _, _ := Parameterize(recordedSteps(), map[string]string{"numero": "1023"})
+	f := Flow{Name: "busca", Params: []string{"numero"}, Steps: steps}
+
+	bound, err := Bind(f, map[string]string{"numero": "2048"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bound[1].Type.Text != "2048" || bound[4].WaitFor.Text != "#2048 | Aprovado" || bound[0].Open != "https://portal/pedidos?busca=2048" {
+		t.Fatalf("bind failed: %+v %+v", bound[1].Type, bound[4].WaitFor)
+	}
+	if f.Steps[1].Type.Text != "{{numero}}" {
+		t.Fatal("flow must not be modified")
+	}
+	if _, err := Bind(f, nil); err == nil || !strings.Contains(err.Error(), "missing params: numero") {
+		t.Fatalf("missing param error: %v", err)
+	}
+	if _, err := Bind(f, map[string]string{"numero": "1", "x": "y"}); err == nil || !strings.Contains(err.Error(), `unknown param "x"`) {
+		t.Fatalf("unknown param error: %v", err)
+	}
+	undeclared := Flow{Name: "x", Steps: []Step{{Type: &TypeStep{Text: "{{nome}}"}}}}
+	if _, err := Bind(undeclared, nil); err == nil || !strings.Contains(err.Error(), "not declared") {
+		t.Fatalf("undeclared placeholder error: %v", err)
+	}
+}
+
+func TestYAMLMatchesSpec(t *testing.T) {
+	f := Flow{
+		Name: "buscar-pedido", Description: "Abre o portal e busca um pedido pelo número", Params: []string{"numero"},
+		Steps: []Step{
+			{Open: "https://portal/pedidos"},
+			{Type: &TypeStep{Selector: Selector{Role: "textbox", Name: "Buscar pedido"}, Text: "{{numero}}"}},
+			{Click: &Selector{Role: "button", Name: "Filtrar"}},
+			{WaitFor: &WaitStep{Text: "#{{numero}}"}},
+		},
+	}
+	data, err := Marshal(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `name: buscar-pedido
+description: Abre o portal e busca um pedido pelo número
+params:
+    - numero
+steps:
+    - open: https://portal/pedidos
+    - type:
+        role: textbox
+        name: Buscar pedido
+        text: '{{numero}}'
+    - click:
+        role: button
+        name: Filtrar
+    - wait_for:
+        text: '#{{numero}}'
+`
+	if string(data) != want {
+		t.Fatalf("yaml:\n%s\nwant:\n%s", data, want)
+	}
+	back, err := Unmarshal(data)
+	if err != nil || len(back.Steps) != 4 || back.Steps[1].Type.Name != "Buscar pedido" {
+		t.Fatalf("roundtrip: %+v %v", back, err)
+	}
+
+	// O formato compacto do exemplo da spec também precisa ser aceito.
+	spec := `name: buscar-pedido
+params: [numero]
+steps:
+  - open: https://portal/pedidos
+  - type: { role: textbox, name: "Buscar pedido", text: "{{numero}}" }
+  - click: { role: button, name: "Filtrar" }
+  - wait_for: { text: "#{{numero}}" }
+`
+	if _, err := Unmarshal([]byte(spec)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		f    Flow
+		want string
+	}{
+		{Flow{Name: "Bad Name", Steps: []Step{{Back: true}}}, "invalid flow name"},
+		{Flow{Name: "ok"}, "no steps"},
+		{Flow{Name: "ok", Steps: []Step{{}}}, "step 1 is empty"},
+		{Flow{Name: "ok", Steps: []Step{{Back: true, Press: "Enter"}}}, "more than one action"},
+	}
+	for _, tt := range tests {
+		if err := Validate(tt.f); err == nil || !strings.Contains(err.Error(), tt.want) {
+			t.Errorf("Validate(%+v) = %v, want %q", tt.f, err, tt.want)
+		}
+	}
+}
+
+func TestStepDescribe(t *testing.T) {
+	tests := map[string]Step{
+		`click button "Ok" (2nd, in dialog "X")`: {Click: &Selector{Role: "button", Name: "Ok", Nth: 2, Within: &Context{Role: "dialog", Name: "X"}}},
+		`type textbox "Nome" = "Ana"`:            {Type: &TypeStep{Selector: Selector{Role: "textbox", Name: "Nome"}, Text: "Ana"}},
+		`scroll down`:                            {Scroll: &ScrollStep{Direction: "down"}},
+		`wait_for text "Pronto" gone`:            {WaitFor: &WaitStep{Text: "Pronto", Gone: true}},
+		`emulate mobile`:                         {Emulate: &EmulateStep{Device: "mobile"}},
+		`press Enter`:                            {Press: "Enter"},
+	}
+	for want, step := range tests {
+		if got := step.Describe(); got != want {
+			t.Errorf("Describe = %q want %q", got, want)
+		}
+	}
+}
+
+func TestRecorderRange(t *testing.T) {
+	var r Recorder
+	if _, _, _, err := r.Range(0); err == nil || !strings.Contains(err.Error(), "no steps recorded") {
+		t.Fatalf("empty recorder: %v", err)
+	}
+	for i := 0; i < 4; i++ {
+		r.Add(Step{Press: "Tab"})
+	}
+	steps, from, to, err := r.Range(0)
+	if err != nil || len(steps) != 4 || from != 1 || to != 4 {
+		t.Fatalf("range all: %d %d %d %v", len(steps), from, to, err)
+	}
+	r.MarkSaved(4)
+	if _, _, _, err := r.Range(0); err == nil || !strings.Contains(err.Error(), "no new steps") {
+		t.Fatalf("after save: %v", err)
+	}
+	if n := r.Add(Step{Back: true}); n != 5 {
+		t.Fatalf("step number = %d", n)
+	}
+	if steps, from, _, _ := r.Range(0); len(steps) != 1 || from != 5 {
+		t.Fatalf("since save: %d from %d", len(steps), from)
+	}
+	if steps, _, _, _ := r.Range(2); len(steps) != 4 {
+		t.Fatalf("fromStep 2: %d", len(steps))
+	}
+	if _, _, _, err := r.Range(9); err == nil {
+		t.Fatal("out of range should fail")
+	}
+}
+
+func TestStore(t *testing.T) {
+	s := Store{Dir: t.TempDir() + "/flows"}
+	if list, err := s.List(); err != nil || len(list) != 0 {
+		t.Fatalf("missing dir should list nothing: %v %v", list, err)
+	}
+	f := Flow{Name: "login", Description: "x", Steps: []Step{{Open: "http://a"}}}
+	path, replaced, err := s.Save(f)
+	if err != nil || replaced || !strings.HasSuffix(path, "flows/login.yaml") {
+		t.Fatalf("save: %s %v %v", path, replaced, err)
+	}
+	if _, replaced, _ := s.Save(f); !replaced {
+		t.Fatal("second save should report replace")
+	}
+	got, err := s.Load("login")
+	if err != nil || got.Steps[0].Open != "http://a" {
+		t.Fatalf("load: %+v %v", got, err)
+	}
+	if _, err := s.Load("nope"); err == nil || !strings.Contains(err.Error(), "Call flow_list") {
+		t.Fatalf("missing flow error: %v", err)
+	}
+	if list, _ := s.List(); len(list) != 1 || list[0].Name != "login" {
+		t.Fatalf("list: %+v", list)
+	}
+}
