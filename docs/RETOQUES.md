@@ -285,3 +285,39 @@ Trechos novos da skill do Vitral:
 2. **Mesmo perfil da IA**: os logins valem nos dois.
 3. **Público:** qualquer pessoa na web (por isso a seção 6.4).
 4. **Nome:** Retoques.
+
+## 13. Resultados das medições (4 de outubro de 2026)
+
+`go test -tags retouchdiag -run TestRetouchDiag -v ./internal/browser/` (as partes com janela:
+`VITRAL_DIAG_VISIBLE=1`, janela fora da tela). Chrome for Testing 154.0.8037.92, que hoje é também o
+Stable mais recente, então a medição vale para a seção 6.4.
+
+| # | Pergunta | Resultado |
+|---|---|---|
+| 9.1 | `--load-extension` funciona? | **Sim**, com e sem as bandeiras de automação. O `<style>` posto em `document_start` já vale no primeiro script da página (sem piscar o original); `world: MAIN` funciona; o service worker sobe ~40 ms depois do navegador. |
+| 9.2 | Recarregar sem reiniciar? | **Sim, pelo `Extensions.loadUnpacked`**, na conexão de sempre, sem bandeira especial: carrega uma extensão nova e, chamado de novo no mesmo caminho, recarrega a extensão em ~33 ms, valendo na navegação seguinte. `chrome.runtime.reload()` pelo service worker não serve (o worker novo não subiu em 10 s). Então "fixar" vale na hora e `extension_load` não reinicia nada. |
+| 9.3 | Chave do perfil no macOS | **Não medido**: criaria um item no Keychain da pessoa e pode abrir uma janela do sistema. Decisão 14.2. |
+| 9.4 | Attach ao navegador do `vitral open` | `DevToolsActivePort` existe e o attach funciona, `setAutomationOverride` funciona. **Mas a porta de depuração sozinha já faz `navigator.webdriver = true` em todas as abas**, mesmo sem `enable-automation`; o pipe (`--remote-debugging-pipe`) também. Sem nenhuma das duas, `false`. E um segundo lançamento no mesmo perfil falha (`SingletonLock`), com ou sem janela: não há entrega para o navegador que já está aberto. |
+| 9.5 | Custo | Lançamento até o service worker: ~260–410 ms com 0, 10 ou 50 retoques (sem diferença mensurável). O CSS já vale no primeiro script da página nos três casos. |
+
+O que muda na especificação: a seção 6.3 supunha que o `vitral open` poderia ficar com a porta de
+depuração aberta para a IA entrar depois. Com a 9.4, isso faria o navegador da pessoa se apresentar
+como automatizado para todos os sites (mais CAPTCHAs e bloqueios). Decisão 14.1.
+
+## 14. Decisões pendentes (das medições)
+
+1. **O `vitral open` e a IA no mesmo navegador.**
+   - **(a) Navegador normal (recomendado):** o `vitral open` abre sem depuração, então os sites o veem como um
+     Chrome comum. O perfil é compartilhado no disco (logins e retoques), mas não ao mesmo tempo: se a
+     IA começar com o `vitral open` aberto no mesmo perfil, o Vitral responde "a pessoa está usando o
+     navegador do Vitral; peça para fechar a janela" (e a skill orienta a IA a pedir isso em uma frase).
+     Se o `vitral open` for chamado com a IA trabalhando, ele abre uma janela nova no navegador da IA
+     (que já tem a porta), e o selo continua lá.
+   - **(b) Navegador compartilhado:** o `vitral open` abre com a porta, a IA entra quando quiser, mas todos
+     os sites veem `navigator.webdriver = true` o tempo todo.
+2. **Chave do perfil no macOS.**
+   - **(a) Keychain de verdade nos dois modos (recomendado para o público geral):** cookies e senhas
+     cifrados com a chave do sistema; o macOS pergunta uma vez se o Chrome for Testing pode usar o
+     Keychain. Medir antes (9.3), com a sua permissão, porque cria esse item no seu Keychain.
+   - **(b) `use-mock-keychain` nos dois (como hoje):** sem pergunta, mas os logins ficam cifrados com uma
+     chave fixa, e quem tiver acesso ao disco consegue lê-los.
