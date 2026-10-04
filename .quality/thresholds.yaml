@@ -14,6 +14,7 @@ coverage:
   internal/mock:            {criterion: unit, min: 85}
   internal/cli:             {criterion: unit, min: 85}
   internal/browser/install: {criterion: unit, min: 85}
+  internal/cursor:          {criterion: unit, min: 85}
 
   # Demais pacotes sem browser.
   internal/config:     {criterion: unit, min: 70}
@@ -74,3 +75,4 @@ mutation:
     - internal/network
     - internal/security
     - internal/browser/install
+    - internal/cursor

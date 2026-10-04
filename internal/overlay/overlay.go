@@ -26,6 +26,11 @@ import (
 //go:embed overlay.js
 var scriptTemplate string
 
+// CursorScript é o tocador do cursor visual (cursor.js): o overlay e o tools/cursorlab usam o mesmo.
+//
+//go:embed cursor.js
+var CursorScript string
+
 // Tag é o nome do elemento host. O snapshot ignora tudo dentro dele.
 const Tag = "vitral-overlay"
 

@@ -13,7 +13,7 @@ MUTATION_BASE ?= main
 OUT         := .quality/out
 
 .PHONY: build dist test unit integration integration-cover e2e mutation mutation-all fuzz network visual visual-update \
-        matrix install-test lint fmt vuln gate gate-fast check check-fast nightly release-check clean brand tokens-baseline
+        matrix install-test lint fmt vuln gate gate-fast check check-fast nightly release-check clean brand cursorlab tokens-baseline
 
 # ---------- build ----------
 
@@ -33,6 +33,11 @@ dist:
 # Regenera os PNGs de assets/brand a partir dos SVGs (usa o Chrome local, funciona offline).
 brand:
 	go run ./tools/brandgen
+
+# Laboratório do cursor visual (docs/CURSOR.md, seção 10): .quality/out/cursorlab/index.html.
+# Ex.: make cursorlab CURSORLAB="-speed slow -seed 2 -set FittsB=120"
+cursorlab:
+	go run ./tools/cursorlab $(CURSORLAB)
 
 # ---------- testes ----------
 
