@@ -30,6 +30,7 @@ type App struct {
 	Browser *browser.Manager
 	Overlay *overlay.Manager
 	World   *world.Tracker
+	Session *session.Session
 }
 
 // Close fecha o browser lançado pelo servidor.
@@ -64,5 +65,5 @@ func Build(cfg config.Config, logger *slog.Logger) *App {
 		Config: cfg, Session: sess, Network: net, Console: con, Mocks: mocks,
 		Flows: flow.Store{Dir: cfg.FlowsDir}, UI: ui,
 	})
-	return &App{Server: server, Browser: mgr, Overlay: ui, World: w}
+	return &App{Server: server, Browser: mgr, Overlay: ui, World: w, Session: sess}
 }

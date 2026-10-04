@@ -76,6 +76,8 @@ type Session struct {
 	rec       *flow.Recorder
 	replaying atomic.Bool
 	cur       *pointer
+	ax        *axRefs // motor ax (protótipo): refs do documento atual
+	axStats   AXStats
 
 	mu        sync.Mutex
 	last      *snapshot.Page
@@ -160,6 +162,9 @@ func (s *Session) evalInto(ctx context.Context, out any, js string, args ...any)
 
 // capture tira um snapshot estruturado.
 func (s *Session) capture(ctx context.Context, opts snapshot.Options) (*snapshot.Page, error) {
+	if s.cfg.SnapshotEngine == "ax" {
+		return s.captureAX(ctx, opts)
+	}
 	data, err := s.evalJSON(ctx, `(o) => window.__vitral.snapshot(o)`, opts)
 	if err != nil {
 		return nil, err

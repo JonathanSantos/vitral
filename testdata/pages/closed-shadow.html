@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Shadow fechado - Fixture</title></head>
+<body>
+  <!-- Componente com shadow root fechado: o JS da página não alcança o conteúdo. -->
+  <h1>Pagamento</h1>
+  <pay-form></pay-form>
+  <p id="status" role="status">nada</p>
+  <script>
+    customElements.define('pay-form', class extends HTMLElement {
+      constructor() {
+        super();
+        const root = this.attachShadow({ mode: 'closed' });
+        root.innerHTML = `
+          <form aria-label="Cartão">
+            <label>Nome no cartão <input name="nome"></label>
+            <label>Parcelas <select><option>1x</option><option>2x</option><option>3x</option></select></label>
+            <button type="button" id="pagar">Pagar agora</button>
+          </form>`;
+        root.getElementById('pagar').addEventListener('click', () => {
+          document.getElementById('status').textContent = 'pago';
+        });
+      }
+    });
+  </script>
+</body>
+</html>

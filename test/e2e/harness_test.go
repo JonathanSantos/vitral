@@ -129,6 +129,9 @@ func start(t *testing.T, extraArgs ...string) *Session {
 		"--lang", "pt-BR", "--window-size", "1280,800", "--debug-info", s.debugInfo,
 	}, browserArgs...)
 	args = append(args, extraArgs...)
+	if e := os.Getenv("VITRAL_TEST_SNAPSHOT_ENGINE"); e != "" {
+		args = append(args, "--snapshot-engine", e)
+	}
 	// make demo-cursor: janela visível para uma pessoa acompanhar (e gravar o GIF).
 	if os.Getenv("VITRAL_E2E_VISIBLE") != "" {
 		args = args[1:]

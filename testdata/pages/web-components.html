@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Web components - Fixture</title></head>
+<body>
+  <h1>Configurações</h1>
+  <x-toggle label="Notificações por e-mail"></x-toggle>
+  <x-toggle label="Modo escuro" checked></x-toggle>
+  <x-panel><span slot="title">Conta</span><button>Trocar senha</button></x-panel>
+  <script>
+    customElements.define('x-toggle', class extends HTMLElement {
+      connectedCallback() {
+        const root = this.attachShadow({ mode: 'open' });
+        const on = this.hasAttribute('checked');
+        root.innerHTML = `<button role="switch" aria-checked="${on}">${this.getAttribute('label')}</button>`;
+        const b = root.querySelector('button');
+        b.addEventListener('click', () => b.setAttribute('aria-checked', String(b.getAttribute('aria-checked') !== 'true')));
+      }
+    });
+    customElements.define('x-panel', class extends HTMLElement {
+      connectedCallback() {
+        const root = this.attachShadow({ mode: 'open' });
+        root.innerHTML = `<section aria-labelledby="t"><h2 id="t"><slot name="title"></slot></h2><slot></slot></section>`;
+      }
+    });
+  </script>
+</body>
+</html>

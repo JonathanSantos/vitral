@@ -1003,6 +1003,23 @@
     roleOf,
     lastMutationAt: () => state.lastMutation,
     docId: () => state.docId,
+    // Motor "ax" (protótipo): o Go grava as refs no DOM pelo CDP; adopt as registra aqui para as ações
+    // atuais (find) funcionarem. Shadow roots fechados ficam de fora (o querySelector não alcança).
+    counter: () => state.counter,
+    adopt: () => {
+      let adopted = 0;
+      for (const root of searchRoots()) {
+        for (const el of root.querySelectorAll ? root.querySelectorAll('[' + REF_ATTR + ']') : []) {
+          const ref = el.getAttribute(REF_ATTR);
+          if (state.refs.get(ref)?.deref() === el) continue;
+          state.refs.set(ref, new WeakRef(el));
+          const n = Number(ref.slice(1));
+          if (n > state.counter) state.counter = n;
+          adopted++;
+        }
+      }
+      return { adopted, counter: state.counter };
+    },
   };
   window.__vitralSnapshot = snapshot;
 })();
