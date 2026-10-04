@@ -19,7 +19,7 @@ import (
 
 const existing = `{
   // configuração da equipe: o setup não pode apagar este comentário
-  "servers": {
+  "mcpServers": {
     "outro": { "type": "stdio", "command": "outro-mcp" }
   }
 }
@@ -94,7 +94,7 @@ func TestInstallAndUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := machine{t: t, home: home, cwd: cwd}
-	mcpPath := filepath.Join(m.cwd, ".vscode", "mcp.json")
+	mcpPath := filepath.Join(m.cwd, ".mcp.json")
 	if err := os.MkdirAll(filepath.Dir(mcpPath), 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -105,11 +105,11 @@ func TestInstallAndUpdate(t *testing.T) {
 
 	// 1. Primeira instalação: copia para ~/.vitral/bin, faz merge no mcp.json e guarda o .bak.
 	out := m.must(v1, "setup")
-	contains(t, out, "Vitral instalado em "+installed+" (versão 1.0.0)", "mcp.json configurado")
+	contains(t, out, "Vitral instalado em "+installed+" (versão 1.0.0)", ".mcp.json configurado")
 	contains(t, m.must(installed, "version"), "vitral 1.0.0")
 	mcp := readFile(t, mcpPath)
 	contains(t, mcp, "o setup não pode apagar este comentário", `"outro"`)
-	entry, ok, err := cli.ReadServer([]byte(mcp), cli.ServerName)
+	entry, ok, err := cli.ReadServer([]byte(mcp), cli.KeyPortable, cli.ServerName)
 	if err != nil || !ok || entry.Command != installed || entry.Type != "stdio" {
 		t.Fatalf("vitral entry = %+v ok=%v err=%v, want command %s", entry, ok, err, installed)
 	}
@@ -158,6 +158,17 @@ func TestInstallAndUpdate(t *testing.T) {
 	out, _ = m.run(installed, "doctor", "--browsers-dir", filepath.Join(m.home, "browsers"))
 	contains(t, out, "✓ Vitral instalado em "+installed+" (versão 2.0.0)", "✓ "+mcpPath+" aponta para "+installed,
 		"✓ skill do Vitral em "+skill+" (versão 2.0.0)")
+
+	// 6. Desligar e ligar pelo binário instalado, com o status mostrando cada estado.
+	contains(t, m.must(installed, "status", "--browsers-dir", filepath.Join(m.home, "browsers")), "✓ ligado     "+mcpPath+" (pasta)")
+	contains(t, m.must(installed, "disable"), "✓ Vitral desligado em "+mcpPath)
+	contains(t, m.must(installed, "disable"), "nada mudou")
+	contains(t, m.must(installed, "status", "--browsers-dir", filepath.Join(m.home, "browsers")), "– desligado  "+mcpPath+" (pasta)")
+	contains(t, readFile(t, mcpPath), "o setup não pode apagar este comentário", `"_disabled"`)
+	contains(t, m.must(installed, "enable"), "✓ Vitral ligado em "+mcpPath)
+	if got, ok, _ := cli.ReadServer([]byte(readFile(t, mcpPath)), cli.KeyPortable, cli.ServerName); !ok || got.Command != installed {
+		t.Fatalf("enable should restore the entry:\n%s", readFile(t, mcpPath))
+	}
 }
 
 func readFile(t *testing.T, path string) string {

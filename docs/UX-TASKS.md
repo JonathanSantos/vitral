@@ -62,7 +62,7 @@ Pílula fixa no canto inferior direito, a 16 px das bordas, com o ícone pequeno
 ## UX-4: CLI amigável para humanos
 
 - **`vitral` sem argumentos:** com stdin em terminal, imprime uma ajuda curta em PT-BR e sai com 0; sem terminal (Copilot), roda o servidor MCP.
-- **`vitral setup`:** cria ou atualiza `.vscode/mcp.json` com a entrada `vitral`, preservando as outras; copia os prompt files para `.github/prompts/` sem sobrescrever sem confirmar; imprime os próximos passos; `--global` configura no nível do usuário do VS Code, se viável (senão, documentar).
+- **`vitral setup`:** cria ou atualiza `.mcp.json` (formato portável, `mcpServers`) com a entrada `vitral`, preservando as outras; copia os prompt files para `.github/prompts/` sem sobrescrever sem confirmar; imprime os próximos passos; `--global` grava `~/.copilot/mcp-config.json` (todos os perfis do VS Code e o Copilot CLI). Onde o Vitral estiver no formato antigo do VS Code (`.vscode/mcp.json`, `mcp.json` do perfil), oferece tirar. `vitral status`, `vitral disable` e `vitral enable` completam o ciclo (README, "Desligar o Vitral").
 - **`vitral doctor`:** ✓/✗ por item com a ação sugerida: Chrome/Chromium encontrado, perfil gravável, launch headless funciona, versão.
 - **`vitral version`.**
 - **Download do Chromium:** progresso em stderr em PT-BR ("Baixando o navegador do Vitral (só na primeira vez)… 45%").

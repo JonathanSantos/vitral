@@ -1,0 +1,13 @@
+{
+  // Normalmente o "vitral setup" escreve este arquivo sozinho, na raiz do projeto (formato portável:
+  // vale para o VS Code e o Copilot CLI). Para configurar à mão, troque o caminho pelo do seu binário
+  // (ex.: ~/.vitral/bin/vitral).
+  "mcpServers": {
+    "vitral": {
+      "type": "stdio",
+      "command": "${userHome}/.vitral/bin/vitral",
+      "args": [],
+      "tools": ["*"]
+    }
+  }
+}

@@ -2,13 +2,10 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/JonathanSantos/vitral/internal/browser"
@@ -130,24 +127,29 @@ func checkInstalled(e Env) Check {
 	return Check{OK: true, Text: fmt.Sprintf(msgCheckInstalledOK, path, v)}
 }
 
-// checkMCP olha o mcp.json da pasta atual e os do usuário: o caminho existe e é a versão instalada?
+// checkMCP olha os arquivos da pasta atual e do usuário: onde o Vitral está ativo, o caminho existe
+// e é a versão instalada? Também aponta o formato antigo (deprecado) e o Vitral ativo em mais de um
+// lugar (o VS Code subiria dois servidores).
 func checkMCP(e Env) []Check {
-	files := []string{filepath.Join(e.Cwd, ".vscode", "mcp.json")}
-	for _, c := range installedVSCodes(e) {
-		files = append(files, c.MCPPath())
-	}
 	installed := binaryVersion(e, InstalledPath(e))
 	var checks []Check
-	for _, file := range files {
-		data, err := os.ReadFile(file)
-		if errors.Is(err, fs.ErrNotExist) {
+	active := 0
+	for _, p := range Inspect(append(WorkspaceLocations(e), GlobalLocations(e)...)) {
+		if p.State != StateActive {
 			continue
 		}
-		entry, ok, err := ReadServer(data, ServerName)
-		if err != nil || !ok {
-			continue
+		active++
+		checks = append(checks, checkEntry(e, p.Path, p.Entry, installed))
+		if p.Deprecated {
+			fix := msgFixMCPLegacyLocal
+			if p.Global {
+				fix = msgFixMCPLegacyGlobal
+			}
+			checks = append(checks, Check{Text: fmt.Sprintf(msgCheckMCPLegacy, p.Path), Fix: fix})
 		}
-		checks = append(checks, checkEntry(e, file, entry, installed))
+	}
+	if active > 1 {
+		checks = append(checks, Check{Text: fmt.Sprintf(msgCheckMCPDuplicate, active), Fix: msgFixMCPDuplicate})
 	}
 	if len(checks) == 0 {
 		return []Check{{Text: msgCheckMCPNone, Fix: msgFixMCP}}

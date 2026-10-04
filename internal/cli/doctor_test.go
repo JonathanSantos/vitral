@@ -48,7 +48,7 @@ func TestDoctorReportsEverythingOffline(t *testing.T) {
 		"✓ perfil do navegador pode ser gravado",
 		"✗ não testei abrir o navegador",
 		"✓ Vitral instalado em",
-		"✓ " + filepath.Join(f.Cwd, ".vscode", "mcp.json") + " aponta para",
+		"✓ " + filepath.Join(f.Cwd, ".mcp.json") + " aponta para",
 		"✓ skill do Vitral em " + filepath.Join(f.Cwd, ".github", "skills", "vitral", "SKILL.md"),
 		"Algo precisa de atenção",
 	} {
@@ -87,21 +87,45 @@ func TestDoctorChecks(t *testing.T) {
 		if got := checkMCP(f.Env); len(got) != 1 || got[0].OK {
 			t.Fatalf("no config: %+v", got)
 		}
-		mcp := filepath.Join(f.Cwd, ".vscode", "mcp.json")
-		writeFile(t, mcp, `{"servers":{"vitral":{"type":"stdio","command":"/nao/existe"}}}`)
+		mcp := filepath.Join(f.Cwd, ".mcp.json")
+		writeFile(t, mcp, `{"mcpServers":{"vitral":{"type":"stdio","command":"/nao/existe"}}}`)
 		if got := checkMCP(f.Env); got[0].OK || !strings.Contains(got[0].Text, "que não existe") {
 			t.Fatalf("missing binary: %+v", got)
 		}
 		old := filepath.Join(f.Home, "velho")
 		writeFile(t, old, "binary v-old")
-		writeFile(t, mcp, `{"servers":{"vitral":{"type":"stdio","command":"`+old+`"}}}`)
+		writeFile(t, mcp, `{"mcpServers":{"vitral":{"type":"stdio","command":"`+old+`"}}}`)
 		if got := checkMCP(f.Env); got[0].OK || !strings.Contains(got[0].Text, "versão 0.0.1") {
 			t.Fatalf("old binary: %+v", got)
 		}
-		writeFile(t, mcp, `{"servers":{"vitral":{"type":"stdio","command":"`+InstalledPath(f.Env)+`"}}}`)
-		if got := checkMCP(f.Env); !got[0].OK {
+		writeFile(t, mcp, `{"mcpServers":{"vitral":{"type":"stdio","command":"`+InstalledPath(f.Env)+`"}}}`)
+		if got := checkMCP(f.Env); len(got) != 1 || !got[0].OK {
 			t.Fatalf("ok: %+v", got)
 		}
+		// Desligado não conta como ligado.
+		writeFile(t, mcp, `{"mcpServers":{},"_disabled":{"vitral":{"type":"stdio","command":"`+InstalledPath(f.Env)+`"}}}`)
+		if got := checkMCP(f.Env); len(got) != 1 || got[0].OK || !strings.Contains(got[0].Text, "nenhum arquivo") {
+			t.Fatalf("disabled: %+v", got)
+		}
+		// Formato antigo e duplicado: avisos com a ação.
+		legacy := filepath.Join(f.Cwd, ".vscode", "mcp.json")
+		writeFile(t, legacy, `{"servers":{"vitral":{"type":"stdio","command":"`+InstalledPath(f.Env)+`"}}}`)
+		writeFile(t, filepath.Join(f.Home, ".copilot", "mcp-config.json"), `{"mcpServers":{"vitral":{"type":"stdio","command":"`+InstalledPath(f.Env)+`"}}}`)
+		got := checkMCP(f.Env)
+		var texts []string
+		for _, c := range got {
+			if !c.OK {
+				texts = append(texts, c.Text+" → "+c.Fix)
+			}
+		}
+		joined := strings.Join(texts, "\n")
+		for _, want := range []string{legacy + " usa o formato antigo do VS Code", "rode: vitral setup (passa para .mcp.json)", "está ligado em 2 arquivos", "vitral disable --workspace"} {
+			if !strings.Contains(joined, want) {
+				t.Errorf("missing %q in:\n%s", want, joined)
+			}
+		}
+		_ = os.Remove(legacy)
+		_ = os.Remove(filepath.Join(f.Home, ".copilot", "mcp-config.json"))
 	})
 	t.Run("browser check", func(t *testing.T) {
 		cfg := doctorConfig(t, f, "")
@@ -179,9 +203,9 @@ func TestInstallEdgeCases(t *testing.T) {
 		t.Fatalf("output: %s", f.out.String())
 	}
 	// mcp.json quebrado: erro claro, nada gravado.
-	bad := filepath.Join(f.Cwd, ".vscode", "mcp.json")
+	bad := filepath.Join(f.Cwd, ".mcp.json")
 	writeFile(t, bad, "{ quebrado")
-	if err := writeMCP(f.Env, bad, ServerEntry{Type: "stdio", Command: dst}); err == nil {
+	if err := writeMCP(f.Env, Location{Path: bad, Key: KeyPortable}, ServerEntry{Type: "stdio", Command: dst}); err == nil {
 		t.Fatal("broken mcp.json must fail")
 	}
 	if ParseVersion("vitral") != "?" {

@@ -17,14 +17,14 @@ func FuzzMergeServer(f *testing.F) {
 	f.Add(`{"servers": 3}`)
 	entry := ServerEntry{Type: "stdio", Command: `C:\Users\A\.vitral\bin\vitral.exe`, Args: []string{}}
 	f.Fuzz(func(t *testing.T, data string) {
-		out, err := MergeServer([]byte(data), ServerName, entry)
+		out, err := MergeServer([]byte(data), KeyVSCode, ServerName, entry)
 		if err != nil {
 			return
 		}
 		if _, err := hujson.Parse(out); err != nil {
 			t.Fatalf("result is not valid JSONC: %v\n%s", err, out)
 		}
-		got, ok, err := ReadServer(out, ServerName)
+		got, ok, err := ReadServer(out, KeyVSCode, ServerName)
 		if err != nil || !ok || got.Command != entry.Command {
 			t.Fatalf("vitral entry missing: %+v %v\n%s", got, err, out)
 		}

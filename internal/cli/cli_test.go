@@ -74,7 +74,12 @@ func readFile(t *testing.T, path string) string {
 }
 
 func TestMainDispatch(t *testing.T) {
-	load := func([]string) (config.Config, error) { return config.Config{}, nil }
+	load := func(args []string) (config.Config, error) {
+		if len(args) > 0 {
+			return config.Config{}, errors.New("bad flag " + args[0])
+		}
+		return config.Config{}, nil
+	}
 	tests := []struct {
 		name        string
 		args        []string
@@ -90,6 +95,11 @@ func TestMainDispatch(t *testing.T) {
 		{"--version", []string{"--version"}, false, true, 0, config.Name + " "},
 		{"unknown command", []string{"instalar"}, true, true, 1, "comando desconhecido"},
 		{"bad setup flag", []string{"setup", "--force"}, true, true, 1, "opção desconhecida"},
+		{"disable with nothing configured", []string{"disable"}, true, true, 0, "nada mudou"},
+		{"enable with nothing disabled", []string{"enable", "--workspace"}, true, true, 0, "nada mudou"},
+		{"bad disable flag", []string{"disable", "--tudo"}, true, true, 1, `"--tudo" para disable`},
+		{"status", []string{"status"}, true, true, 0, "Configuração:"},
+		{"status with bad flag", []string{"status", "--nope"}, true, true, 1, "flag"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -132,22 +142,26 @@ func TestSetupFirstRun(t *testing.T) {
 	if readFile(t, installed) != "binary v-new" {
 		t.Fatal("binary not installed")
 	}
-	mcp := readFile(t, filepath.Join(f.Cwd, ".vscode", "mcp.json"))
-	entry, ok, err := ReadServer([]byte(mcp), ServerName)
-	if err != nil || !ok || entry.Command != installed || entry.Type != "stdio" {
-		t.Fatalf("mcp.json = %s (%v)", mcp, err)
+	// Formato portável: .mcp.json na raiz, chave mcpServers, todas as ferramentas.
+	mcp := readFile(t, filepath.Join(f.Cwd, ".mcp.json"))
+	entry, ok, err := ReadServer([]byte(mcp), KeyPortable, ServerName)
+	if err != nil || !ok || entry.Command != installed || entry.Type != "stdio" || len(entry.Tools) != 1 || entry.Tools[0] != "*" {
+		t.Fatalf(".mcp.json = %s (%v)", mcp, err)
+	}
+	if _, err := os.Stat(filepath.Join(f.Cwd, ".vscode", "mcp.json")); err == nil {
+		t.Fatal("the deprecated .vscode/mcp.json must not be created")
 	}
 	prompts, _ := os.ReadDir(filepath.Join(f.Cwd, ".github", "prompts"))
 	if len(prompts) != 5 {
 		t.Fatalf("want 5 prompts, got %d", len(prompts))
 	}
 	out := f.out.String()
-	for _, want := range []string{"Vitral instalado em", "5 novos", "Próximos passos"} {
+	for _, want := range []string{"Vitral instalado em", "5 novos", "Próximos passos", "MCP: List Servers"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(f.Cwd, ".vscode", "mcp.json.bak")); err == nil {
+	if _, err := os.Stat(filepath.Join(f.Cwd, ".mcp.json.bak")); err == nil {
 		t.Error("no backup expected for a new file")
 	}
 }
@@ -156,23 +170,23 @@ func TestSetupMergesAndDoesNotOverwrite(t *testing.T) {
 	f := newFakeEnv(t, "linux")
 	original := `{
   // configuração da equipe
-  "servers": {
+  "mcpServers": {
     "github": { "type": "http", "url": "https://api.githubcopilot.com/mcp/" },
   },
 }`
-	writeFile(t, filepath.Join(f.Cwd, ".vscode", "mcp.json"), original)
+	writeFile(t, filepath.Join(f.Cwd, ".mcp.json"), original)
 	writeFile(t, filepath.Join(f.Cwd, ".github", "prompts", "vitral-descrever-tela.prompt.md"), "minha versão")
 
 	if err := Setup(f.Env, SetupOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	mcp := readFile(t, filepath.Join(f.Cwd, ".vscode", "mcp.json"))
+	mcp := readFile(t, filepath.Join(f.Cwd, ".mcp.json"))
 	for _, want := range []string{"// configuração da equipe", `"github": { "type": "http"`, `"vitral"`} {
 		if !strings.Contains(mcp, want) {
-			t.Errorf("missing %q in merged mcp.json:\n%s", want, mcp)
+			t.Errorf("missing %q in merged .mcp.json:\n%s", want, mcp)
 		}
 	}
-	if readFile(t, filepath.Join(f.Cwd, ".vscode", "mcp.json.bak")) != original {
+	if readFile(t, filepath.Join(f.Cwd, ".mcp.json.bak")) != original {
 		t.Error("backup must hold the original file")
 	}
 	// Sem terminal e sem --yes, o prompt editado pela pessoa fica como está.
@@ -198,12 +212,55 @@ func TestSetupMergesAndDoesNotOverwrite(t *testing.T) {
 	}
 }
 
+// O Vitral no formato antigo (.vscode/mcp.json) sai de lá, com confirmação: em dois lugares, o VS
+// Code subiria dois servidores.
+func TestSetupMigratesLegacyWorkspace(t *testing.T) {
+	f := newFakeEnv(t, "linux")
+	legacy := filepath.Join(f.Cwd, ".vscode", "mcp.json")
+	original := `{
+  "servers": {
+    "github": { "type": "http", "url": "https://x" },
+    "vitral": { "type": "stdio", "command": "/old/vitral", "args": [] }
+  }
+}`
+	writeFile(t, legacy, original)
+
+	// Sem terminal e sem --yes: mantém e avisa.
+	if err := Setup(f.Env, SetupOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(f.out.String(), "mantido: "+legacy) || readFile(t, legacy) != original {
+		t.Fatalf("legacy entry must stay without confirmation:\n%s", f.out.String())
+	}
+	// Respondendo "s": tira só o Vitral, com cópia de segurança.
+	f.out.Reset()
+	f.Interactive, f.Stdin = true, strings.NewReader("s\n")
+	if err := Setup(f.Env, SetupOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	got := readFile(t, legacy)
+	if strings.Contains(got, "vitral") || !strings.Contains(got, `"github"`) || readFile(t, legacy+".bak") != original {
+		t.Fatalf("migration result:\n%s", got)
+	}
+	if !strings.Contains(f.out.String(), "tirei o Vitral do formato antigo em "+legacy) {
+		t.Fatalf("%s", f.out.String())
+	}
+	// Desligado no formato antigo também sai (com --yes).
+	writeFile(t, legacy, `{"servers": {}, "_disabled": {"vitral": {"command": "/old"}}}`)
+	if err := Setup(f.Env, SetupOptions{Yes: true}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readFile(t, legacy), "vitral") {
+		t.Fatalf("disabled legacy entry kept:\n%s", readFile(t, legacy))
+	}
+}
+
 func TestSetupUpdateShowsVersionsAndGitWarning(t *testing.T) {
 	f := newFakeEnv(t, "linux")
 	installed := filepath.Join(f.Home, ".vitral", "bin", "vitral")
 	writeFile(t, installed, "binary v-old")
 	f.versions["binary v-old"] = "0.0.1"
-	f.gitFiles = ".vscode/settings.json"
+	f.gitFiles = ".mcp.json"
 
 	if err := Setup(f.Env, SetupOptions{}); err != nil {
 		t.Fatal(err)
@@ -212,8 +269,8 @@ func TestSetupUpdateShowsVersionsAndGitWarning(t *testing.T) {
 	if !strings.Contains(out, "versão "+config.Version+" (antes: 0.0.1)") {
 		t.Fatalf("update should show old and new versions:\n%s", out)
 	}
-	if !strings.Contains(out, "vitral setup --global") {
-		t.Fatalf("versioned .vscode should suggest --global:\n%s", out)
+	if !strings.Contains(out, filepath.Join(f.Cwd, ".mcp.json")+" está no git") || !strings.Contains(out, "vitral setup --global") {
+		t.Fatalf("versioned .mcp.json should suggest --global:\n%s", out)
 	}
 	if readFile(t, installed) != "binary v-new" {
 		t.Fatal("binary not replaced")
@@ -225,45 +282,71 @@ func TestSetupUpdateShowsVersionsAndGitWarning(t *testing.T) {
 
 func TestSetupGlobal(t *testing.T) {
 	f := newFakeEnv(t, "darwin")
-	if err := Setup(f.Env, SetupOptions{Global: true}); err == nil || !strings.Contains(err.Error(), "não encontrei o VS Code") {
-		t.Fatalf("no VS Code should fail clearly: %v", err)
-	}
-
-	userDir := filepath.Join(f.Home, "Library", "Application Support", "Code", "User")
-	if err := os.MkdirAll(userDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	global := filepath.Join(f.Home, ".copilot", "mcp-config.json")
 	// Sem terminal e sem --yes: mostra o caminho e não grava.
-	f.out.Reset()
 	err := Setup(f.Env, SetupOptions{Global: true})
-	if err == nil || !strings.Contains(f.out.String(), filepath.Join(userDir, "mcp.json")) {
+	if err == nil || !strings.Contains(err.Error(), "precisa de confirmação") || !strings.Contains(f.out.String(), global) {
 		t.Fatalf("should print the path and ask for confirmation: %v\n%s", err, f.out.String())
 	}
-	if _, err := os.Stat(filepath.Join(userDir, "mcp.json")); err == nil {
+	if _, err := os.Stat(global); err == nil {
 		t.Fatal("must not write without confirmation")
 	}
 
-	// Interativo respondendo "n": pula.
+	// Interativo respondendo "n": nada muda.
 	f.Interactive, f.Stdin = true, strings.NewReader("n\n")
 	if err := Setup(f.Env, SetupOptions{Global: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(userDir, "mcp.json")); err == nil {
+	if _, err := os.Stat(global); err == nil || !strings.Contains(f.out.String(), "Nada foi alterado") {
 		t.Fatal("answer no must not write")
 	}
 
-	// --yes: grava mcp.json e prompts do usuário.
+	// Sem VS Code: grava o servidor e a skill, e avisa dos prompts.
+	f.out.Reset()
 	if err := Setup(f.Env, SetupOptions{Global: true, Yes: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, _ := ReadServer([]byte(readFile(t, filepath.Join(userDir, "mcp.json"))), ServerName); !ok {
-		t.Fatal("global mcp.json not written")
+	if _, ok, _ := ReadServer([]byte(readFile(t, global)), KeyPortable, ServerName); !ok {
+		t.Fatal("global mcp-config.json not written")
+	}
+	if !strings.Contains(f.out.String(), "Não encontrei o VS Code") {
+		t.Fatalf("%s", f.out.String())
+	}
+
+	// Com VS Code (perfil padrão e um perfil) no formato antigo: prompts, migração e skill.
+	userDir := filepath.Join(f.Home, "Library", "Application Support", "Code", "User")
+	legacyUser := filepath.Join(userDir, "mcp.json")
+	legacyProfile := filepath.Join(userDir, "profiles", "abc123", "mcp.json")
+	writeFile(t, legacyUser, `{"servers": {"vitral": {"type": "stdio", "command": "/old"}}}`)
+	writeFile(t, legacyProfile, `{"servers": {"vitral": {"type": "stdio", "command": "/old"}, "outro": {"command": "x"}}}`)
+	f.out.Reset()
+	if err := Setup(f.Env, SetupOptions{Global: true, Yes: true}); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{legacyUser, legacyProfile} {
+		if strings.Contains(readFile(t, p), "vitral") {
+			t.Errorf("%s still has vitral:\n%s", p, readFile(t, p))
+		}
+	}
+	if !strings.Contains(readFile(t, legacyProfile), `"outro"`) {
+		t.Error("other servers must stay")
 	}
 	if prompts, _ := os.ReadDir(filepath.Join(userDir, "prompts")); len(prompts) != 5 {
 		t.Fatalf("global prompts = %d", len(prompts))
 	}
 	if v := SkillVersion([]byte(readFile(t, filepath.Join(f.Home, ".copilot", "skills", "vitral", "SKILL.md")))); v != config.Version {
 		t.Fatalf("global skill version %q", v)
+	}
+
+	// $COPILOT_HOME muda o lugar do arquivo global.
+	f.Getenv = func(k string) string {
+		if k == "COPILOT_HOME" {
+			return filepath.Join(f.Home, "copilot-home")
+		}
+		return ""
+	}
+	if got := PortableGlobal(f.Env).Path; got != filepath.Join(f.Home, "copilot-home", "mcp-config.json") {
+		t.Fatalf("COPILOT_HOME: %s", got)
 	}
 }
 

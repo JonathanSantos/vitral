@@ -57,6 +57,24 @@ com ela a IA trabalha com mais cuidado. Se você editar a skill, o setup pergunt
 
 Algo estranho? Rode `vitral doctor`: ele confere tudo e diz o que fazer.
 
+## Desligar o Vitral
+
+Do mais rápido ao mais duradouro:
+
+- **Agora, no meio de uma tarefa:** clique em "⏸ Pausar IA" no canto da janela do navegador.
+  <!-- print: botão Pausar IA no selo -->
+- **Só nesta conversa:** no chat do Copilot, clique no botão *Configure Tools* (o ícone de
+  ferramentas, ao lado de onde você digita) e desmarque o Vitral.
+  <!-- print: Configure Tools com o Vitral desmarcado -->
+- **No VS Code, até você ligar de novo:** na barra lateral de extensões, seção *MCP SERVERS - INSTALLED*,
+  clique com o botão direito em "vitral" e escolha *Disable*. Também dá pelo comando *MCP: List Servers*:
+  escolha "vitral" e depois *Disable*. Vale para este projeto ou para todos, e não muda nenhum arquivo.
+  <!-- print: menu Disable no servidor vitral -->
+- **No Copilot CLI:** `/mcp disable vitral`.
+- **Nos arquivos de configuração:** `vitral disable` desliga o Vitral em todos os arquivos onde ele está
+  (`--workspace` só nesta pasta, `--global` só no usuário); `vitral enable` liga de novo. Para ver onde
+  ele está configurado: `vitral status`.
+
 ---
 
 ## Para desenvolvedores
@@ -85,6 +103,9 @@ As ações devolvem só o que mudou na tela. Enquanto a pessoa pausa, as ferrame
 ```bash
 vitral                   # no terminal: ajuda; sem terminal (VS Code): servidor MCP
 vitral setup [--global] [--yes]
+vitral status
+vitral disable [--workspace|--global]
+vitral enable [--workspace|--global]
 vitral doctor
 vitral install-browser [--from chrome.zip]
 vitral version
@@ -116,8 +137,17 @@ Redes corporativas: `VITRAL_BROWSER_MIRROR` (ou `--browser-mirror`) aponta para 
 de paths do Chrome for Testing, `HTTPS_PROXY`/`HTTP_PROXY` são respeitados, e
 `vitral install-browser --from chrome.zip` instala um zip baixado à mão.
 
-O `setup` instala o binário em `~/.vitral/bin` e aponta o `.vscode/mcp.json` (ou o do usuário, com
-`--global`) para ele, preservando comentários. Rodar de novo com um binário novo é a forma de atualizar.
+O `setup` instala o binário em `~/.vitral/bin` e grava a configuração no formato portável, que vale
+para o VS Code (todos os perfis), o Copilot CLI e o Agent Host: `.mcp.json` na raiz do projeto, ou
+`~/.copilot/mcp-config.json` (`$COPILOT_HOME/mcp-config.json`) com `--global`, na chave `mcpServers`,
+preservando comentários e com `.bak` do arquivo anterior. Se o Vitral estiver no formato antigo do VS Code
+(`.vscode/mcp.json` ou o `mcp.json` de um perfil, deprecados), o setup oferece tirá-lo de lá: com ele em
+dois lugares, o VS Code sobe dois servidores. Rodar de novo com um binário novo é a forma de atualizar.
+
+Não existe campo oficial de "desligado" no arquivo (o VS Code e o Copilot CLI guardam esse estado à
+parte). Por isso o `vitral disable` move a entrada de `mcpServers` para a chave de topo `_disabled`: o
+arquivo continua JSON válido para todas as ferramentas e o `enable` só a devolve. Os dois são
+idempotentes, mostram cada arquivo alterado e guardam `.bak`.
 
 Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
 

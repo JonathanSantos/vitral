@@ -10,21 +10,33 @@ import (
 	"github.com/tailscale/hujson"
 )
 
-// ServerName é a chave do Vitral em "servers" no mcp.json.
+// ServerName é a chave do Vitral na lista de servidores.
 const ServerName = "vitral"
 
-// ServerEntry é a configuração do servidor no mcp.json do VS Code.
+// Chaves da lista de servidores: "servers" no formato do VS Code (.vscode/mcp.json e o mcp.json do
+// perfil, deprecados) e "mcpServers" no formato portável (.mcp.json e ~/.copilot/mcp-config.json).
+// KeyDisabled guarda a entrada desligada pelo "vitral disable": não existe campo oficial de
+// "desligado" no arquivo, e uma chave de topo desconhecida mantém o JSON válido para todos.
+const (
+	KeyVSCode   = "servers"
+	KeyPortable = "mcpServers"
+	KeyDisabled = "_disabled"
+)
+
+// ServerEntry é a configuração do servidor no arquivo MCP.
 type ServerEntry struct {
 	Type    string   `json:"type"`
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
+	// Tools é a lista de ferramentas liberadas no formato do Copilot CLI ("*" = todas).
+	Tools []string `json:"tools,omitempty"`
 }
 
-// MergeServer grava a entrada em servers.<name> preservando o resto do arquivo, comentários
-// e formatação (o mcp.json do VS Code é JSONC). A entrada nova segue a indentação dos vizinhos.
-func MergeServer(data []byte, name string, entry ServerEntry) ([]byte, error) {
+// MergeServer grava a entrada em <key>.<name> preservando o resto do arquivo, comentários
+// e formatação (JSONC). A entrada nova segue a indentação dos vizinhos.
+func MergeServer(data []byte, key, name string, entry ServerEntry) ([]byte, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
-		doc := map[string]map[string]ServerEntry{"servers": {name: entry}}
+		doc := map[string]map[string]ServerEntry{key: {name: entry}}
 		out, err := json.MarshalIndent(doc, "", "  ")
 		return append(out, '\n'), err
 	}
@@ -41,18 +53,18 @@ func MergeServer(data []byte, name string, entry ServerEntry) ([]byte, error) {
 		unit = "  "
 	}
 
-	servers := member(root, "servers")
+	servers := member(root, key)
 	if servers == nil {
 		value, err := render(map[string]ServerEntry{name: entry}, unit, unit)
 		if err != nil {
 			return nil, err
 		}
-		appendMember(root, "servers", value, unit)
+		appendMember(root, key, value, unit)
 		return v.Pack(), nil
 	}
 	obj, ok := servers.Value.Value.(*hujson.Object)
 	if !ok {
-		return nil, errors.New(`"servers" must be an object`)
+		return nil, fmt.Errorf("%q must be an object", key)
 	}
 	childIndent := indentOf(obj, unit+unit)
 	value, err := render(entry, childIndent, unit)
@@ -128,15 +140,19 @@ func appendMember(obj *hujson.Object, name string, value hujson.Value, indent st
 	obj.Members = append(obj.Members, m)
 }
 
-// ReadServer lê servers.<name> de um mcp.json (JSONC). ok=false se não existir.
+// ReadServer lê <key>.<name> de um arquivo MCP (JSONC). ok=false se não existir.
 // As chaves são comparadas exatamente, como o VS Code faz (o encoding/json do Go ignoraria
 // maiúsculas e poderia ler "Servers" no lugar de "servers").
-func ReadServer(data []byte, name string) (ServerEntry, bool, error) {
+func ReadServer(data []byte, key, name string) (ServerEntry, bool, error) {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return ServerEntry{}, false, nil
+	}
 	v, err := hujson.Parse(data)
 	if err != nil {
 		return ServerEntry{}, false, fmt.Errorf("invalid JSON: %w", err)
 	}
-	found := v.Find("/servers/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(name))
+	esc := strings.NewReplacer("~", "~0", "/", "~1")
+	found := v.Find("/" + esc.Replace(key) + "/" + esc.Replace(name))
 	if found == nil {
 		return ServerEntry{}, false, nil
 	}
@@ -144,15 +160,96 @@ func ReadServer(data []byte, name string) (ServerEntry, bool, error) {
 	entryValue.Standardize()
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(entryValue.Pack(), &fields); err != nil {
-		return ServerEntry{}, false, fmt.Errorf("servers.%s is not an object", name)
+		return ServerEntry{}, false, fmt.Errorf("%s.%s is not an object", key, name)
 	}
 	var e ServerEntry
-	for key, dst := range map[string]any{"type": &e.Type, "command": &e.Command, "args": &e.Args} {
-		if raw, ok := fields[key]; ok {
+	for field, dst := range map[string]any{"type": &e.Type, "command": &e.Command, "args": &e.Args, "tools": &e.Tools} {
+		if raw, ok := fields[field]; ok {
 			if err := json.Unmarshal(raw, dst); err != nil {
-				return ServerEntry{}, false, fmt.Errorf("servers.%s.%s: %w", name, key, err)
+				return ServerEntry{}, false, fmt.Errorf("%s.%s.%s: %w", key, name, field, err)
 			}
 		}
 	}
 	return e, true, nil
+}
+
+// MoveServer tira <from>.<name> do arquivo e põe em <to>.<name>, com todos os campos e sem mexer
+// no resto (é o "vitral disable"/"enable"; to vazio só remove). moved=false se não estava em from.
+func MoveServer(data []byte, from, to, name string) (out []byte, moved bool, err error) {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return data, false, nil
+	}
+	v, err := hujson.Parse(data)
+	if err != nil {
+		return nil, false, fmt.Errorf("invalid JSON: %w", err)
+	}
+	root, ok := v.Value.(*hujson.Object)
+	if !ok {
+		return nil, false, errors.New("the file must contain a JSON object")
+	}
+	src := member(root, from)
+	if src == nil {
+		return data, false, nil
+	}
+	obj, ok := src.Value.Value.(*hujson.Object)
+	if !ok {
+		return nil, false, fmt.Errorf("%q must be an object", from)
+	}
+	i := -1
+	for k := range obj.Members {
+		if lit, ok := obj.Members[k].Name.Value.(hujson.Literal); ok && lit.String() == name {
+			i = k
+			break
+		}
+	}
+	if i < 0 {
+		return data, false, nil
+	}
+	entry := obj.Members[i].Value.Clone()
+	entry.Standardize()
+	removeMember(obj, i)
+	if to != "" {
+		unit := indentOf(root, "")
+		if unit == "" && bytes.Contains(data, []byte("\n")) {
+			unit = "  "
+		}
+		var raw any
+		if err := json.Unmarshal(entry.Pack(), &raw); err != nil {
+			return nil, false, err
+		}
+		dst := member(root, to)
+		if dst == nil {
+			value, err := render(map[string]any{name: raw}, unit, unit)
+			if err != nil {
+				return nil, false, err
+			}
+			appendMember(root, to, value, unit)
+		} else {
+			dobj, ok := dst.Value.Value.(*hujson.Object)
+			if !ok {
+				return nil, false, fmt.Errorf("%q must be an object", to)
+			}
+			indent := indentOf(dobj, unit+unit)
+			value, err := render(raw, indent, unit)
+			if err != nil {
+				return nil, false, err
+			}
+			if existing := member(dobj, name); existing != nil {
+				existing.Value.Value = value.Value
+			} else {
+				appendMember(dobj, name, value, indent)
+			}
+		}
+	}
+	return v.Pack(), true, nil
+}
+
+// removeMember tira o membro i, mantendo a vírgula final se o arquivo usava.
+func removeMember(obj *hujson.Object, i int) {
+	last := i == len(obj.Members)-1
+	trailing := obj.Members[i].Value.AfterExtra
+	obj.Members = append(obj.Members[:i], obj.Members[i+1:]...)
+	if last && len(obj.Members) > 0 {
+		obj.Members[len(obj.Members)-1].Value.AfterExtra = trailing
+	}
 }

@@ -66,7 +66,7 @@ internal/ring/        ring buffer genérico
 internal/tools/       ferramentas MCP (um arquivo por grupo)
 internal/security/    allowlist de hosts, mascaramento
 testdata/pages/       fixtures HTML
-examples/vscode/      mcp.json, prompt files, CHECKLIST.md
+examples/vscode/      .mcp.json, CHECKLIST.md
 ```
 
 ## 6. Browser

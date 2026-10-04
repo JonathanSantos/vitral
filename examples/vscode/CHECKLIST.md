@@ -1,7 +1,7 @@
 # Checklist de validação manual no VS Code (Copilot)
 
-Pré-requisitos: `vitral setup` rodado na pasta do projeto de teste (ou o `mcp.json` desta pasta
-copiado para `.vscode/mcp.json`, com o caminho do binário em `command`).
+Pré-requisitos: `vitral setup` rodado na pasta do projeto de teste (ou o `.mcp.json` desta pasta
+copiado para a raiz do projeto, com o caminho do binário em `command`).
 
 ## Fase 1: base
 
@@ -77,13 +77,14 @@ copiado para `.vscode/mcp.json`, com o caminho do binário em `command`).
    ajuda em português e o comando termina (não fica esperando).
 2. Numa pasta de teste, rode `vitral setup`:
    - o binário é copiado para `~/.vitral/bin/vitral` e a saída mostra a versão;
-   - `.vscode/mcp.json` ganha a entrada `vitral` apontando para esse caminho (se já existia, as outras
-     entradas e os comentários continuam e há um `.bak` ao lado);
+   - `.mcp.json` (raiz) ganha a entrada `vitral` em `mcpServers` apontando para esse caminho (se já
+     existia, as outras entradas e os comentários continuam e há um `.bak` ao lado);
    - `.github/prompts/` recebe os 5 prompts `vitral-*`;
-   - se a pasta `.vscode` estiver no git, aparece o aviso sugerindo `--global`.
+   - se o `.mcp.json` estiver no git, aparece o aviso sugerindo `--global`;
+   - com o Vitral também em `.vscode/mcp.json` (formato antigo), o setup pergunta se tira de lá.
 3. Edite um dos prompts e rode o setup de novo: ele pergunta antes de substituir.
-4. Rode `vitral setup --global`: ele mostra o caminho do `mcp.json` do usuário (VS Code e/ou Insiders) e
-   pede confirmação antes de gravar.
+4. Rode `vitral setup --global`: ele mostra `~/.copilot/mcp-config.json` e as pastas de prompts de cada
+   VS Code, e pede confirmação antes de gravar.
 5. Rode `vitral doctor`: todos os itens com ✓. Apague `~/.vitral/bin/vitral` e rode de novo: o item da
    instalação aparece com ✗ e a ação sugerida.
 6. No VS Code, digite `/` no chat e confira os prompts `vitral-descrever-tela`, `vitral-preencher-formulario`,
@@ -91,6 +92,26 @@ copiado para `.vscode/mcp.json`, com o caminho do binário em `command`).
    - o `preencher-formulario` para antes de enviar e pede "sim";
    - o `testar-api-fora` termina sem mocks ativos (`mock_list` vazio).
 7. Siga o README como uma pessoa não técnica: a parte de cima deve caber em uma tela.
+
+## Formato portável e desligar o Vitral
+
+Pontos que a documentação não garante e só dá para conferir à mão:
+
+1. **VS Code lê o `.mcp.json`:** com o Vitral só no `.mcp.json` da raiz, *MCP: List Servers* mostra
+   "vitral" e ele inicia. O mesmo com só `~/.copilot/mcp-config.json` (setup `--global`), num perfil
+   que não seja o padrão.
+2. **Copilot CLI aceita `"type": "stdio"` e `"tools": ["*"]`:** `copilot mcp list` mostra o vitral e
+   `/mcp show vitral` lista as ferramentas. (A documentação do CLI usa `"type": "local"` nos exemplos.)
+3. **A chave `_disabled` não incomoda ninguém:** depois de `vitral disable`, o VS Code e o CLI abrem o
+   arquivo sem erro e não listam o vitral; os outros servidores continuam funcionando.
+4. **O VS Code para o servidor ao ver a mudança:** com o Vitral rodando (janela aberta), rode
+   `vitral disable`: a janela do navegador fecha sozinha? Se não fechar, a mensagem do disable orienta
+   *MCP: List Servers* → *Stop*; anote o comportamento aqui.
+5. **`vitral enable`** devolve a entrada e o Vitral inicia de novo no próximo pedido do chat.
+6. **`vitral status`** mostra os dois arquivos (pasta e usuário), o estado de cada um, o aviso de
+   duplicado quando os dois estão ligados, a skill e o navegador.
+7. **Caminhos nativos do README:** *Configure Tools* no chat, *Disable* no servidor (Extensions e
+   *MCP: List Servers*) e `/mcp disable vitral` no CLI; tire os prints para o README.
 
 ## Skill do Vitral
 

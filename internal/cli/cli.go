@@ -39,6 +39,23 @@ func Main(args []string, e Env, loadConfig func([]string) (config.Config, error)
 			err = InstallBrowser(e, cfg, zipPath)
 		}
 		return true, report(e, err)
+	case "disable", "enable":
+		opts, err := parseScope(args[0], args[1:])
+		if err == nil {
+			if args[0] == "disable" {
+				err = Disable(e, opts)
+			} else {
+				err = Enable(e, opts)
+			}
+		}
+		return true, report(e, err)
+	case "status":
+		cfg, err := loadConfig(args[1:])
+		if err != nil {
+			return true, report(e, err)
+		}
+		Status(e, cfg)
+		return true, 0
 	case "doctor":
 		cfg, err := loadConfig(args[1:])
 		if err != nil {
