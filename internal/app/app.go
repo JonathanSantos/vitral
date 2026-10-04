@@ -15,6 +15,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/overlay"
 	"github.com/JonathanSantos/vitral/internal/session"
 	"github.com/JonathanSantos/vitral/internal/tools"
+	"github.com/JonathanSantos/vitral/internal/ux"
 	"github.com/JonathanSantos/vitral/internal/world"
 )
 
@@ -44,7 +45,7 @@ func Build(cfg config.Config, logger *slog.Logger) *App {
 	// O rastreador do mundo isolado vem primeiro: os scripts dos outros preparos dependem dele.
 	w := world.New()
 	mgr.OnNewPage(w.Attach)
-	ui := overlay.New(overlay.Options{Minimal: cfg.NoOverlay, Highlight: cfg.Highlight()}, logger, w)
+	ui := overlay.New(overlay.Options{Minimal: cfg.NoOverlay, Highlight: cfg.Highlight(), Tag: ux.Tag(cfg.Profile, cfg.Session)}, logger, w)
 	sess := session.New(cfg, logger, mgr, net, con, ui, w)
 	mgr.OnNewPage(ui.Attach)
 

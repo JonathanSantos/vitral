@@ -435,6 +435,23 @@
     }
   },
   {
+    "name": "session_save",
+    "description": "After the user logs in by hand, save the login state (cookies and localStorage) under a name, so flows can run without the window with --session \u003cname\u003e. The content is never shown.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "session name: lowercase letters, digits, - and _ (e.g. portal-hml)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "snapshot",
     "description": "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=\u003cref\u003e to read them in full. Paragraph text is not listed: use text=true to read it: links come as text[ref], headings as ## Title[ref], captions as (caption); scope=\u003cheading or table-of-contents link ref\u003e reads that section; find=\u003cwords\u003e returns only the passages with them.",
     "inputSchema": {

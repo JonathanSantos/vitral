@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Captcha escondido - Fixture</title></head>
+<body>
+  <!-- Verificação: o iframe existe mas está escondido (display: none) até o clique em Entrar. -->
+  <h1>Entrar</h1>
+  <label>E-mail <input type="email" name="email"></label>
+  <iframe id="cap" title="reCAPTCHA" width="304" height="78" style="display:none" src="/pages/verify/widget.html?k=https://www.google.com/recaptcha/api2/anchor"></iframe>
+  <script>document.addEventListener("click", (e) => { if (e.target.textContent === "Entrar") document.getElementById("cap").style.display = "block"; });</script>
+  <button type="button">Entrar</button>
+</body>
+</html>

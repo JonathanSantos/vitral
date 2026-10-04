@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Portal - Fixture</title></head>
+<body>
+  <!-- Sessões (pedido 4.2): o script lê o localStorage e o cookie no carregamento. Com --session, os
+       dois precisam existir antes deste script rodar para a página mostrar "logado". -->
+  <h1>Portal</h1>
+  <p id="status" role="status"></p>
+  <button type="button" onclick="entrar()">Entrar</button>
+  <script>
+    const logado = localStorage.getItem('portal-token') === 'tk-7f3a91' && document.cookie.includes('portal_sess=s-55c2');
+    document.getElementById('status').textContent = logado ? 'logado' : 'deslogado';
+    function entrar() {
+      localStorage.setItem('portal-token', 'tk-7f3a91');
+      document.cookie = 'portal_sess=s-55c2; path=/; max-age=3600';
+      location.reload();
+    }
+  </script>
+</body>
+</html>

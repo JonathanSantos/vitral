@@ -52,6 +52,8 @@ type Options struct {
 	Minimal bool
 	// Highlight é quanto o destaque fica na tela antes da ação; 0 desliga.
 	Highlight time.Duration
+	// Tag aparece no selo quando o perfil não é o padrão ou há --session (ux.Tag).
+	Tag string
 }
 
 // Manager guarda o estado do selo e conversa com a página ativa.
@@ -249,7 +251,9 @@ func (m *Manager) render() {
 	if p == nil {
 		return
 	}
-	data, _ := json.Marshal(ViewOf(s))
+	v := ViewOf(s)
+	v.Label = ux.Tagged(v.Label, m.opts.Tag)
+	data, _ := json.Marshal(v)
 	m.eval(context.Background(), "render", string(data))
 }
 

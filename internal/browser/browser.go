@@ -20,6 +20,7 @@ import (
 
 	"github.com/JonathanSantos/vitral/internal/browser/install"
 	"github.com/JonathanSantos/vitral/internal/config"
+	"github.com/JonathanSantos/vitral/internal/storagestate"
 )
 
 // PageHook prepara cada página nova (scripts, listeners de rede/console, mocks).
@@ -42,6 +43,8 @@ type Manager struct {
 	browser  *rod.Browser
 	page     *rod.Page
 	cancel   context.CancelFunc
+	// tempProfile é o perfil temporário do --session (apagado no Close).
+	tempProfile string
 }
 
 // New cria o gerenciador sem subir nada: o browser só abre na primeira ferramenta.
@@ -101,6 +104,17 @@ func (m *Manager) ensureBrowser() error {
 	}
 	m.browser = b
 	m.writeDebugInfo(controlURL)
+	if m.cfg.Session != "" && m.launched != nil {
+		st, err := storagestate.Store{Dir: m.cfg.SessionsDir}.Load(m.cfg.Session)
+		if err == nil {
+			err = m.injectState(st)
+		}
+		if err != nil {
+			m.reset()
+			return fmt.Errorf("session %s: %w", m.cfg.Session, err)
+		}
+		m.log.Info("session restored", "session", m.cfg.Session, "cookies", len(st.Cookies), "origins", len(st.Origins))
+	}
 	return nil
 }
 
@@ -127,7 +141,7 @@ func (m *Manager) writeDebugInfo(controlURL string) {
 	if m.cfg.DebugInfoFile == "" {
 		return
 	}
-	info := DebugInfo{ControlURL: controlURL, ProfileDir: m.cfg.ProfileDir, Attached: m.launched == nil}
+	info := DebugInfo{ControlURL: controlURL, ProfileDir: m.profileDir(), Attached: m.launched == nil}
 	if m.launched != nil {
 		info.PID = m.launched.PID()
 	}
@@ -160,7 +174,11 @@ func (m *Manager) launch() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(m.cfg.ProfileDir, 0o700); err != nil {
+	profile, err := m.sessionProfile()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(profile, 0o700); err != nil {
 		return "", fmt.Errorf("create profile dir: %w", err)
 	}
 	w, h, _ := config.ParseWindowSize(m.cfg.WindowSize)
@@ -168,17 +186,17 @@ func (m *Manager) launch() (string, error) {
 	l := launcher.New().
 		Bin(bin).
 		Headless(m.cfg.Headless).
-		UserDataDir(m.cfg.ProfileDir).
+		UserDataDir(profile).
 		Set("window-size", strconv.Itoa(w), strconv.Itoa(h)).
 		Set("remote-debugging-address", "127.0.0.1").
 		Logger(m.chromeLogWriter())
 	if m.cfg.Lang != "" {
 		l = l.Set("lang", m.cfg.Lang)
 	}
-	m.log.Info("launching browser", "bin", bin, "headless", m.cfg.Headless, "profile", m.cfg.ProfileDir)
+	m.log.Info("launching browser", "bin", bin, "headless", m.cfg.Headless, "profile", profile)
 	u, err := l.Launch()
 	if err != nil {
-		return "", fmt.Errorf("launch browser: %w. If another %s is using the profile %s, close it or use --profile-dir", err, config.Name, m.cfg.ProfileDir)
+		return "", fmt.Errorf("launch browser: %w. If another %s is using the profile %s, close it, use another --profile, or run with --session", err, config.Name, profile)
 	}
 	m.launched = l
 	return u, nil
@@ -224,6 +242,7 @@ func (m *Manager) openPage() (*rod.Page, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	p = p.Context(ctx)
+	m.trackOrigins(p)
 	for _, hook := range m.hooks {
 		if err := hook(p); err != nil {
 			cancel()
@@ -284,9 +303,12 @@ func (m *Manager) reset() {
 }
 
 func (m *Manager) killLaunched() {
-	if m.launched == nil {
-		return
+	if m.launched != nil {
+		m.launched.Kill()
+		m.launched = nil
 	}
-	m.launched.Kill()
-	m.launched = nil
+	if m.tempProfile != "" {
+		_ = os.RemoveAll(m.tempProfile)
+		m.tempProfile = ""
+	}
 }

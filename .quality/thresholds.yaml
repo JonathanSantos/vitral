@@ -16,6 +16,7 @@ coverage:
   internal/browser/install: {criterion: unit, min: 85}
   internal/cursor:          {criterion: unit, min: 85}
   internal/heal:            {criterion: unit, min: 85}
+  internal/storagestate:    {criterion: unit, min: 85}
 
   # Demais pacotes sem browser.
   internal/config:     {criterion: unit, min: 70}

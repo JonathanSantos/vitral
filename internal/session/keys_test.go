@@ -2,6 +2,7 @@ package session
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/go-rod/rod/lib/input"
@@ -40,5 +41,18 @@ func TestParseKeys(t *testing.T) {
 				t.Fatalf("got mods=%v key=%v", mods, key)
 			}
 		})
+	}
+}
+
+func TestHandOff(t *testing.T) {
+	if pause, err := handOff(false, "x"); !pause || err != nil {
+		t.Fatalf("visible window: %v %v", pause, err)
+	}
+	pause, err := handOff(true, "a one-time code (2FA)")
+	if pause || err == nil || !strings.HasPrefix(err.Error(), "verification required: run with the browser window visible. The page asks for a one-time code (2FA)") {
+		t.Fatalf("headless: %v %v", pause, err)
+	}
+	if len(verification.Captcha) != 3 || verification.Code == "" || len(verification.Ignore) == 0 {
+		t.Fatalf("detectors: %+v", verification)
 	}
 }

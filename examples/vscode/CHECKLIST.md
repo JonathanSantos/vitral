@@ -113,6 +113,22 @@ Pontos que a documentação não garante e só dá para conferir à mão:
 7. **Caminhos nativos do README:** *Configure Tools* no chat, *Disable* no servidor (Extensions e
    *MCP: List Servers*) e `/mcp disable vitral` no CLI; tire os prints para o README.
 
+## Perfis, sessões e verificação humana
+
+1. `vitral --profile hml` (ou `"args": ["--profile", "hml"]` no `.mcp.json`): o selo mostra
+   "… · perfil hml" e o perfil fica em `~/.vitral/profiles/hml`. Quem já usava o Vitral: o perfil antigo
+   (`~/.vitral/profile`) virou `~/.vitral/profiles/default`, com os logins mantidos.
+2. Faça login à mão num site e peça na conversa "salve a sessão como portal": a resposta mostra só o
+   nome, as origens e a quantidade de cookies (nunca valores); o arquivo em `~/.vitral/sessions` tem
+   permissão 0600.
+3. Com o Vitral do VS Code aberto, rode no terminal `vitral --headless --session portal` por uma ponte (ou
+   um segundo servidor) e abra o site: entra logado. O selo (com janela) mostra "· sessão portal".
+4. Com o Vitral fechado, `vitral session save outra`, `vitral session list` e `vitral session delete outra`.
+5. Abra uma página com um CAPTCHA de verdade (ex.: a demo do reCAPTCHA): o navegador pausa com
+   "Sua vez: resolva a verificação"; resolva, clique em Retomar e confira que a IA segue.
+6. Num login com 2FA por código: a IA não digita no campo do código; o selo mostra "Sua vez: digite o
+   código".
+
 ## Skill do Vitral
 
 1. Depois do `vitral setup`, confira `.github/skills/vitral/SKILL.md` e, no chat do Copilot, digite `/`:

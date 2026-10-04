@@ -93,3 +93,16 @@ func TestNavNote(t *testing.T) {
 		t.Fatal("idle shows the idle text")
 	}
 }
+
+func TestTag(t *testing.T) {
+	for _, tt := range []struct{ profile, session, want string }{
+		{"default", "", ""}, {"", "", ""}, {"hml", "", "perfil hml"}, {"hml", "portal", "sessão portal"}, {"default", "portal", "sessão portal"},
+	} {
+		if got := Tag(tt.profile, tt.session); got != tt.want {
+			t.Errorf("Tag(%q, %q) = %q", tt.profile, tt.session, got)
+		}
+	}
+	if Tagged("Vitral está usando esta janela", "perfil hml") != "Vitral está usando esta janela · perfil hml" || Tagged("x", "") != "x" {
+		t.Error("Tagged")
+	}
+}

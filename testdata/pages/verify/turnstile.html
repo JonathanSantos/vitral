@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Turnstile - Fixture</title></head>
+<body>
+  <!-- Verificação: imita a estrutura do Cloudflare Turnstile (iframe de challenges.cloudflare.com) dentro de um shadow root aberto. -->
+  <h1>Entrar</h1>
+  <label>E-mail <input type="email" name="email"></label>
+  <div id="cf"></div>
+  <script>
+    const root = document.getElementById("cf").attachShadow({ mode: "open" });
+    root.innerHTML = `<iframe title="Cloudflare" width="300" height="65" src="/pages/verify/widget.html?k=https://challenges.cloudflare.com/cdn-cgi/challenge-platform/turnstile"></iframe>`;
+  </script>
+  <button type="button">Entrar</button>
+</body>
+</html>

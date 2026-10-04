@@ -1,0 +1,10 @@
+{
+  "_comment": "Detectores de verificação humana (pedido 4.3). Versionado: um serviço novo entra aqui, com uma fixture que imita a estrutura dele em testdata/pages/verify. Iframes invisíveis (reCAPTCHA v3, size=invisible) não contam.",
+  "captcha": [
+    {"name": "reCAPTCHA", "selector": "iframe[src*='google.com/recaptcha'], iframe[src*='recaptcha.net/recaptcha']"},
+    {"name": "hCaptcha", "selector": "iframe[src*='hcaptcha.com']"},
+    {"name": "Cloudflare Turnstile", "selector": "iframe[src*='challenges.cloudflare.com']"}
+  ],
+  "ignore": ["size=invisible"],
+  "code": "input[autocomplete~='one-time-code'], textarea[autocomplete~='one-time-code']"
+}

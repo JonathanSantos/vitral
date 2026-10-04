@@ -7,6 +7,7 @@ import (
 
 	"github.com/JonathanSantos/vitral/internal/browser"
 	"github.com/JonathanSantos/vitral/internal/config"
+	"github.com/JonathanSantos/vitral/internal/storagestate"
 )
 
 // Status mostra onde o Vitral está configurado (e se está ativo), as versões do binário e da skill
@@ -64,7 +65,10 @@ func Status(e Env, cfg config.Config) {
 	}
 
 	res, resErr := browser.Resolve(cfg, nil, true)
-	fmt.Fprintf(e.Stdout, msgStatusBrowser, checkBrowser(cfg, res, resErr).Text, cfg.ProfileDir)
+	fmt.Fprintf(e.Stdout, msgStatusBrowser, checkBrowser(cfg, res, resErr).Text, cfg.Profile, cfg.ProfileDir)
+	if list, _ := (storagestate.Store{Dir: cfg.SessionsDir}).List(); len(list) > 0 {
+		fmt.Fprintf(e.Stdout, msgStatusSessions, len(list), cfg.SessionsDir)
+	}
 }
 
 func hasState(places []Placement, state string) bool {

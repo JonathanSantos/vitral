@@ -2,6 +2,8 @@ package config
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +49,8 @@ func TestLoad(t *testing.T) {
 		{
 			name: "defaults without file",
 			check: func(t *testing.T, c Config) {
-				if c.ProfileDir != "/home/u/.vitral/profile" || c.NavTimeout != 15*time.Second || c.NetworkBuffer != 500 {
+				if c.ProfileDir != "/home/u/.vitral/profiles/default" || c.Profile != "default" || c.SessionsDir != "/home/u/.vitral/sessions" ||
+					c.NavTimeout != 15*time.Second || c.NetworkBuffer != 500 {
 					t.Fatalf("unexpected defaults: %+v", c)
 				}
 			},
@@ -158,5 +161,69 @@ func TestCursorConfig(t *testing.T) {
 		if _, err := load(bad...); err == nil || !strings.Contains(err.Error(), bad[0]) {
 			t.Errorf("%v should fail naming the flag: %v", bad, err)
 		}
+	}
+}
+
+func TestProfilesAndSessions(t *testing.T) {
+	load := func(args ...string) (Config, error) {
+		return Load(args, "/home/u", func(string) ([]byte, error) { return nil, os.ErrNotExist }, func(string) string { return "" })
+	}
+	c, err := load("--profile", "hml")
+	if err != nil || c.ProfileDir != "/home/u/.vitral/profiles/hml" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	c, err = load("--profile", "hml", "--profile-dir", "~/outro")
+	if err != nil || c.ProfileDir != "/home/u/outro" {
+		t.Fatalf("profile-dir wins: %+v %v", c, err)
+	}
+	if c, err = load("--session", "portal", "--sessions-dir", "~/s"); err != nil || c.Session != "portal" || c.SessionsDir != "/home/u/s" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	for _, args := range [][]string{{"--profile", "Hml"}, {"--profile", "../x"}, {"--profile", ""}, {"--session", "a b"}, {"--session", "x", "--attach-port", "9222"}} {
+		if _, err := load(args...); err == nil {
+			t.Errorf("%v must fail", args)
+		}
+	}
+	if !ValidName("a") || !ValidName("prod_2-b") || ValidName("-x") || ValidName(strings.Repeat("a", 41)) {
+		t.Error("ValidName")
+	}
+}
+
+func TestMigrateProfile(t *testing.T) {
+	home := t.TempDir()
+	if moved, err := MigrateProfile(home); moved || err != nil {
+		t.Fatalf("nothing to migrate: %v %v", moved, err)
+	}
+	old := filepath.Join(home, ".vitral", "profile")
+	if err := os.MkdirAll(filepath.Join(old, "Default"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if moved, err := MigrateProfile(home); !moved || err != nil {
+		t.Fatalf("migrate: %v %v", moved, err)
+	}
+	if _, err := os.Stat(filepath.Join(ProfilePath(home, DefaultProfile), "Default")); err != nil {
+		t.Fatal("profile not moved")
+	}
+	// O destino já existe: não mexe (e não apaga o antigo).
+	if err := os.MkdirAll(old, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if moved, err := MigrateProfile(home); moved || err != nil {
+		t.Fatalf("destination exists: %v %v", moved, err)
+	}
+	if _, err := os.Stat(old); err != nil {
+		t.Fatal("old profile must stay when the destination exists")
+	}
+	// Sem permissão para criar profiles/: erro.
+	ro := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(ro, ".vitral", "profile"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(ro, ".vitral"), 0o500); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(filepath.Join(ro, ".vitral"), 0o700) }()
+	if _, err := MigrateProfile(ro); err == nil {
+		t.Fatal("read-only parent must fail")
 	}
 }

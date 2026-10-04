@@ -58,7 +58,12 @@ func (s *Session) Open(ctx context.Context, rawURL string) (string, error) {
 	}
 	s.last = page
 	rec := &recording{step: func(*flow.Selector) flow.Step { return flow.Step{Open: target} }}
-	return joinNonEmpty(snapshot.Format(page, s.format), s.events(netMark, conMark), warning, s.record(rec, nil, "")), nil
+	recorded := s.record(rec, nil, "")
+	verify, err := s.verificationGate(ctx)
+	if err != nil {
+		return "", err
+	}
+	return joinNonEmpty(snapshot.Format(page, s.format), s.events(netMark, conMark), warning, recorded, verify), nil
 }
 
 func (s *Session) navigate(ctx context.Context, p *rod.Page, target string) error {
@@ -244,6 +249,7 @@ type typeInfo struct {
 	Error      string `json:"error"`
 	Role       string `json:"role"`
 	Password   bool   `json:"password"`
+	Code       bool   `json:"code"`
 	Disabled   bool   `json:"disabled"`
 	Readonly   bool   `json:"readonly"`
 	Editable   bool   `json:"editable"`
@@ -267,7 +273,7 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 			}
 		}
 		var info typeInfo
-		if err := s.callRef(ctx, &info, ref, `(el, c, n) => window.__vitral.prepareType(el, c, n)`, clearFirst, s.cur.on); err != nil {
+		if err := s.callRef(ctx, &info, ref, `(el, c, n, k) => window.__vitral.prepareType(el, c, n, k)`, clearFirst, s.cur.on, verification.Code); err != nil {
 			return err
 		}
 		switch {
@@ -280,6 +286,16 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 			}
 			s.ui.WaitForUser(ux.ReasonPassword, ref, info.Box)
 			return pausedResult(fmt.Sprintf(ux.PasswordMessage, ref))
+		case info.Code:
+			// Código de uso único (2FA): a IA nunca digita; sem janela, ninguém digita (4.3).
+			if _, err := handOff(s.cfg.Headless, "a one-time code (2FA)"); err != nil {
+				return err
+			}
+			if s.cur.on {
+				s.besideAndHide(ctx, info.Box)
+			}
+			s.ui.WaitForUser(ux.ReasonCode, ref, info.Box)
+			return pausedResult(fmt.Sprintf(ux.CodeMessage, ref))
 		case info.Disabled:
 			if s.cur.on {
 				s.failAt(ctx, info.Box, cursor.Text, ux.TextDisabled)
@@ -301,7 +317,7 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 				if err := pressAt(ctx, p, plan); err != nil {
 					return err
 				}
-				if err := s.callRef(ctx, &info, ref, `(el, c) => window.__vitral.prepareType(el, c, true)`, clearFirst); err != nil {
+				if err := s.callRef(ctx, &info, ref, `(el, c, k) => window.__vitral.prepareType(el, c, true, k)`, clearFirst, verification.Code); err != nil {
 					return err
 				}
 				s.awayFrom(ctx, plan.End)

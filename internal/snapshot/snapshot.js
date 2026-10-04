@@ -715,18 +715,19 @@
   }
 
   // Foca e (opcionalmente) seleciona todo o conteúdo para que o Backspace real o apague.
-  function prepareType(el, clear, noScroll) {
+  function prepareType(el, clear, noScroll, codeSel) {
     el = live(el);
     if (!el) return { error: 'not_found' };
     const info = { role: roleOf(el), password: el.tagName === 'INPUT' && el.type === 'password' };
+    try { info.code = !!codeSel && el.matches(codeSel); } catch (_) {}
     try { info.disabled = el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'; } catch (_) {}
     info.readonly = !!el.readOnly;
     info.editable = editableInfo(el);
     if (!info.editable || info.disabled || info.readonly) return info;
     if (!noScroll) el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
     info.box = boxOf(el);
-    // Campo de senha: só rola até ele (para o destaque); quem digita é a pessoa.
-    if (info.password) return info;
+    // Campo de senha ou de código: só rola até ele (para o destaque); quem digita é a pessoa.
+    if (info.password || info.code) return info;
     el.focus();
     if (!clear) {
       if (el.setSelectionRange && el.value != null) {

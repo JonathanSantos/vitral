@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -26,7 +27,14 @@ type Config struct {
 	Headless   bool   `yaml:"headless"`
 	Attach     string `yaml:"attach"`
 	AttachPort int    `yaml:"attachPort"`
+	// Profile é o perfil nomeado (~/.vitral/profiles/<nome>): contas diferentes, homologação e
+	// produção. ProfileDir, se informado, vence.
+	Profile    string `yaml:"profile"`
 	ProfileDir string `yaml:"profileDir"`
+	// Session inicia com um perfil temporário e o estado salvo por session_save (cookies e
+	// localStorage), para rodar sem janela ou com o perfil aberto em outro Vitral.
+	Session     string `yaml:"session"`
+	SessionsDir string `yaml:"sessionsDir"`
 	// BrowserPath força um executável específico (--browser-path / VITRAL_BROWSER_PATH).
 	BrowserPath string `yaml:"browserPath"`
 	// AllowSystemBrowser permite usar o Chrome/Edge do sistema como último recurso (sempre com o perfil do Vitral).
@@ -73,7 +81,8 @@ type Config struct {
 // Defaults devolve a configuração padrão. homeDir vem de fora para manter a função pura.
 func Defaults(homeDir string) Config {
 	return Config{
-		ProfileDir:       filepath.Join(homeDir, "."+Name, "profile"),
+		Profile:          DefaultProfile,
+		SessionsDir:      filepath.Join(homeDir, "."+Name, "sessions"),
 		BrowsersDir:      filepath.Join(homeDir, "."+Name, "browsers"),
 		WindowSize:       "1280,800",
 		NavTimeout:       15 * time.Second,
@@ -112,7 +121,11 @@ func Load(args []string, homeDir string, readFile func(string) ([]byte, error), 
 	if err := parseFlags(&cfg, args); err != nil {
 		return cfg, err
 	}
+	if cfg.ProfileDir == "" {
+		cfg.ProfileDir = ProfilePath(homeDir, cfg.Profile)
+	}
 	cfg.ProfileDir = expandHome(cfg.ProfileDir, homeDir)
+	cfg.SessionsDir = expandHome(cfg.SessionsDir, homeDir)
 	cfg.BrowsersDir = expandHome(cfg.BrowsersDir, homeDir)
 	cfg.BrowserPath = expandHome(cfg.BrowserPath, homeDir)
 	return cfg, validate(cfg)
@@ -161,7 +174,10 @@ func parseFlags(cfg *Config, args []string) error {
 	fset.BoolVar(&cfg.Headless, "headless", cfg.Headless, "run the browser without a window")
 	fset.StringVar(&cfg.Attach, "attach", cfg.Attach, "attach to a running Chrome by websocket URL (ws://...)")
 	fset.IntVar(&cfg.AttachPort, "attach-port", cfg.AttachPort, "attach to a running Chrome by remote debugging port")
-	fset.StringVar(&cfg.ProfileDir, "profile-dir", cfg.ProfileDir, "dedicated browser profile directory")
+	fset.StringVar(&cfg.Profile, "profile", cfg.Profile, "named browser profile in ~/.vitral/profiles (e.g. hml, prod)")
+	fset.StringVar(&cfg.ProfileDir, "profile-dir", cfg.ProfileDir, "dedicated browser profile directory (overrides --profile)")
+	fset.StringVar(&cfg.Session, "session", cfg.Session, "start with a temporary profile and the login state saved by session_save")
+	fset.StringVar(&cfg.SessionsDir, "sessions-dir", cfg.SessionsDir, "where saved sessions are kept")
 	fset.StringVar(&cfg.BrowserPath, "browser-path", cfg.BrowserPath, "use this Chrome/Chromium executable (env "+EnvBrowserPath+")")
 	fset.BoolVar(&cfg.AllowSystemBrowser, "allow-system-browser", cfg.AllowSystemBrowser, "allow the installed Chrome/Edge as a last resort (always with the Vitral profile)")
 	fset.StringVar(&cfg.BrowserMirror, "browser-mirror", cfg.BrowserMirror, "base URL of a Chrome for Testing mirror (env "+EnvBrowserMirror+")")
@@ -213,6 +229,15 @@ func usage(fset *flag.FlagSet) string {
 }
 
 func validate(cfg Config) error {
+	if !ValidName(cfg.Profile) {
+		return fmt.Errorf("--profile must use lowercase letters, digits, - and _ (got %q)", cfg.Profile)
+	}
+	if cfg.Session != "" && !ValidName(cfg.Session) {
+		return fmt.Errorf("--session must use lowercase letters, digits, - and _ (got %q)", cfg.Session)
+	}
+	if cfg.Session != "" && (cfg.Attach != "" || cfg.AttachPort != 0) {
+		return errors.New("--session starts its own browser: it cannot be used with --attach")
+	}
 	if cfg.Attach != "" && cfg.AttachPort != 0 {
 		return errors.New("use either --attach or --attach-port, not both")
 	}
@@ -310,3 +335,36 @@ func expandHome(path, home string) string {
 
 // ReadFile é o leitor real usado em produção.
 var ReadFile = os.ReadFile
+
+// DefaultProfile é o perfil usado sem --profile.
+const DefaultProfile = "default"
+
+var validName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,39}$`)
+
+// ValidName aceita nomes de perfil e de sessão que viram nomes de pasta e de arquivo seguros.
+func ValidName(name string) bool { return validName.MatchString(name) }
+
+// ProfilePath é a pasta do perfil nomeado.
+func ProfilePath(homeDir, profile string) string {
+	return filepath.Join(homeDir, "."+Name, "profiles", profile)
+}
+
+// MigrateProfile move o perfil antigo (~/.vitral/profile) para ~/.vitral/profiles/default, só se o
+// destino ainda não existe. Idempotente; moved diz se mudou algo.
+func MigrateProfile(homeDir string) (moved bool, err error) {
+	old := filepath.Join(homeDir, "."+Name, "profile")
+	dst := ProfilePath(homeDir, DefaultProfile)
+	if _, err := os.Stat(old); err != nil {
+		return false, nil
+	}
+	if _, err := os.Stat(dst); err == nil {
+		return false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+		return false, err
+	}
+	if err := os.Rename(old, dst); err != nil {
+		return false, err
+	}
+	return true, nil
+}

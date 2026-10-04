@@ -49,6 +49,8 @@ func Main(args []string, e Env, loadConfig func([]string) (config.Config, error)
 			}
 		}
 		return true, report(e, err)
+	case "session":
+		return true, report(e, SessionCommand(e, args[1:], loadConfig))
 	case "status":
 		cfg, err := loadConfig(args[1:])
 		if err != nil {

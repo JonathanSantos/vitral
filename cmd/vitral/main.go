@@ -61,7 +61,14 @@ func run() error {
 
 func loadConfig(home string) func([]string) (config.Config, error) {
 	return func(args []string) (config.Config, error) {
-		return config.Load(args, home, config.ReadFile, os.Getenv)
+		cfg, err := config.Load(args, home, config.ReadFile, os.Getenv)
+		// Perfil antigo (~/.vitral/profile) vira o perfil "default" na primeira execução.
+		if err == nil && cfg.ProfileDir == config.ProfilePath(home, config.DefaultProfile) {
+			if _, merr := config.MigrateProfile(home); merr != nil {
+				fmt.Fprintf(os.Stderr, "%s: could not move the old profile to %s: %v\n", config.Name, cfg.ProfileDir, merr)
+			}
+		}
+		return cfg, err
 	}
 }
 

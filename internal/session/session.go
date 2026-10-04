@@ -21,6 +21,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/flow"
 	"github.com/JonathanSantos/vitral/internal/network"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
+	"github.com/JonathanSantos/vitral/internal/storagestate"
 	"github.com/JonathanSantos/vitral/internal/ux"
 	"github.com/JonathanSantos/vitral/internal/world"
 )
@@ -264,7 +265,12 @@ func (s *Session) action(ctx context.Context, rec *recording, do func(p *rod.Pag
 	}
 	text := snapshot.Summarize(s.last, curr, s.format)
 	s.last = curr
-	return joinNonEmpty(text, s.events(netMark, conMark), warning, s.record(rec, sel, note)), nil
+	recorded := s.record(rec, sel, note)
+	verify, err := s.verificationGate(ctx)
+	if err != nil {
+		return "", err
+	}
+	return joinNonEmpty(text, s.events(netMark, conMark), warning, recorded, verify), nil
 }
 
 // events resume erros de console e requests com problema desde as marcas.
@@ -458,4 +464,9 @@ func (s *Session) ReadText(ctx context.Context, scope string, from int, find str
 		lines = append(lines, fmt.Sprintf("… showing chars %d-%d of %d. Looking for something specific? Use find=<words> to get only the passages with them. To keep reading: textFrom=%d, or one section with scope=<heading ref> (headings are marked like ## Title[eN]).", from, end, res.Total, end))
 	}
 	return strings.Join(lines, "\n"), nil
+}
+
+// SaveState salva o estado de login do navegador (session_save); devolve só o resumo.
+func (s *Session) SaveState(name string) (storagestate.Summary, error) {
+	return s.browser.SaveState(name)
 }

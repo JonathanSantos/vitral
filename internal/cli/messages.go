@@ -14,6 +14,10 @@ Comandos:
   vitral status            mostra onde o Vitral está configurado e o que ele vai usar
   vitral disable           desliga o Vitral nos arquivos de configuração (--workspace ou --global)
   vitral enable            liga de novo
+  vitral session save <nome> [--profile p]
+                           salva o login do perfil (cookies e localStorage) para rodar sem janela
+  vitral session list      lista as sessões salvas (sem mostrar o conteúdo)
+  vitral session delete <nome>
   vitral doctor            confere se está tudo pronto
   vitral install-browser   baixa agora o navegador do Vitral
   vitral install-browser --from arquivo.zip
@@ -79,7 +83,20 @@ const (
 	msgStatusSkillAt      = "  ✓ %s (versão %s)\n"
 	msgStatusSkillOld     = "  ! %s está na versão %s; o Vitral é a %s (rode: vitral setup)\n"
 	msgStatusSkillNone    = "  não instalada (o Vitral funciona sem ela; rode vitral setup para instalar)\n"
-	msgStatusBrowser      = "\nNavegador: %s\nPerfil: %s\n"
+	msgStatusBrowser      = "\nNavegador: %s\nPerfil: %s (%s)\n"
+	msgStatusSessions     = "Sessões salvas: %d em %s (vitral session list)\n"
+
+	msgSessionUsage       = "use: vitral session save <nome> | vitral session list | vitral session delete <nome>"
+	msgSessionBadName     = "nome de sessão inválido %q: use letras minúsculas, números, - e _"
+	msgSessionNone        = "Nenhuma sessão salva em %s.\n"
+	msgSessionBroken      = "  %s: arquivo ilegível (%s)\n"
+	msgSessionItem        = "  %s: perfil %s, salva em %s, %d cookies, localStorage de: %s\n"
+	msgSessionNoOrigins   = "nenhuma origem"
+	msgSessionNotFound    = "não há sessão %q em %s"
+	msgSessionDeleted     = "✓ sessão %s apagada\n"
+	msgSessionSaved       = "✓ sessão %s salva em %s: %d cookies, localStorage de: %s\n"
+	msgSessionWarning     = "  Atenção: este arquivo dá acesso às suas contas. Não compartilhe e nunca coloque no git.\n  IndexedDB e sessionStorage não entram: alguns sites podem pedir login de novo.\n  Para usar: inicie o Vitral com --session <nome>.\n"
+	msgSessionProfileBusy = "não consegui abrir o perfil %s (%s): ele deve estar aberto em outro Vitral, como o do VS Code. Peça na conversa para salvar a sessão (ferramenta session_save) ou feche o Vitral e tente de novo"
 	msgUnknownCommand     = "comando desconhecido %q. Rode \"vitral\" para ver a ajuda"
 	msgUnknownFlag        = "opção desconhecida %q para %s"
 	msgDoctorTitle        = "Vitral %s: conferindo se está tudo pronto\n\n"

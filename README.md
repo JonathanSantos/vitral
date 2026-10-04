@@ -93,6 +93,7 @@ de uso em [`docs/UX-TASKS.md`](docs/UX-TASKS.md) e roteiro de validação manual
 | Rede e console | `network_list`, `network_get`, `console_list` |
 | Simulação | `mock_add`, `mock_list`, `mock_clear`, `emulate` |
 | Fluxos | `flow_save`, `flow_list`, `flow_run`, `flow_update` |
+| Sessões | `session_save` |
 | Opcional | `eval_js` (só com `--allow-eval`) |
 
 As ações devolvem só o que mudou na tela. Enquanto a pessoa pausa, as ferramentas que agem respondem
@@ -106,6 +107,7 @@ vitral setup [--global] [--yes]
 vitral status
 vitral disable [--workspace|--global]
 vitral enable [--workspace|--global]
+vitral session save <nome> [--profile p] | list | delete <nome>
 vitral doctor
 vitral install-browser [--from chrome.zip]
 vitral version
@@ -155,7 +157,10 @@ Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
 |---|---|---|
 | `--headless` | `false` | Navegador sem janela. |
 | `--attach ws://…` / `--attach-port 9222` | | Conecta num Chrome aberto com `--remote-debugging-port` e um `--user-data-dir` separado. Nunca o fecha. |
-| `--profile-dir` | `~/.vitral/profile` | Perfil dedicado do navegador. |
+| `--profile` | `default` | Perfil nomeado em `~/.vitral/profiles/<nome>` (contas diferentes, homologação e produção). |
+| `--profile-dir` | | Pasta de perfil explícita (vence `--profile`). |
+| `--session` | | Começa com um perfil temporário e o login salvo por `session_save`. |
+| `--sessions-dir` | `~/.vitral/sessions` | Onde ficam as sessões salvas. |
 | `--browser-path` | | Usa este executável (env `VITRAL_BROWSER_PATH`). |
 | `--browser-mirror` | | Mirror do Chrome for Testing (env `VITRAL_BROWSER_MIRROR`). |
 | `--allow-system-browser` | `false` | Permite o Chrome/Edge instalado como último recurso. |
@@ -170,6 +175,35 @@ Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
 | `--flows-dir` | `.vitral/flows` | Onde os fluxos são salvos. |
 | `--log-level` | `info` | Logs sempre em stderr; stdout é só do protocolo MCP. |
 
+### Perfis e sessões
+
+- **Perfis nomeados:** `--profile hml` usa `~/.vitral/profiles/hml`; o selo e o `vitral status` mostram o
+  perfil quando não é o `default`. O perfil antigo (`~/.vitral/profile`) vira o `default` na primeira
+  execução (só se o destino não existir).
+- **Sessões:** o Chrome não abre o mesmo perfil duas vezes. Para rodar fluxos sem janela (ou em outra
+  máquina) com o login feito à mão, salve o estado: a ferramenta `session_save` na conversa, ou
+  `vitral session save <nome>` com o Vitral fechado. Ficam salvos os **cookies e o localStorage das origens
+  visitadas**, em `~/.vitral/sessions/<nome>.json`, com permissão 0600. `--session <nome>` usa um perfil
+  temporário e restaura o estado **antes da primeira navegação**: o localStorage já existe quando o
+  primeiro script da página roda. A IA nunca vê o conteúdo, só o nome, as origens, a data e a quantidade
+  de cookies.
+- **Riscos:** o arquivo dá acesso às contas. Não compartilhe, nunca coloque no git (o `setup` não cria
+  nada disso no projeto) e apague com `vitral session delete <nome>` quando não precisar mais.
+- **Limites:** IndexedDB e sessionStorage não entram; alguns sites guardam o login ali e vão pedir login de
+  novo. Sessão expirada: o fluxo falha normalmente; faça o login de novo com a janela aberta e salve outra
+  vez. Medição que decidiu o método (o DOMStorage do CDP não alcança uma origem fechada; uma aba temporária
+  na própria origem, com a requisição interceptada e sem rede, leva ~90 ms por origem) em
+  `internal/browser/state.go`.
+
+### Verificação humana: CAPTCHA e 2FA
+
+O Vitral não resolve nem contorna verificações. Com a janela visível, ele pausa e mostra "Sua vez":
+"resolva a verificação" para CAPTCHAs visíveis (reCAPTCHA, hCaptcha, Cloudflare Turnstile; os invisíveis
+não contam) e "digite o código" para campos `autocomplete="one-time-code"`, nos quais a IA nunca digita.
+Sem janela (`--headless`), a resposta é `verification required: run with the browser window visible`. A
+lista de detectores fica versionada em `internal/session/verification.json`, com fixtures que imitam a
+estrutura de cada serviço em `testdata/pages/verify`.
+
 ### Arquitetura
 
 ```
@@ -183,6 +217,8 @@ internal/overlay    selo, destaque, pausa e cursor visual injetados na página (
 internal/cursor     física do cursor visual (pura, determinística pela semente)
 internal/ux         máquina de estados do selo (pura)
 internal/screenshot marcações desenhadas em Go
+internal/heal       autocura dos fluxos: assinatura, nota e decisão (pura)
+internal/storagestate sessões salvas (cookies e localStorage, arquivos 0600)
 internal/network, console, mock, flow, browser, security, brand, config, ring
 tools/brandgen      gera os PNGs da marca (não entra no binário)
 tools/cursorlab     laboratório do movimento do cursor (make cursorlab)
