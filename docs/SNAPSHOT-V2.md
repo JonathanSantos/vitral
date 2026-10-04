@@ -91,6 +91,26 @@ do registro da ponte):
 Os erros do shadow fechado sumiram: o Haiku digitou o nome, escolheu 2x e clicou em Pagar agora pelas
 refs, sem contornar pelo teclado.
 
+Cenário A (Wikipédia) com o Haiku 4.5: a falha nos dois motores era do `flow_save` (salvou passos a
+mais). O `flow_save` ganhou prévia (`preview=true`: número da sessão, ação e alvo, sem salvar),
+`excludeSteps`, o save logo depois da prévia com a mesma escolha, e avisos que impedem salvar um fluxo
+que o `flow_run` não repetiria (alvo que depende do valor digitado, como uma sugestão de busca; busca
+que termina sem Enter; `expect` que não está visível na página, com placeholder escrito à mão ou com o
+valor em outra caixa), contornáveis com `ignoreWarnings=true`. Números do registro da ponte; cada
+rodada acrescenta as correções do que a anterior mostrou.
+
+| Rodada | Sem a skill | Com a skill |
+|---|---|---|
+| antes (motor `ax`) | 6/7 (fluxo com passos a mais), 17 chamadas, 2 erros | — |
+| prévia + `excludeSteps` | 6/7 (prévia certa, save sem o intervalo) | 6/7 (salvou o clique na sugestão) |
+| + save com a escolha da prévia, aviso de alvo com o valor do parâmetro | 6/7 (busca sem Enter) | 6/7 (`expect` era o título da aba) |
+| + aviso de alvo com texto digitado, `expect` conferido na página | **7/7**, 22 chamadas, 1 erro | 6/7 (ignorou o aviso: falso sucesso) |
+| + avisos impedem salvar, aviso de busca sem Enter | **7/7**, 18 chamadas, 3 erros (2 saves recusados) | **7/7**, 23 chamadas, 1 erro |
+
+Na última rodada com a skill, o fluxo ficou certo (abrir e digitar com Enter), mas salvo sem `expect`
+depois de duas tentativas ruins (`{{termo}}` escrito à mão e o valor em outra caixa); os dois casos
+viraram avisos.
+
 ## Protótipo: comparação com o motor `dom`
 
 Números da fase de protótipo (refs ainda gravadas no DOM, árvore inteira em todo snapshot).

@@ -107,6 +107,33 @@ type Recorder struct {
 	mu        sync.Mutex
 	steps     []Step
 	savedUpTo int
+	preview   *Selection
+}
+
+// Selection é a escolha de passos de uma prévia do flow_save.
+type Selection struct {
+	Name     string
+	From, To int
+	Exclude  []int
+}
+
+// RememberPreview guarda a escolha da última prévia: o save logo depois, com o mesmo nome e sem
+// intervalo, usa a mesma escolha (um modelo pequeno confere a prévia e esquece de repetir o intervalo).
+func (r *Recorder) RememberPreview(sel Selection) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	sel.Exclude = slices.Clone(sel.Exclude)
+	r.preview = &sel
+}
+
+// LastPreview devolve a escolha da última prévia com esse nome.
+func (r *Recorder) LastPreview(name string) (Selection, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.preview == nil || r.preview.Name != name {
+		return Selection{}, false
+	}
+	return *r.preview, true
 }
 
 // Add grava um passo e devolve seu número.
@@ -144,9 +171,42 @@ func (r *Recorder) Range(from, to int) ([]Step, int, int, error) {
 	return slices.Clone(r.steps[from-1 : to]), from, to, nil
 }
 
-// MarkSaved registra até onde o último flow_save foi.
+// MarkSaved registra até onde o último flow_save foi (e esquece a prévia).
 func (r *Recorder) MarkSaved(upTo int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.savedUpTo = upTo
+	r.preview = nil
+}
+
+// Numbered é um passo com o número dele na sessão (o "flow step #N" de cada ação).
+type Numbered struct {
+	N    int
+	Step Step
+}
+
+// Pick numera os passos from..from+len(steps)-1 da sessão e tira os de exclude. Um número fora do
+// intervalo, repetido ou que tiraria todos os passos é erro (a IA errou o número: melhor avisar).
+func Pick(steps []Step, from int, exclude []int) ([]Numbered, error) {
+	to := from + len(steps) - 1
+	drop := map[int]bool{}
+	for _, n := range exclude {
+		if n < from || n > to {
+			return nil, fmt.Errorf("excludeSteps: step #%d is not in the steps being saved (#%d-#%d)", n, from, to)
+		}
+		if drop[n] {
+			return nil, fmt.Errorf("excludeSteps: step #%d appears twice", n)
+		}
+		drop[n] = true
+	}
+	out := make([]Numbered, 0, len(steps))
+	for i, s := range steps {
+		if !drop[from+i] {
+			out = append(out, Numbered{N: from + i, Step: s})
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("excludeSteps removes every step (#%d-#%d): nothing to save", from, to)
+	}
+	return out, nil
 }

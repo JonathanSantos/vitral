@@ -331,3 +331,137 @@ func TestDescribeTypeSubmit(t *testing.T) {
 		t.Fatalf("no submit, no Enter: %s", got)
 	}
 }
+
+func TestPick(t *testing.T) {
+	steps := []Step{{Open: "a"}, {Press: "Enter"}, {Back: true}, {Press: "Tab"}}
+	got, err := Pick(steps, 5, []int{6, 8})
+	if err != nil || len(got) != 2 || got[0].N != 5 || got[0].Step.Open != "a" || got[1].N != 7 || !got[1].Step.Back {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if got, err := Pick(steps, 5, nil); err != nil || len(got) != 4 || got[3].N != 8 {
+		t.Fatalf("no exclusions: %+v %v", got, err)
+	}
+	for _, tt := range []struct {
+		exclude []int
+		want    string
+	}{
+		{[]int{4}, "step #4 is not in the steps being saved (#5-#8)"},
+		{[]int{9}, "step #9 is not in the steps being saved (#5-#8)"},
+		{[]int{6, 6}, "step #6 appears twice"},
+		{[]int{5, 6, 7, 8}, "excludeSteps removes every step (#5-#8): nothing to save"},
+	} {
+		if _, err := Pick(steps, 5, tt.exclude); err == nil || !strings.Contains(err.Error(), tt.want) {
+			t.Errorf("exclude %v: %v, want %q", tt.exclude, err, tt.want)
+		}
+	}
+	if got, err := Pick(steps, 5, []int{5, 8}); err != nil || len(got) != 2 || got[0].N != 6 || got[1].N != 7 {
+		t.Fatalf("edges: %+v %v", got, err)
+	}
+}
+
+func TestRecorderRemembersPreview(t *testing.T) {
+	r := &Recorder{}
+	if _, ok := r.LastPreview("a"); ok {
+		t.Fatal("no preview yet")
+	}
+	ex := []int{3}
+	r.RememberPreview(Selection{Name: "a", From: 1, To: 4, Exclude: ex})
+	ex[0] = 9 // a prévia guardada não muda com quem chamou
+	if sel, ok := r.LastPreview("a"); !ok || sel.From != 1 || sel.To != 4 || sel.Exclude[0] != 3 {
+		t.Fatalf("%+v %v", sel, ok)
+	}
+	if _, ok := r.LastPreview("b"); ok {
+		t.Fatal("another name has no preview")
+	}
+	r.MarkSaved(4)
+	if _, ok := r.LastPreview("a"); ok {
+		t.Fatal("saving forgets the preview")
+	}
+}
+
+func TestFragileTargets(t *testing.T) {
+	steps := []Step{
+		{Open: "https://pt.wikipedia.org"},
+		{Type: &TypeStep{Selector: Selector{Role: "searchbox", Name: "Pesquisar"}, Text: "Vitral"}},
+		{Click: &Selector{Role: "link", Name: "Vitral vidraça decorativa"}},
+		{Click: &Selector{Role: "button", Name: "Abrir", Within: &Context{Role: "row", Name: "Pedido VITRAL-9"}}},
+		{Select: &SelectStep{Selector: Selector{Role: "combobox", Name: "Ordem"}, Option: "Vitral"}},
+		{Scroll: &ScrollStep{Selector: &Selector{Role: "heading", Name: "Sobre vitral"}}},
+		{WaitFor: &WaitStep{Element: &Selector{Role: "heading", Name: "Vitral"}}},
+		{WaitFor: &WaitStep{Text: "Vitral"}},
+		{Type: &TypeStep{Selector: Selector{Role: "textbox", Name: "Nome"}, Text: "x"}},
+	}
+	got := FragileTargets(steps, map[string]string{"termo": "Vitral", "vazio": ""})
+	if len(got) != 4 {
+		t.Fatalf("%d warnings:\n%s", len(got), strings.Join(got, "\n"))
+	}
+	for i, want := range []string{`step 3 (click link "Vitral vidraça decorativa")`, "step 4 (click", "step 6 (scroll to", "step 7 (wait_for"} {
+		if !strings.HasPrefix(got[i], want) || !strings.Contains(got[i], `the value of param termo ("Vitral")`) {
+			t.Errorf("warning %d: %s", i, got[i])
+		}
+	}
+	// Sem params: o texto digitado antes também conta (a sugestão de busca depende dele).
+	got = FragileTargets(steps, nil)
+	if len(got) != 4 || !strings.Contains(got[0], `the text typed in step 2 ("Vitral")`) || !strings.Contains(got[0], "submit=true") {
+		t.Fatalf("typed text:\n%s", strings.Join(got, "\n"))
+	}
+	// O texto digitado só vale para os passos depois dele, e textos curtos não contam.
+	if got := FragileTargets([]Step{steps[2], steps[1]}, nil); got != nil {
+		t.Errorf("target before the typing: %v", got)
+	}
+	short := []Step{{Type: &TypeStep{Selector: Selector{Role: "textbox", Name: "Q"}, Text: "ab"}}, {Click: &Selector{Role: "link", Name: "abacate"}}}
+	if got := FragileTargets(short, nil); got != nil {
+		t.Errorf("short typed text: %v", got)
+	}
+}
+
+func TestParameterizeSwappedHint(t *testing.T) {
+	steps := []Step{{Type: &TypeStep{Selector: Selector{Role: "searchbox", Name: "Busca"}, Text: "Vitral"}}}
+	_, _, err := Parameterize(steps, map[string]string{"Vitral": "termo"})
+	if err == nil || !strings.Contains(err.Error(), `name and value look swapped. Use params={termo: "Vitral"}`) {
+		t.Fatalf("%v", err)
+	}
+	_, _, err = Parameterize(steps, map[string]string{"cidade": "Recife"})
+	if err == nil || strings.Contains(err.Error(), "swapped") {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestWarnings(t *testing.T) {
+	typed := Step{Type: &TypeStep{Selector: Selector{Role: "searchbox", Name: "Busca"}, Text: "Vitral"}}
+	sent := Step{Type: &TypeStep{Selector: Selector{Role: "searchbox", Name: "Busca"}, Text: "Vitral", Submit: true}}
+	wait := Step{WaitFor: &WaitStep{Text: "Vitral"}}
+	open := Step{Open: "https://x"}
+	got := Warnings([]Step{open, typed, wait}, nil)
+	if len(got) != 1 || !strings.HasPrefix(got[0], `step 2 (type searchbox "Busca" = "Vitral") is the last action and does not press Enter`) {
+		t.Fatalf("%v", got)
+	}
+	for _, steps := range [][]Step{{open, sent, wait}, {open, typed, {Press: "Enter"}, wait}, {wait}, {typed, {Click: &Selector{Role: "button", Name: "Ir"}}}} {
+		if got := Warnings(steps, nil); len(got) != 0 {
+			t.Errorf("%v: %v", steps, got)
+		}
+	}
+	// Junta com os alvos frágeis.
+	click := Step{Click: &Selector{Role: "option", Name: "Vitral vidraça"}}
+	if got := Warnings([]Step{typed, click, typed}, nil); len(got) != 2 {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestExpectWarnings(t *testing.T) {
+	params := map[string]string{"termo": "Vitral"}
+	if got := ExpectWarnings("{{termo}}", params); len(got) != 1 || !strings.Contains(got[0], "placeholder written by hand") {
+		t.Fatalf("%v", got)
+	}
+	if got := ExpectWarnings("O vitral é", params); len(got) != 1 || !strings.Contains(got[0], "different capitalization, so it does not become {{termo}}") {
+		t.Fatalf("%v", got)
+	}
+	for _, ok := range []string{"Vitral – Wikipédia", "O Vitral é", "Pedido enviado"} {
+		if got := ExpectWarnings(ok, params); len(got) != 0 {
+			t.Errorf("%q: %v", ok, got)
+		}
+	}
+	if got := ExpectWarnings("o vitral", map[string]string{"vazio": ""}); len(got) != 0 {
+		t.Errorf("empty value: %v", got)
+	}
+}

@@ -3,6 +3,7 @@
 package app_test
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -43,9 +44,9 @@ func TestFlowRecordSaveRun(t *testing.T) {
 	})
 	mustContain(t, out,
 		"saved ", "cadastro.yaml (7 steps",
-		`1. open http://`,
-		`2. type textbox "Nome" = "{{nome}}"`,
-		`6. click button "Enviar"`,
+		fmt.Sprintf("1. open http://%s/pages/form.html (#%d)", strings.TrimPrefix(h.site.URL, "http://"), first),
+		fmt.Sprintf(`2. type textbox "Nome" = "{{nome}}" (#%d)`, first+1),
+		fmt.Sprintf(`6. click button "Enviar" (#%d)`, first+5),
 		`step 2 type.text: "Maria Silva" → "{{nome}}"`,
 		`step 7 wait_for.text: "Cadastro enviado: Maria Silva" → "Cadastro enviado: {{nome}}"`,
 	)
@@ -95,6 +96,50 @@ func TestFlowWithMockStep(t *testing.T) {
 	h.fail(t, "flow_save", map[string]any{"name": "vazio"}, "no new steps since the last flow_save")
 }
 
+// A prévia mostra o que seria salvo (número da sessão, ação, alvo) sem salvar; excludeSteps tira passos
+// a mais (achado da avaliação com o Haiku: salvou passos que não eram da tarefa).
+func TestFlowSavePreviewAndExclude(t *testing.T) {
+	first := recordForm(t, "Maria Silva")
+	h.ok(t, "snapshot", nil) // não grava passo
+	extra := h.ok(t, "scroll", map[string]any{"direction": "down"})
+	mustContain(t, extra, fmt.Sprintf("flow step #%d", first+7))
+
+	preview := h.ok(t, "flow_save", map[string]any{
+		"name": "cadastro-previa", "fromStep": first, "params": map[string]any{"nome": "Maria Silva"}, "preview": true,
+	})
+	mustContain(t, preview,
+		fmt.Sprintf("preview of flow cadastro-previa: 8 steps from session steps #%d to #%d (nothing saved yet)", first, first+7),
+		fmt.Sprintf(`2. type textbox "Nome" = "{{nome}}" (#%d)`, first+1),
+		fmt.Sprintf("8. scroll down (#%d)", first+7),
+		"substitutions:", "call flow_save again without preview",
+		"tip: this flow would not check its result")
+	// O expect é conferido na página atual: o título da aba e o nome de um campo não são texto visível.
+	title := h.ok(t, "flow_save", map[string]any{"name": "cadastro-previa", "fromStep": first, "preview": true, "expect": "Cadastro - Fixture"})
+	mustContain(t, title, `expect "Cadastro - Fixture" is only in the page title`)
+	field := h.ok(t, "flow_save", map[string]any{"name": "cadastro-previa", "fromStep": first, "preview": true, "expect": "Nome completo do titular"})
+	mustContain(t, field, `expect "Nome completo do titular" is not in the visible text of the current page`)
+	if list := h.ok(t, "flow_list", nil); strings.Contains(list, "cadastro-previa") {
+		t.Fatalf("preview must not save:\n%s", list)
+	}
+
+	h.fail(t, "flow_save", map[string]any{"name": "cadastro-previa", "fromStep": first, "excludeSteps": []int{first - 1}},
+		fmt.Sprintf("excludeSteps: step #%d is not in the steps being saved (#%d-#%d)", first-1, first, first+7))
+	// A prévia com a escolha certa; o save logo depois, sem repetir o intervalo, usa a mesma escolha.
+	h.ok(t, "flow_save", map[string]any{
+		"name": "cadastro-previa", "fromStep": first, "excludeSteps": []int{first + 7}, "preview": true,
+	})
+	out := h.ok(t, "flow_save", map[string]any{
+		"name": "cadastro-previa", "params": map[string]any{"nome": "Maria Silva"}, "expect": "Cadastro enviado: Maria Silva",
+	})
+	mustContain(t, out, "cadastro-previa.yaml (8 steps", "as in the last preview", fmt.Sprintf(`7. wait_for text "Cadastro enviado: {{nome}}" (#%d)`, first+6),
+		`8. wait_for text "Cadastro enviado: {{nome}}" (expect)`)
+	if strings.Contains(out, "scroll down") || strings.Contains(out, "warning:") {
+		t.Fatalf("excluded step was saved, or a visible expect warned:\n%s", out)
+	}
+	run := h.ok(t, "flow_run", map[string]any{"name": "cadastro-previa", "params": map[string]any{"nome": "Rui Costa"}})
+	mustContain(t, run, "done: 8/8 steps passed.")
+}
+
 // expect adiciona o wait_for no fim, com o valor do parâmetro trocado pelo placeholder: o fluxo
 // confere o resultado do termo que rodou, mesmo sem um wait_for gravado logo depois dos passos.
 func TestFlowSaveExpect(t *testing.T) {
@@ -111,6 +156,14 @@ func TestFlowSaveExpect(t *testing.T) {
 	run := h.ok(t, "flow_run", map[string]any{"name": "cadastro-expect", "params": map[string]any{"nome": "Ana Prado"}})
 	mustContain(t, run, "7. ok wait_for text", "done: 7/7 steps passed.")
 	// Sem verificação no fim, a resposta sugere o expect.
-	noCheck := h.ok(t, "flow_save", map[string]any{"name": "sem-expect", "fromStep": first, "toStep": first + 1})
+	noCheck := h.ok(t, "flow_save", map[string]any{"name": "sem-expect", "fromStep": first, "toStep": first + 5})
 	mustContain(t, noCheck, "tip: this flow does not check its result", "expect=<text visible at the end>")
+	// Um fluxo que termina digitando sem enviar não é salvo (o flow_run digitaria e pararia), a não
+	// ser que a IA confirme com ignoreWarnings.
+	h.fail(t, "flow_save", map[string]any{"name": "so-digita", "fromStep": first, "toStep": first + 1},
+		"not saved: the flow would not repeat the task with other values.")
+	out, _ = h.call(t, "flow_save", map[string]any{"name": "so-digita", "fromStep": first, "toStep": first + 1})
+	mustContain(t, out, `step 2 (type textbox "Nome" = "Maria Silva") is the last action and does not press Enter`, "ignoreWarnings=true")
+	mustContain(t, h.ok(t, "flow_save", map[string]any{"name": "so-digita", "fromStep": first, "toStep": first + 1, "ignoreWarnings": true}),
+		"so-digita.yaml (2 steps", "warning:")
 }

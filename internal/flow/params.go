@@ -108,6 +108,10 @@ func Parameterize(steps []Step, params map[string]string) ([]Step, []Substitutio
 	}
 	for _, name := range names {
 		if !used[name] {
+			// Erro comum: nome e valor trocados ({Vitral: termo}). Se o nome é que aparece gravado, diz.
+			if inValues(steps, name) {
+				return nil, nil, fmt.Errorf("param %q (value %q) was not found in any value field, but %q was: name and value look swapped. Use params={%s: %q} (the param name first, the value typed in this session second)", name, params[name], name, params[name], name)
+			}
 			return nil, nil, fmt.Errorf("param %q (value %q) was not found in any value field (open url, type text, select option, wait_for text)", name, params[name])
 		}
 	}
@@ -154,4 +158,109 @@ func Bind(f Flow, values map[string]string) ([]Step, error) {
 		}
 	}
 	return out, nil
+}
+
+func inValues(steps []Step, text string) bool {
+	c := cloneSteps(steps)
+	for i := range c {
+		for _, f := range valueFields(&c[i]) {
+			if strings.Contains(*f.ptr, text) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// FragileTargets avisa dos passos cujo alvo (nome do elemento) contém um valor que muda: o de um
+// parâmetro ou um texto digitado num passo anterior (uma sugestão de busca, "Vitral vidraça
+// decorativa", depende do que foi digitado). O seletor não é parametrizado, então com outro valor o
+// fluxo procura um elemento que não existe. Recebe os passos antes da troca por {{nome}}.
+func FragileTargets(steps []Step, params map[string]string) []string {
+	type source struct{ value, label string }
+	var sources []source
+	names := make([]string, 0, len(params))
+	for name := range params {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		if params[name] != "" {
+			sources = append(sources, source{params[name], "the value of param " + name})
+		}
+	}
+	var out []string
+	for i, s := range steps {
+		for _, sel := range s.selectors() {
+			for _, src := range sources {
+				v := strings.ToLower(src.value)
+				if !strings.Contains(strings.ToLower(sel.Name), v) && (sel.Within == nil || !strings.Contains(strings.ToLower(sel.Within.Name), v)) {
+					continue
+				}
+				out = append(out, fmt.Sprintf("step %d (%s) targets an element named with %s (%q), like a search suggestion: with another value it will not exist. Leave it out with excludeSteps; to finish a search, type the term again with submit=true (it presses Enter) and save that step instead.", i+1, s.Describe(), src.label, src.value))
+				break
+			}
+		}
+		if s.Type != nil && utf8.RuneCountInString(strings.TrimSpace(s.Type.Text)) >= MinParamLength {
+			sources = append(sources, source{strings.TrimSpace(s.Type.Text), fmt.Sprintf("the text typed in step %d", i+1)})
+		}
+	}
+	return out
+}
+
+// Warnings junta os avisos de um fluxo que o flow_run não conseguiria repetir com outros valores:
+// alvos que dependem do valor (FragileTargets) e um fluxo que termina digitando sem enviar (a busca
+// fica na caixa e nada acontece). Recebe os passos antes da troca por {{nome}}.
+func Warnings(steps []Step, params map[string]string) []string {
+	out := FragileTargets(steps, params)
+	last := -1
+	for i, s := range steps {
+		if s.WaitFor == nil {
+			last = i
+		}
+	}
+	if last >= 0 && steps[last].Type != nil && !steps[last].Type.Submit {
+		out = append(out, fmt.Sprintf("step %d (%s) is the last action and does not press Enter: the flow would type and stop, without searching or sending. Type it again with submit=true and save that step instead (or keep the click or key press that sent it).", last+1, steps[last].Describe()))
+	}
+	return out
+}
+
+// ExpectWarnings confere o expect do flow_save contra os parâmetros: um placeholder escrito à mão
+// ({{termo}}) nunca aparece na página, e o valor com outra caixa ("O vitral" com termo=Vitral) não vira
+// parâmetro, então o fluxo procuraria o texto da gravação com qualquer valor.
+func ExpectWarnings(expect string, params map[string]string) []string {
+	if strings.Contains(expect, "{{") {
+		return []string{fmt.Sprintf("expect %q has a placeholder written by hand: write the text as it appears on the page now (with the value used in this session); params turn that value into the placeholder.", expect)}
+	}
+	names := make([]string, 0, len(params))
+	for name := range params {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	var out []string
+	for _, name := range names {
+		v := params[name]
+		if v != "" && !strings.Contains(expect, v) && strings.Contains(strings.ToLower(expect), strings.ToLower(v)) {
+			out = append(out, fmt.Sprintf("expect %q has the value of param %s (%q) with different capitalization, so it does not become {{%s}} and flow_run would look for this same text with any value. Use text with the value spelled exactly %q.", expect, name, v, name, v))
+		}
+	}
+	return out
+}
+
+// selectors devolve os alvos do passo.
+func (s Step) selectors() []Selector {
+	var out []Selector
+	switch {
+	case s.Click != nil:
+		out = append(out, *s.Click)
+	case s.Type != nil:
+		out = append(out, s.Type.Selector)
+	case s.Select != nil:
+		out = append(out, s.Select.Selector)
+	case s.Scroll != nil && s.Scroll.Selector != nil:
+		out = append(out, *s.Scroll.Selector)
+	case s.WaitFor != nil && s.WaitFor.Element != nil:
+		out = append(out, *s.WaitFor.Element)
+	}
+	return out
 }

@@ -343,6 +343,23 @@ func (s *Session) Snapshot(ctx context.Context, opts SnapshotOptions) (string, e
 	return snapshot.Format(page, format), nil
 }
 
+// TextOnPage diz se o texto está visível na página atual (como o wait_for procura) e se está no título.
+func (s *Session) TextOnPage(ctx context.Context, text string) (visible, inTitle bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.page(); err != nil {
+		return false, false, err
+	}
+	var res struct {
+		Found bool `json:"found"`
+		Title bool `json:"title"`
+	}
+	js := `(t) => ({found: window.__vitral.findText(t).found,
+		title: document.title.toLowerCase().includes(t.replace(/\s+/g, ' ').trim().toLowerCase())})`
+	err = s.evalInto(ctx, &res, js, text)
+	return res.Found, res.Title, err
+}
+
 // refError traduz o resultado das funções JS em mensagens acionáveis.
 func refError(ref, code string) error {
 	switch code {
