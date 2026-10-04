@@ -44,6 +44,10 @@ Ou peça do seu jeito: *"Abra o portal de pedidos e busque o pedido 1023."*
   Chrome não é usado, a menos que você permita.
 - **Quem digita senhas é você.** Quando aparece um campo de senha, o Vitral pausa e mostra "Sua vez".
 - **Você pode pausar a qualquer momento** pelo botão "⏸ Pausar IA" no canto da janela do navegador.
+- **O cursor da IA é só visual.** Ele mostra, com a etiqueta "IA", onde a IA vai clicar, para você
+  acompanhar. O clique de verdade acontece no ponto onde o cursor parou, sem passar por cima de nada
+  no caminho. Ele não serve para disfarçar automação: o navegador continua identificado e o selo
+  continua na tela. Para desligar: `"--cursor", "off"` em `args`.
 - **Nada sai do seu computador** além do que a IA já vê no chat.
 
 Algo estranho? Rode `vitral doctor`: ele confere tudo e diz o que fazer.
@@ -80,6 +84,16 @@ vitral doctor
 vitral install-browser [--from chrome.zip]
 vitral version
 ```
+
+Cursor visual da IA ([`docs/CURSOR.md`](docs/CURSOR.md)), com janela visível:
+
+| Flag | Valores | Padrão |
+|---|---|---|
+| `--cursor` | `on`, `off`, `force` (liga mesmo sem janela visível: testes e gravação de demos) | `on` |
+| `--cursor-speed` | `slow`, `normal`, `fast`, `instant` | `normal` |
+| `--flow-cursor-speed` | idem, durante `flow_run` | `fast` |
+| `--cursor-seed` | inteiro (0 = aleatória por sessão) | `0` |
+| `--type-pacing` | `on`, `off` (digitação tecla a tecla, só com janela visível) | `on` |
 
 ### Navegador
 
@@ -130,11 +144,13 @@ internal/app        monta o servidor
 internal/tools      ferramentas MCP (guard: pausa, selo "trabalhando", proteção contra panic)
 internal/session    ações, espera por estabilidade, diff, gravação e replay de fluxos
 internal/snapshot   JS embutido que lê a página + formatação e diff em Go
-internal/overlay    selo, destaque e pausa injetados na página (shadow root fechado)
+internal/overlay    selo, destaque, pausa e cursor visual injetados na página (shadow root fechado)
+internal/cursor     física do cursor visual (pura, determinística pela semente)
 internal/ux         máquina de estados do selo (pura)
 internal/screenshot marcações desenhadas em Go
 internal/network, console, mock, flow, browser, security, brand, config, ring
 tools/brandgen      gera os PNGs da marca (não entra no binário)
+tools/cursorlab     laboratório do movimento do cursor (make cursorlab)
 ```
 
 ### Limitações conhecidas
@@ -163,6 +179,8 @@ make install-test  # instalação e atualização com binários reais
 make nightly       # check + mutação completa + fuzz + download real + visual + matriz
 make release-check # nightly + install-test (rodar em cada sistema)
 make network       # download real do Chrome for Testing (≈150 MB, fora do gate)
+make cursorlab     # laboratório do cursor: trajetórias, velocidade e palco
+make demo-cursor   # janela visível com o roteiro do cursor em slow (para o GIF)
 make build         # bin/vitral
 make dist          # binários para Windows, macOS e Linux em dist/
 make brand         # regenera os PNGs de assets/brand

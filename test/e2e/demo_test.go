@@ -11,7 +11,8 @@ import (
 // Roteiro do make demo-cursor (docs/demo.md): janela visível, cursor em slow, na cursor-playground.
 // Serve para avaliar se o movimento "parece humano" e para gravar o GIF do README.
 func TestDemoCursor(t *testing.T) {
-	s := start(t, "--cursor-speed", "slow", "--cursor", "force", "--highlight-ms", "350")
+	s := start(t, "--cursor-speed", "slow", "--cursor", "force", "--highlight-ms", "350",
+		"--cursor-seed", envOr("VITRAL_DEMO_SEED", "1"))
 	ctx := context.Background()
 	step := func(tool string, args map[string]any) string {
 		t.Helper()

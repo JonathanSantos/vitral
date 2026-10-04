@@ -109,6 +109,21 @@ copiado para `.vscode/mcp.json`, com o caminho do binário em `command`).
    antes do próximo passo e a IA avisa onde parou.
 8. Rode com `"--no-overlay"` em `args`: sem destaque e sem texto de status, mas o botão de pausa continua.
 
+## Cursor visual da IA
+
+1. Peça um clique: um cursor com a etiqueta "IA" surge do selo, vai até o botão com um arco leve,
+   para, e o anel colorido marca o clique. Mexa o seu mouse ao mesmo tempo: os dois convivem.
+2. Peça para preencher um campo de texto: o cursor vira "I", clica, se afasta e o texto aparece
+   tecla a tecla.
+3. Peça para escolher uma opção num select: o cursor clica, a lista nativa **não** abre, e aparece
+   "Selecionado: …" ao lado do cursor.
+4. Num card clicável com um botão de excluir dentro, peça para abrir o card: o clique nunca cai no
+   botão de excluir.
+5. Pause: o cursor some. Retome: ele volta no mesmo lugar. Navegue: ele reaparece onde estava.
+6. Peça um clique num botão desabilitado: o cursor faz "não" com a cabeça e mostra "Botão
+   desabilitado"; a IA recebe o mesmo erro de sempre.
+7. Com `"--cursor-speed", "slow"` em `args`, o movimento fica mais lento; com `"--cursor", "off"`, some.
+
 ## Navegador do Vitral (Chrome for Testing)
 
 1. Com `~/.vitral/browsers` vazio, rode `vitral doctor`: ele diz que o Chrome for Testing ainda não foi

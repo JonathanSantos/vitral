@@ -95,8 +95,9 @@ visual-update:
 
 # Demonstração do cursor visual (docs/demo.md): janela visível, cursor em slow, roteiro na
 # cursor-playground. Fora do gate; serve para avaliar o movimento e gravar o GIF do README.
+CURSOR_SEED ?= 1
 demo-cursor:
-	VITRAL_E2E_VISIBLE=1 VITRAL_E2E_OUT=$(abspath $(OUT)/demo) go test -count=1 -tags 'e2e demo' -run '^TestDemoCursor$$' -v ./test/e2e/
+	VITRAL_DEMO_SEED=$(CURSOR_SEED) VITRAL_E2E_VISIBLE=1 VITRAL_E2E_OUT=$(abspath $(OUT)/demo) go test -count=1 -tags 'e2e demo' -run '^TestDemoCursor$$' -v ./test/e2e/
 
 # Matriz: compila o binário e checa os testes (todas as tags) para Linux, macOS e Windows. Rodar os
 # testes em cada sistema depende de máquinas de cada um (pendente com o noturno).
