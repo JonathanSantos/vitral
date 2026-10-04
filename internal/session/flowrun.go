@@ -294,6 +294,12 @@ func (s *Session) withRef(ctx context.Context, run *flowRun, click bool, sel flo
 		if err := run.allow(h, click); err != nil {
 			return err
 		}
+		sel = h.Now
+	}
+	// O passo de um fluxo alimenta o mapa com o alvo do seletor (o replay não recalcula seletores).
+	if s.smap != nil && sel.Sig != nil {
+		s.smap.hint.Store(sel.Sig)
+		defer s.smap.hint.Store(nil)
 	}
 	return fn(ref)
 }

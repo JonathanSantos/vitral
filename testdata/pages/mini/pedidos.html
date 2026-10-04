@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Pedidos - Mini ERP</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <header><nav aria-label="Menu"><a href="index.html">Início</a><a href="pedidos.html">Pedidos</a><a href="clientes.html">Clientes</a></nav></header>
+  <main>
+    <h1>Lista de pedidos</h1>
+    <p id="aviso" role="status"></p>
+    <label>Buscar pedido <input type="search" name="q"></label>
+    <button type="button" onclick="location.href='novo-pedido.html'">Novo pedido</button>
+    <table>
+      <thead><tr><th>Número</th><th>Cliente</th><th>CPF</th><th>Ação</th></tr></thead>
+      <tbody>
+        <tr><td>10234</td><td>Maria Silva</td><td>123.456.789-09</td><td><a href="pedido.html?id=10234">Ver detalhes</a></td></tr>
+        <tr><td>10235</td><td>João Souza</td><td>987.654.321-00</td><td><a href="pedido.html?id=10235">Ver detalhes</a></td></tr>
+      </tbody>
+    </table>
+  </main>
+  <script>if (location.search.includes('criado')) document.getElementById('aviso').textContent = 'Pedido criado';</script>
+</body>
+</html>

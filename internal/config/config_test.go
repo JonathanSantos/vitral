@@ -176,6 +176,12 @@ func TestProfilesAndSessions(t *testing.T) {
 	if err != nil || c.ProfileDir != "/home/u/outro" {
 		t.Fatalf("profile-dir wins: %+v %v", c, err)
 	}
+	if c, err = load("--no-map", "--maps-dir", "~/m"); err != nil || !c.NoMap || c.MapsDir != "/home/u/m" {
+		t.Fatalf("map flags: %+v %v", c, err)
+	}
+	if c, err = load(); err != nil || c.NoMap || c.MapsDir != "/home/u/.vitral/maps" {
+		t.Fatalf("map defaults: %+v %v", c, err)
+	}
 	if c, err = load("--session", "portal", "--sessions-dir", "~/s"); err != nil || c.Session != "portal" || c.SessionsDir != "/home/u/s" {
 		t.Fatalf("%+v %v", c, err)
 	}

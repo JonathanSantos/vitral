@@ -23,7 +23,7 @@ linters:
       locale: US
       # Comentários e mensagens para pessoas são em português (padrão do projeto); estas palavras
       # existem em português e não são erros de inglês.
-      ignore-rules: [comando, comandos, progresso, argumentos, respondendo, reinstale, resolvendo, processos, eles, exponencial, problemas, controles, portugues, devolvendo]
+      ignore-rules: [comando, comandos, progresso, argumentos, respondendo, reinstale, resolvendo, processos, eles, exponencial, problemas, controles, portugues, devolvendo, clientes, anual]
     errcheck:
       # Best-effort: fechar arquivo/corpo depois de ler, apagar temporários e escrever no terminal.
       # Caminhos de escrita conferem o Close explicitamente.

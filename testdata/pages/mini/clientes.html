@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Clientes - Mini ERP</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <header><nav aria-label="Menu"><a href="index.html">Início</a><a href="pedidos.html">Pedidos</a><a href="clientes.html">Clientes</a></nav></header>
+  <main>
+    <h1>Clientes</h1>
+    <h2>Contato do suporte: suporte@miniERP.com.br</h2>
+    <button type="button" onclick="document.getElementById('novo').showModal()">Novo cliente</button>
+    <table>
+      <thead><tr><th>Nome</th><th>E-mail</th><th>Telefone</th></tr></thead>
+      <tbody>
+        <tr><td>Maria Silva</td><td>maria.silva@exemplo.com</td><td>(11) 98765-4321</td></tr>
+        <tr><td>João Souza</td><td>joao@exemplo.com</td><td>(21) 3456-7890</td></tr>
+      </tbody>
+    </table>
+    <dialog id="novo" aria-labelledby="novo-titulo">
+      <h2 id="novo-titulo">Novo cliente</h2>
+      <label>Nome <input name="nome"></label>
+      <label>CPF <input name="cpf"></label>
+      <button type="button" onclick="document.getElementById('novo').close()">Cancelar</button>
+    </dialog>
+  </main>
+</body>
+</html>

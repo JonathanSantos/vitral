@@ -17,6 +17,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/flow"
 	"github.com/JonathanSantos/vitral/internal/overlay"
 	"github.com/JonathanSantos/vitral/internal/security"
+	"github.com/JonathanSantos/vitral/internal/sitemap"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
 	"github.com/JonathanSantos/vitral/internal/ux"
 )
@@ -59,6 +60,7 @@ func (s *Session) Open(ctx context.Context, rawURL string) (string, error) {
 	s.last = page
 	rec := &recording{step: func(*flow.Selector) flow.Step { return flow.Step{Open: target} }}
 	recorded := s.record(rec, nil, "")
+	s.learn(ctx, sitemap.Visit{}, false, nil, false)
 	verify, err := s.verificationGate(ctx)
 	if err != nil {
 		return "", err

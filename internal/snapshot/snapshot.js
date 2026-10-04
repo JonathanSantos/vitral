@@ -868,7 +868,36 @@
     };
   }
 
+  // Impressão estrutural para o mapa de telas (pedido 5.2): papel e nome de regiões, títulos, campos
+  // e botões visíveis; o título e o h1; o dialog aberto. Nunca valores de campos nem textos corridos.
+  const PRINT_SEL = 'header,nav,main,aside,footer,form,section[aria-label],section[aria-labelledby],search,' +
+    'h1,h2,h3,[role=heading],input:not([type=hidden]),select,textarea,button,[role=button],[role=tab],' +
+    '[role=navigation],[role=main],[role=search],[role=region],[role=form],[role=banner],[role=contentinfo],[role=complementary],' +
+    '[role=textbox],[role=combobox],[role=checkbox],[role=radio],[role=switch],[role=searchbox],[role=spinbutton]';
+  const DIALOG_SEL = 'dialog[open],[role=dialog],[role=alertdialog],[aria-modal=true]';
+  function screenPrint() {
+    // O dialog aberto é um subestado da tela: o que está dentro dele não entra na impressão.
+    const dlg = [...document.querySelectorAll(DIALOG_SEL)].find((d) => isRendered(d) && isVisible(d));
+    const items = [];
+    for (const el of document.querySelectorAll(PRINT_SEL)) {
+      if (el.closest('vitral-overlay') || !isRendered(el) || (dlg && dlg.contains(el))) continue;
+      const role = roleOf(el);
+      if (!role) continue;
+      const name = role === 'heading' || /^(navigation|main|banner|contentinfo|complementary|form|region|search)$/.test(role) ||
+        ['textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'switch', 'spinbutton', 'slider', 'button', 'tab'].includes(role)
+        ? nameOf(el, role) : '';
+      items.push({ role, name: (name || '').slice(0, 120) });
+      if (items.length >= 400) break;
+    }
+    const h1 = document.querySelector('h1');
+    return {
+      url: location.href, title: document.title, h1: h1 && isVisible(h1) ? norm(h1.innerText).slice(0, 120) : '',
+      dialog: dlg ? nameOf(dlg, 'dialog') : '', items,
+    };
+  }
+
   window.__vitral = {
+    screenPrint,
     find,
     hit,
     prepareType,

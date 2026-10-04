@@ -79,6 +79,7 @@ type Session struct {
 	cur       *pointer
 	ax        *axRefs                 // motor ax: refs do documento atual
 	healed    map[string][]HealedStep // autocura da última execução de cada fluxo (flow_update)
+	smap      *screenMap              // mapa de telas (nil com --no-map)
 	axStats   AXStats
 
 	// AXFullTree faz o snapshot da área visível usar a árvore de acessibilidade inteira: só para os
@@ -94,6 +95,9 @@ type Session struct {
 // New cria a sessão e registra o preparo de páginas novas no gerenciador.
 func New(cfg config.Config, logger *slog.Logger, b *browser.Manager, net *network.Tracker, con *console.Buffer, ui Overlay, w *world.Tracker) *Session {
 	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, ui: ui, world: w, format: snapshot.DefaultFormat(), rec: &flow.Recorder{}, cur: newPointer(cfg)}
+	if !cfg.NoMap {
+		s.smap = newScreenMap(cfg.MapsDir, func(err error) { logger.Warn("screen map", "err", err) })
+	}
 	b.OnNewPage(s.preparePage)
 	return s
 }
@@ -249,6 +253,8 @@ func (s *Session) action(ctx context.Context, rec *recording, do func(p *rod.Pag
 	}
 	// O seletor é calculado antes: depois do clique o elemento pode nem existir mais.
 	sel, note := s.selectorFor(ctx, p, rec)
+	from, fromOK := s.observe(ctx)
+	mapAct := s.mapAction(rec, sel)
 	netMark, conMark := s.net.Mark(), s.console.Mark()
 	start := time.Now()
 	if err := do(p); err != nil {
@@ -256,6 +262,7 @@ func (s *Session) action(ctx context.Context, rec *recording, do func(p *rod.Pag
 		if errors.As(err, &paused) {
 			return string(paused), nil
 		}
+		s.learn(ctx, from, fromOK, mapAct, true)
 		return "", err
 	}
 	warning := s.waitStable(ctx, p, start)
@@ -266,6 +273,7 @@ func (s *Session) action(ctx context.Context, rec *recording, do func(p *rod.Pag
 	text := snapshot.Summarize(s.last, curr, s.format)
 	s.last = curr
 	recorded := s.record(rec, sel, note)
+	s.learn(ctx, from, fromOK, mapAct, false)
 	verify, err := s.verificationGate(ctx)
 	if err != nil {
 		return "", err

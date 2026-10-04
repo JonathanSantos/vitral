@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Novo pedido - Mini ERP</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <header><nav aria-label="Menu"><a href="index.html">Início</a><a href="pedidos.html">Pedidos</a><a href="clientes.html">Clientes</a></nav></header>
+  <main>
+    <h1>Cadastro de pedido</h1>
+    <form aria-label="Pedido" onsubmit="event.preventDefault(); location.href='pedidos.html?criado=1'">
+      <label>Cliente <input name="cliente" required></label>
+      <label>Valor <input name="valor" inputmode="decimal"></label>
+      <button type="submit">Salvar</button>
+    </form>
+    <a href="pedidos.html">Voltar</a>
+  </main>
+</body>
+</html>

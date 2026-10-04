@@ -35,6 +35,9 @@ type Config struct {
 	// localStorage), para rodar sem janela ou com o perfil aberto em outro Vitral.
 	Session     string `yaml:"session"`
 	SessionsDir string `yaml:"sessionsDir"`
+	// NoMap desliga o mapa de telas; MapsDir guarda um mapa por host.
+	NoMap   bool   `yaml:"noMap"`
+	MapsDir string `yaml:"mapsDir"`
 	// BrowserPath força um executável específico (--browser-path / VITRAL_BROWSER_PATH).
 	BrowserPath string `yaml:"browserPath"`
 	// AllowSystemBrowser permite usar o Chrome/Edge do sistema como último recurso (sempre com o perfil do Vitral).
@@ -83,6 +86,7 @@ func Defaults(homeDir string) Config {
 	return Config{
 		Profile:          DefaultProfile,
 		SessionsDir:      filepath.Join(homeDir, "."+Name, "sessions"),
+		MapsDir:          filepath.Join(homeDir, "."+Name, "maps"),
 		BrowsersDir:      filepath.Join(homeDir, "."+Name, "browsers"),
 		WindowSize:       "1280,800",
 		NavTimeout:       15 * time.Second,
@@ -126,6 +130,7 @@ func Load(args []string, homeDir string, readFile func(string) ([]byte, error), 
 	}
 	cfg.ProfileDir = expandHome(cfg.ProfileDir, homeDir)
 	cfg.SessionsDir = expandHome(cfg.SessionsDir, homeDir)
+	cfg.MapsDir = expandHome(cfg.MapsDir, homeDir)
 	cfg.BrowsersDir = expandHome(cfg.BrowsersDir, homeDir)
 	cfg.BrowserPath = expandHome(cfg.BrowserPath, homeDir)
 	return cfg, validate(cfg)
@@ -178,6 +183,8 @@ func parseFlags(cfg *Config, args []string) error {
 	fset.StringVar(&cfg.ProfileDir, "profile-dir", cfg.ProfileDir, "dedicated browser profile directory (overrides --profile)")
 	fset.StringVar(&cfg.Session, "session", cfg.Session, "start with a temporary profile and the login state saved by session_save")
 	fset.StringVar(&cfg.SessionsDir, "sessions-dir", cfg.SessionsDir, "where saved sessions are kept")
+	fset.BoolVar(&cfg.NoMap, "no-map", cfg.NoMap, "do not learn the screen map")
+	fset.StringVar(&cfg.MapsDir, "maps-dir", cfg.MapsDir, "where screen maps are kept (one per host)")
 	fset.StringVar(&cfg.BrowserPath, "browser-path", cfg.BrowserPath, "use this Chrome/Chromium executable (env "+EnvBrowserPath+")")
 	fset.BoolVar(&cfg.AllowSystemBrowser, "allow-system-browser", cfg.AllowSystemBrowser, "allow the installed Chrome/Edge as a last resort (always with the Vitral profile)")
 	fset.StringVar(&cfg.BrowserMirror, "browser-mirror", cfg.BrowserMirror, "base URL of a Chrome for Testing mirror (env "+EnvBrowserMirror+")")

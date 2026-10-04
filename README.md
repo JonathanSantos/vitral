@@ -161,6 +161,8 @@ Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
 | `--profile-dir` | | Pasta de perfil explícita (vence `--profile`). |
 | `--session` | | Começa com um perfil temporário e o login salvo por `session_save`. |
 | `--sessions-dir` | `~/.vitral/sessions` | Onde ficam as sessões salvas. |
+| `--no-map` | `false` | Não aprende o mapa de telas. |
+| `--maps-dir` | `~/.vitral/maps` | Onde fica o mapa de cada host (privado, por usuário). |
 | `--browser-path` | | Usa este executável (env `VITRAL_BROWSER_PATH`). |
 | `--browser-mirror` | | Mirror do Chrome for Testing (env `VITRAL_BROWSER_MIRROR`). |
 | `--allow-system-browser` | `false` | Permite o Chrome/Edge instalado como último recurso. |

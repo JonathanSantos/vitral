@@ -35,7 +35,10 @@ type App struct {
 }
 
 // Close fecha o browser lançado pelo servidor.
-func (a *App) Close() { a.Browser.Close() }
+func (a *App) Close() {
+	a.Session.CloseMap()
+	a.Browser.Close()
+}
 
 // Build cria o servidor com todas as dependências.
 func Build(cfg config.Config, logger *slog.Logger) *App {
