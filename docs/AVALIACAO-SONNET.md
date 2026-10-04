@@ -182,6 +182,47 @@ caiu de 2 passos para 1. O comportamento de segurança se manteve: parou e pergu
 sensível, do envio do pedido e do `flow_update`; o mapa do S3 tem 5 telas, 11 arestas e nenhum dado
 pessoal.
 
+## Terceira rodada: as duas correções que o modelo ainda não tinha usado
+
+Dois cenários curtos, feitos para cair exatamente nas correções 3 e 5, com o Sonnet 5.5 e a mesma skill.
+
+**T1, retomada em outra página (correção 3).** Pedido: gravar os dois fluxos, publicar a versão nova,
+rodar o `confirmar-pedido` e, "mesmo que ele pare", rodar em seguida o `salvar-perfil`. O primeiro parou
+no passo sensível; o segundo curou sozinho e deixou aberta a página do perfil. O modelo perguntou as duas
+coisas e parou. Com o "sim", retomou:
+
+```
+flow confirmar-pedido: 4 steps, resuming at step 2
+reopened http://127.0.0.1:8767/app/sensivel.html (where the flow stopped)
+2. ok (healed) click button "Confirmar"
+...
+done: 3/3 steps passed.
+```
+
+17 chamadas (13 + 4), 0 erros. Na primeira rodada, o mesmo caso custou um erro e uma execução inteira a
+mais.
+
+**T2, menu global (correção 5).** Pedido: lista → detalhe → exportar → Clientes (clicando no menu
+*dentro do detalhe*), painel, lista de novo e "me leve para Clientes pelo caminho que o Vitral já conhece".
+O `map_find` e o `goto` acharam o caminho de 1 passo pelo menu da própria lista, uma aresta que só existe
+pela regra dos menus globais (o modelo nunca tinha clicado em Clientes na lista):
+
+```
+goto "Clientes" from "Lista de pedidos": 1 steps (the most reliable known way)
+1. ok click link "Clientes"
+done: 1/1 steps passed.
+```
+
+9 chamadas, 0 erros. Na primeira rodada, o `goto` foi por "Ver detalhes" → "Clientes".
+
+**Achado novo, corrigido:** depois do clique que levou de volta à lista, a resposta não trazia a linha
+`screen: … (known)` (só `open` e `snapshot` traziam), e o modelo gastou um `map_find` para confirmar o
+nome da tela. Agora toda ação que leva a outra página traz a linha, coberto em `TestScreenMapMiniSystem`.
+
+**Detalhe visual, ainda aberto:** nos GIFs do README dá para ver o destaque da ação anterior sumindo
+enquanto a ação seguinte rola a página (o destaque tem posição fixa e não acompanha a rolagem). Só
+aparece quando as ações vêm grudadas; numa conversa, a IA leva segundos entre uma e outra.
+
 ## Notas
 
 | Parte | Antes dos testes | Depois da 1ª rodada | Depois das correções | Por quê |

@@ -13,7 +13,7 @@ MUTATION_BASE ?= main
 OUT         := .quality/out
 
 .PHONY: build dist test unit integration integration-cover e2e mutation mutation-all fuzz network visual visual-update \
-        matrix install-test demo-cursor lint fmt vuln gate gate-fast check check-fast nightly release-check clean brand cursorlab tokens-baseline
+        matrix install-test demo-cursor lint fmt vuln gate gate-fast check check-fast nightly release-check clean brand cursorlab readme-shots tokens-baseline
 
 # ---------- build ----------
 
@@ -38,6 +38,10 @@ brand:
 # Ex.: make cursorlab CURSORLAB="-speed slow -seed 2 -set FittsB=120"
 cursorlab:
 	go run ./tools/cursorlab $(CURSORLAB)
+
+# Prints do README (docs/img): navegador real com o overlay, mais recortes do cursorlab.
+readme-shots: cursorlab
+	go test -count=1 -tags integration,visual,readme -run '^TestReadmeShots$$' ./internal/app/
 
 # ---------- testes ----------
 

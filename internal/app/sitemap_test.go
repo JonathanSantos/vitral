@@ -124,6 +124,8 @@ func TestScreenMapMiniSystem(t *testing.T) {
 	snap = hh.ok(t, "open", map[string]any{"url": hh.url("/pages/mini/clientes.html")})
 	manual, manualCalls := estimate(snap), 1
 	snap = hh.ok(t, "click", map[string]any{"ref": ref(t, snap, "link", "Pedidos")})
+	// Clique que leva a uma tela conhecida traz a mesma linha "screen:" do open.
+	mustContain(t, snap, `screen: "Lista de pedidos" (known)`)
 	manual += estimate(snap)
 	snap = hh.ok(t, "snapshot", nil)
 	manual += estimate(snap)

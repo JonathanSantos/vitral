@@ -275,6 +275,10 @@ func (s *Session) action(ctx context.Context, rec *recording, do func(p *rod.Pag
 	s.last = curr
 	recorded := s.record(rec, sel, note)
 	s.learn(ctx, from, fromOK, mapAct, false)
+	// Ação que levou a outra página (o resumo começa com "page:"): mesma linha "screen:" do open.
+	if strings.HasPrefix(text, "page:") {
+		text = withScreenLine(text, s.screenLine(ctx))
+	}
 	verify, err := s.verificationGate(ctx)
 	if err != nil {
 		return "", err

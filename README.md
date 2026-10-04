@@ -11,7 +11,10 @@ O Vitral deixa o GitHub Copilot usar um navegador de verdade enquanto você acom
 preencher formulários, tirar prints, conferir o que a API respondeu e repetir tarefas gravadas. Cada
 pedaço da tela ganha um número e uma cor, e você vê na janela o que a IA vai fazer antes de ela fazer.
 
-<!-- TODO: GIF da demonstração (roteiro em docs/demo.md) -->
+<p align="center">
+  <img src="docs/img/ia-na-tela.gif" alt="A IA usando um mini ERP: o cursor com a etiqueta IA vai ao menu Pedidos, digita 10234 na busca tecla a tecla, abre o detalhe, exporta o CSV e vai para Clientes, com cada alvo destacado antes do clique e o selo 'A IA está trabalhando…' no canto" width="760">
+  <br><sub>Gravação real (<code>make readme-shots</code>): cada alvo pisca com a ref antes da ação, o cursor "IA" mostra onde vai clicar e o selo diz o que está acontecendo.</sub>
+</p>
 
 ## Comece em 3 passos
 
@@ -42,6 +45,168 @@ O `vitral setup` também instala a **skill do Vitral** (`.github/skills/vitral/`
 com `--global`): são as regras que o Copilot segue ao usar o navegador, como explicar antes de agir,
 pedir um "sim" antes de enviar qualquer coisa e nunca digitar senhas. O Vitral funciona sem ela, mas
 com ela a IA trabalha com mais cuidado. Se você editar a skill, o setup pergunta antes de trocá-la.
+
+## O que tem de legal
+
+### A IA lê a tela em texto, não em pixels
+
+Cada ação devolve só o que mudou, num texto curto montado a partir da árvore de acessibilidade do
+Chrome. É assim que a IA vê a lista de pedidos do GIF acima (saída do `click` em "Pedidos", resumida):
+
+```text
+page: "Pedidos - Mini ERP" (http://127.0.0.1:8766/mini/pedidos.html)
+screen: "Lista de pedidos" (known)
+[e1] banner
+  [e2] navigation "Menu"
+    [e3] link "Início"
+    [e4] link "Pedidos"
+    [e5] link "Clientes"
+[e6] main
+  [e7] heading "Lista de pedidos" level=1
+  [e8] searchbox "Buscar pedido" type=search value=""
+  [e9] button "Novo pedido"
+  [e10] table "Número Cliente CPF Ação 10234 …" rows=2
+    [e12] row "10234 | Maria Silva | 123.456.789-09 | Ver detalhes"
+      [e13] link "Ver detalhes"
+flow step #7
+```
+
+Nos cenários do e2e, abrir uma página custa de 60 a 230 tokens e um clique de 20 a 90 (os números de
+cada passo ficam em `.quality/out/tokens.json` e têm teto no gate). Quando layout, cores ou imagens
+importam, o `screenshot` devolve o print com as mesmas refs desenhadas por cima, para a IA ligar o que
+vê ao que pode clicar:
+
+| O que você vê | O que a IA vê no `screenshot` |
+|---|---|
+| <img src="docs/img/tela-ia-trabalhando.png" alt="Lista de pedidos com 'Ver detalhes' destacado (e13), o cursor IA sobre ele e o selo 'A IA está trabalhando…'"> | <img src="docs/img/visao-da-ia.png" alt="A mesma lista com caixas coloridas e etiquetas e3, e4, e5, e7, e8, e9, e13 e e15"> |
+
+O selo, o destaque e o cursor são só para você: nunca entram no snapshot nem no print da IA.
+
+O snapshot alcança shadow root fechado, divs clicáveis só por listener e conteúdo de slot, e as refs
+ficam guardadas no Go: a página não as vê nem consegue forjá-las ([`docs/SNAPSHOT-V2.md`](docs/SNAPSHOT-V2.md)).
+
+### Você continua no controle
+
+<p align="center">
+  <img src="docs/img/selo-estados.png" alt="Três estados do selo: 'A IA está trabalhando… ⏸ Pausar IA', 'Executando fluxo: pedido-semanal · passo 2 de 4' e 'Pausado. Você está no controle. ▶ Retomar'" width="520">
+</p>
+
+O selo no canto da janela diz o que a IA está fazendo e tem o botão de pausa. Pausado, as ferramentas
+que agem respondem "pausado" (sem erro) e a IA espera; as de leitura continuam, para ela ver o que você
+mudou quando você retomar.
+
+Senhas, códigos de uso único (2FA) e CAPTCHAs são sempre seus. O Vitral não tenta resolver nem
+contornar: ele para, destaca o campo e mostra "Sua vez".
+
+<p align="center">
+  <img src="docs/img/sua-vez.png" alt="Página 'Confirme o acesso' com o campo Código destacado em vermelho e o selo 'Sua vez: digite o código e clique em Retomar ▶ Retomar'" width="640">
+</p>
+
+### Tarefas repetidas viram fluxos, e os fluxos se curam
+
+Toda ação gravada vira um passo. Com `flow_save` a IA salva só os passos da tarefa (com prévia antes,
+parâmetros como `{{numero}}` e o texto que confirma que deu certo), e o `flow_run` repete. Quando o
+sistema muda, o fluxo procura o mesmo elemento pela assinatura dele (rótulo, região, título acima,
+posição) e se corrige. Num passo sensível, ele **não** decide sozinho. Saída real depois de um deploy
+que trocou "Confirmar" por "Confirmar pedido":
+
+```text
+flow confirmar-pedido: 4 steps
+2. stopped: click button "Confirmar"
+Healing needed at step 2: was button "Confirmar", best match [e4] button "Confirmar pedido"
+(confidence 0.81). Ask the user before continuing. ...
+```
+
+Com o "sim" da pessoa, o fluxo retoma de onde parou (e reabre a página certa, se a IA tiver ido para
+outra no meio-tempo):
+
+```text
+flow confirmar-pedido: 4 steps, resuming at step 2
+reopened http://127.0.0.1:8767/app/sensivel.html (where the flow stopped)
+2. ok (healed) click button "Confirmar"
+3. ok click button "Continuar"
+4. ok wait_for text "confirmar, continuar"
+done: 3/3 steps passed.
+```
+
+`flow_update` grava a correção no arquivo e guarda a versão anterior em `.vitral/flows/.history/`.
+
+### Um mapa das telas que você já usou
+
+Sem crawler e sem LLM dentro do Vitral: ele aprende a estrutura do site com os cliques que de fato
+aconteceram. Depois a IA pede "me leve até o detalhe do pedido" e o `goto` faz o caminho mais confiável,
+conferindo a página antes de cada clique. Links de menu (cabeçalho, navegação, rodapé) aprendidos numa
+tela valem nas outras telas com o mesmo menu:
+
+```text
+goto "Clientes" from "Lista de pedidos": 1 steps (the most reliable known way)
+1. ok click link "Clientes"
+done: 1/1 steps passed.
+```
+
+O mapa guarda só estrutura: papéis, nomes de botões e títulos. Nada de valores de campos, conteúdo de
+tabelas, e-mails ou CPFs (números longos viram `<num>`).
+
+### E mais
+
+- **API fora do ar sem tocar no servidor:** `mock_add` faz uma rota responder 500, demorar ou cair, só
+  dentro deste navegador; `network_list` e `console_list` mostram o que a página pediu e reclamou.
+- **Login uma vez, fluxos sem janela depois:** `session_save` guarda cookies e localStorage num
+  arquivo só seu (0600); `--session` abre já logado, inclusive em `--headless`.
+- **Perfis separados** para homologação e produção (`--profile hml`).
+
+## O estudo do movimento: cursor e rolagem
+
+Com a janela visível, o cursor da IA se move como uma pessoa moveria, para você conseguir acompanhar
+com os olhos. O cursor é **só visual**. O clique de verdade é um evento simples no ponto onde o cursor
+parou, sem passar por cima de nada no caminho. Ele não disfarça automação: o navegador continua
+identificado como Chrome for Testing e o selo continua na tela. A física fica em Go puro
+(`internal/cursor`), determinística pela semente e coberta por testes de propriedade, fuzz e mutação. O
+overlay só desenha. Detalhes em [`docs/CURSOR.md`](docs/CURSOR.md).
+
+<p align="center">
+  <img src="docs/img/cursor.gif" alt="Playground do cursor: o cursor IA clica no botão grande Continuar, numa caixinha de 16 px, num link no meio do texto, digita 'Olá! Aqui é o Vitral.' tecla a tecla e abre um card que tem um botão Excluir dentro, sem tocar no Excluir" width="760">
+  <br><sub>Alvo grande, caixinha de 16 px (repare na correção no fim), link no meio do texto, digitação tecla a tecla e um card com "Excluir" dentro: o clique nunca cai no Excluir.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/img/cursor-trajetorias.png" alt="Cursorlab: 50 trajetórias até uma caixa de 14 px a ~1000 px de distância, todas em arco leve, e o gráfico de velocidade com pico entre 35% e 44% da duração e um segundo pico pequeno do movimento corretivo" width="760">
+  <br><sub>50 movimentos até uma caixa de 14 px, a quase 1.000 px de distância (<code>make cursorlab</code>).</sub>
+</p>
+
+O que entra em cada movimento, e de onde vem:
+
+| Ingrediente | Modelo | No Vitral |
+|---|---|---|
+| Quanto tempo leva | Lei de Fitts: alvo longe e pequeno demora mais | `T = 100 + 110·log2(D/W + 1)` ms, entre 250 e 900 ms |
+| Que caminho faz | Mão não anda em linha reta | Curva de Bézier com arco de 4% a 12% da distância, lado sorteado (65% de chance de repetir) |
+| Como acelera | Jerk mínimo (Flash e Hogan) | `s(τ) = 10τ³ − 15τ⁴ + 6τ⁵`, com o pico de velocidade entre 35% e 45% do tempo |
+| Alvo difícil | Submovimentos | Com ID ≥ 3,5 bits: para antes (70%) ou passa do ponto (30%) e corrige |
+| Mão de gente | Tremor | 0,4 px a 8–12 Hz, zerado nas pontas para nunca recuar |
+| Onde clica | Ninguém clica no centro exato | Ponto sorteado em volta do centro, validado com `elementFromPoint`: nunca cai na lixeira dentro de um card nem na seta de um botão dividido |
+
+A rolagem começou com um diagnóstico. A roda pelo CDP saltava 100 px por vez e deixava 78% dos frames
+parados, e o `scrollIntoView` suave do Chrome levava ~630 ms em qualquer distância, com até 2.537 px num
+único frame. O modelo novo é um "flick" com atrito, como o de um trackpad:
+
+<p align="center">
+  <img src="docs/img/rolagem.gif" alt="Playground de rolagem: a página rola suavemente três telas até o alvo, depois bem mais longe, e volta ao topo, sempre parando com o alvo abaixo do cabeçalho fixo" width="760">
+  <br><sub>Três telas para baixo, bem longe e de volta ao topo. O alvo sempre para entre 30% e 40% da altura visível, abaixo do cabeçalho fixo.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/img/rolagem-perfil.png" alt="Cursorlab de rolagem: posição subindo rápido e assentando suavemente em 648 px, e velocidade com pico no começo e queda exponencial até zero" width="760">
+  <br><sub>Rolar uma tela: pico de velocidade nos primeiros 15% e parada sem tranco.</sub>
+</p>
+
+- pico em 60–90 ms e atrito exponencial que termina com velocidade **e** aceleração zero;
+- teto de 12% da janela por frame (nada de saltos de 2.500 px) e de 1,2 s por rolagem;
+- distâncias longas em vários flicks com pausa, e acima de 6 telas um salto até perto do alvo;
+- o alvo para entre 30% e 40% da área visível, descontando cabeçalhos fixos;
+- se você rolar com o seu mouse no meio, a animação para e respeita você.
+
+`make demo-cursor` abre uma janela com um roteiro de cliques, digitação e rolagens em câmera lenta.
+`--cursor-speed instant` (ou `--cursor off`) desliga a coreografia para quem só quer velocidade.
 
 ## É seguro?
 
@@ -222,6 +387,12 @@ LLM): telas (padrão de URL + impressão estrutural, Jaccard ≥ 0,7), transiç�
 `screen: "Lista de pedidos" (known) · exits: "Novo pedido" → "Cadastro de pedido"`; `goto` vai até uma
 tela pelo caminho mais confiável (executado como fluxo, com autocura, sem atravessar passo sensível sem
 pedir), e `map_find` procura telas e elementos já vistos. O mapa nunca substitui a leitura da página.
+A linha `screen:` aparece no `open`, no `snapshot` e em toda ação que leva a uma tela conhecida.
+
+**Menus globais:** um link aprendido numa tela vale nas outras quando está num landmark de navegação
+(`navigation`, `banner` ou `contentinfo`) e a outra tela tem esse landmark com o mesmo item. Essas
+arestas são calculadas na hora da busca (nunca gravadas), custam +0,15 a mais que uma aresta já
+percorrida ali, e uma aresta observada com a mesma ação sempre vence. Links do conteúdo não viram globais.
 
 - **Guarda só:** papéis, nomes de controles, títulos, regiões, cabeçalhos de tabela e padrões de URL
   (segmentos de ID viram `:id`; da query, só as chaves). Sequências de 4 ou mais dígitos, e-mails, CPF,
@@ -291,6 +462,7 @@ make nightly       # check + mutação completa + fuzz + download real + visual 
 make release-check # nightly + install-test (rodar em cada sistema)
 make network       # download real do Chrome for Testing (≈150 MB, fora do gate)
 make cursorlab     # laboratório do cursor: trajetórias, velocidade e palco
+make readme-shots  # regrava os prints e GIFs do README (docs/img) com o navegador de verdade
 make demo-cursor   # janela visível com o roteiro do cursor em slow (para o GIF)
 make build         # bin/vitral
 make dist          # binários para Windows, macOS e Linux em dist/
@@ -313,3 +485,80 @@ git config core.hooksPath .githooks
 
 O CI (`.github/workflows/pr.yml`) só chama `make check`. Releases com `goreleaser release --clean` a
 partir de uma tag.
+
+---
+
+## Análise sincera (Claude)
+
+*Escrita pelo Claude (Opus 5.5), que ajudou a construir o Vitral. Leve isso em conta: sou parte
+interessada. Tentei separar o que foi medido do que é opinião. Os números vêm de
+[`docs/AVALIACAO-SONNET.md`](docs/AVALIACAO-SONNET.md).*
+
+### A proposta
+
+Já existem bons servidores MCP de navegador. A aposta do Vitral não é fazer mais coisas que eles; é
+fazer a IA usar o navegador **como um colega usando a sua tela, com você olhando**. Tudo se encaixa
+nessa aposta: o selo com o botão de pausa, o destaque antes do clique, o cursor que você consegue
+seguir com os olhos, o "Sua vez" em senhas e códigos, e o pedido de "sim" antes de qualquer envio. Acho
+a aposta certa. O problema real de dar um navegador a uma IA não é ela não conseguir clicar; é a pessoa
+não confiar no que está acontecendo. O Vitral ataca a confiança, não só a capacidade.
+
+### O que funciona, com evidência
+
+- **O modelo usa bem.** Em duas rodadas com o Sonnet 5.5, a segunda terminou sem nenhum erro inesperado
+  nos cinco cenários. Ele parou e perguntou em todos os pontos sensíveis, não tentou digitar o código de
+  SMS nem contornar o CAPTCHA, e usou `goto` e `map_find` sem ser mandado.
+- **A autocura acerta o equilíbrio.** Um botão renomeado ("Salvar alterações" → "Salvar as alterações")
+  foi corrigido sozinho, com nota 1,00. Já "Confirmar" → "Confirmar pedido", com 0,81 e num passo
+  sensível, parou e pediu. É o comportamento que eu esperaria de uma pessoa cuidadosa.
+- **É barato em tokens.** O diff por ação e a árvore de acessibilidade deixam uma tela inteira em
+  centenas de tokens, não em milhares, e o `goto` corta uma navegação de 4 chamadas para 1.
+- **A engenharia é séria.** São cerca de 34 mil linhas de Go e mais de 350 funções de teste. O gate tem
+  mutação, e2e com binário de release, tetos de tempo e de tokens, e regressão visual. Os defeitos que o
+  modelo encontrou viraram testes antes de virar correção.
+
+### O que me preocupa
+
+- **Parte da segurança depende do modelo seguir a skill.** Senhas, 2FA, CAPTCHA, passos sensíveis na
+  autocura e no `goto` são barrados pelo próprio servidor. Mas um `click` comum em "Enviar pedido" não é:
+  quem segura esse clique é a regra "peça um sim" da skill. Um modelo que ignore a skill pode enviar.
+  Para o uso pretendido (ambientes de teste, com a pessoa olhando) isso é aceitável, mas precisa estar
+  dito.
+- **Validação fora do laboratório ainda é pouca.** Fora a Wikipédia, os testes rodaram em fixtures
+  feitas para o projeto. Ainda falta testar no Copilot de verdade, com o modelo padrão dele, e em
+  sistemas reais.
+- **Limites de alcance:** só o frame principal (iframes ficam de fora, e sistemas legados e
+  gateways de pagamento usam muito), só Chromium, e o mapa só conhece telas já visitadas.
+- **A autocura é heurística.** Ela resolve renomear, mover e trocar id; um redesenho da tela quebra o
+  fluxo, e os limiares (0,75 e 0,15 de margem) foram ajustados em fixtures.
+- **O capricho visual custa tempo.** Com a janela visível, cada clique leva perto de 1 s de coreografia.
+  É o preço de dar para acompanhar, e o `--cursor-speed instant` existe para quem não quer pagar.
+
+### Eu usaria?
+
+**Sim**, e com gosto, nestes cenários:
+
+1. **Conferir o meu próprio front-end durante o desenvolvimento:** abrir o `localhost`, clicar no que
+   mudei, olhar `console_list` e `network_list`, e você vendo tudo na janela.
+2. **Testar estados de erro sem mexer no backend:** com `mock_add` a API devolve 500, demora 10 s ou
+   cai, e eu descrevo como a tela reagiu. É o uso em que o Vitral mais economiza tempo de gente.
+3. **Explorar e reproduzir bugs em homologação** junto com a pessoa: ela vê, pausa, mostra o caminho, e
+   eu continuo de onde ela parou.
+4. **Tarefas repetidas de back-office em ambiente de teste** ("toda semana eu confiro…"), salvas como
+   fluxos com parâmetros e conferência no fim, que se ajustam sozinhos quando o texto de um botão muda.
+5. **Demonstrações e integração de gente nova:** o cursor legível e o selo explicam o sistema
+   melhor do que um vídeo gravado.
+
+**Não**, nestes:
+
+- **Suíte de regressão no CI:** testes Playwright escritos à mão são mais baratos, determinísticos e
+  não precisam de modelo.
+- **Raspagem em escala ou sites de terceiros que proíbem automação:** o Vitral não disfarça
+  automação, de propósito, e não deveria ser usado para isso.
+- **Produção com ações irreversíveis sem ninguém olhando:** o desenho inteiro supõe uma pessoa na
+  janela.
+- **Aplicações que vivem dentro de iframes, ou que precisam de Firefox ou Safari**, até isso existir.
+
+**Resumo:** nota 9,0 de 10. É um produto com uma ideia clara, executada com rigor incomum para a
+idade dele. Os próximos pontos vêm de usar no mundo real: instalar no VS Code do jeito que uma pessoa
+instalaria, rodar com o modelo padrão do Copilot e apontar para um sistema de verdade.
