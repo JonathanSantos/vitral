@@ -186,6 +186,14 @@ make dist          # binários para Windows, macOS e Linux em dist/
 make brand         # regenera os PNGs de assets/brand
 ```
 
+Para um agente que não tem o Vitral como servidor MCP (simulações e avaliação com modelo real), a
+ponte `tools/mcpbridge` sobe o binário real e expõe as ferramentas por HTTP local
+(`GET /tools`, `POST /call`), com o registro de cada chamada:
+
+```bash
+go run ./tools/mcpbridge -log transcript.md -- bin/vitral --cursor-speed normal
+```
+
 Para rodar o gate rápido antes de cada push, ative o hook uma vez por clone:
 
 ```bash
