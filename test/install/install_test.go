@@ -120,6 +120,10 @@ func TestInstallAndUpdate(t *testing.T) {
 	if err != nil || len(prompts) == 0 {
 		t.Fatalf("prompts not copied: %v", err)
 	}
+	skill := filepath.Join(cli.WorkspaceSkillDir(m.cwd), "SKILL.md")
+	if v := cli.SkillVersion([]byte(readFile(t, skill))); v != "1.0.0" {
+		t.Fatalf("skill version %q, want 1.0.0", v)
+	}
 
 	// 2. Setup de novo: nada muda.
 	out = m.must(v1, "setup")
@@ -128,14 +132,19 @@ func TestInstallAndUpdate(t *testing.T) {
 		t.Fatalf("second setup changed mcp.json:\n%s", again)
 	}
 
-	// 3. Um binário novo sem setup: o doctor aponta a versão instalada antiga.
+	// 3. Um binário novo sem setup: o doctor aponta a versão instalada antiga e a skill antiga.
 	out, _ = m.run(v2, "doctor", "--browsers-dir", filepath.Join(m.home, "browsers"))
-	contains(t, out, "a versão instalada em "+installed+" (1.0.0) é diferente desta (2.0.0)")
+	contains(t, out, "a versão instalada em "+installed+" (1.0.0) é diferente desta (2.0.0)",
+		"a skill em "+skill+" está na versão 1.0.0, e o Vitral na 2.0.0")
 
 	// 4. Atualização: substitui o binário instalado e mostra as duas versões; o mcp.json continua igual.
 	out = m.must(v2, "setup")
 	contains(t, out, "Vitral atualizado em "+installed+": versão 2.0.0 (antes: 1.0.0)")
 	contains(t, m.must(installed, "version"), "vitral 2.0.0")
+	// A skill intacta é atualizada sem perguntar (não há terminal aqui).
+	if v := cli.SkillVersion([]byte(readFile(t, skill))); v != "2.0.0" {
+		t.Fatalf("skill should follow the update, got %q", v)
+	}
 	if after := readFile(t, mcpPath); after != mcp {
 		t.Fatalf("update should not touch mcp.json (same path):\n%s", after)
 	}
@@ -147,7 +156,8 @@ func TestInstallAndUpdate(t *testing.T) {
 
 	// 5. O doctor do binário instalado confirma instalação e mcp.json (o navegador não importa aqui).
 	out, _ = m.run(installed, "doctor", "--browsers-dir", filepath.Join(m.home, "browsers"))
-	contains(t, out, "✓ Vitral instalado em "+installed+" (versão 2.0.0)", "✓ "+mcpPath+" aponta para "+installed)
+	contains(t, out, "✓ Vitral instalado em "+installed+" (versão 2.0.0)", "✓ "+mcpPath+" aponta para "+installed,
+		"✓ skill do Vitral em "+skill+" (versão 2.0.0)")
 }
 
 func readFile(t *testing.T, path string) string {

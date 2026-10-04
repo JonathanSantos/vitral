@@ -34,6 +34,8 @@ coverage:
   cmd/vitral:        {criterion: none}
   tools/brandgen:    {criterion: none}
   tools/qualitygate: {criterion: none}
+  tools/cursorlab:   {criterion: none}
+  tools/mcpbridge:   {criterion: none}
 
 # Orçamento de tokens (estimativa ceil(len/4), test/tokens). Primeiro padrão que casar define o teto.
 # Tetos = medição com ~20% de folga. Base em .quality/token-baseline.json (make tokens-baseline).

@@ -92,6 +92,16 @@ copiado para `.vscode/mcp.json`, com o caminho do binário em `command`).
    - o `testar-api-fora` termina sem mocks ativos (`mock_list` vazio).
 7. Siga o README como uma pessoa não técnica: a parte de cima deve caber em uma tela.
 
+## Skill do Vitral
+
+1. Depois do `vitral setup`, confira `.github/skills/vitral/SKILL.md` e, no chat do Copilot, digite `/`:
+   a skill `vitral` aparece na lista. Rode `vitral doctor`: "✓ skill do Vitral em … (versão …)".
+2. Peça algo no navegador sem usar prompt (ex.: "abra o portal e preencha o cadastro com estes dados"):
+   a IA explica antes de agir, para antes de enviar e pede "sim".
+3. Use um prompt (ex.: `/vitral-preencher-formulario`): o prompt é curto e a IA segue as mesmas regras.
+4. Edite uma linha da skill e rode `vitral setup` de novo: ele pergunta antes de substituir.
+5. Com `--global`, a skill vai para `~/.copilot/skills/vitral/` e vale para todos os projetos.
+
 ## Fase 8: selo, destaque e pausa
 
 1. Abra uma página pelo chat. No canto inferior direito da janela aparece o selo

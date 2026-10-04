@@ -53,6 +53,9 @@ func Setup(e Env, o SetupOptions) error {
 		if err := copyPrompts(e, o, filepath.Join(e.Cwd, ".github", "prompts")); err != nil {
 			return err
 		}
+		if err := installSkill(e, o, WorkspaceSkillDir(e.Cwd)); err != nil {
+			return err
+		}
 		fmt.Fprint(e.Stdout, msgNextStepsLocal)
 		return nil
 	}
@@ -67,6 +70,7 @@ func Setup(e Env, o SetupOptions) error {
 		}
 		return errors.New(msgGlobalNeedsTTY)
 	}
+	configured := 0
 	for _, c := range codes {
 		// Perfis e locais variam entre versões do VS Code: mostra o caminho e pede confirmação.
 		fmt.Fprintf(e.Stdout, msgGlobalCandidate, c.Name, c.MCPPath(), c.PromptsDir())
@@ -81,6 +85,13 @@ func Setup(e Env, o SetupOptions) error {
 			return err
 		}
 		if err := copyPrompts(e, o, c.PromptsDir()); err != nil {
+			return err
+		}
+		configured++
+	}
+	// A skill do usuário fica em ~/.copilot/skills: vale para todos os VS Code de uma vez.
+	if configured > 0 {
+		if err := installSkill(e, o, GlobalSkillDir(e.Home)); err != nil {
 			return err
 		}
 	}

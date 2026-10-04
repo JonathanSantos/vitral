@@ -139,6 +139,11 @@ browser; fechar o stdin no meio de uma ação mata o browser lançado (e não o 
 com aviso. Cada cenário roda **com e sem a skill do Vitral**, e o relatório mostra a diferença.
 Métricas: sucesso, passos, erros, tokens de entrada e saída, tempo. Nunca bloqueia merge.
 
+Enquanto o `test/eval/` não existe, a avaliação é feita à mão com a ponte `tools/mcpbridge` (o agente
+chama as ferramentas por HTTP local e cada chamada fica registrada): foi assim que as rodadas com
+Sonnet 5.5 guiaram a leitura de texto (`text`, `find`), o `expect` e as respostas mais curtas. O
+servidor MCP precisa funcionar bem **sem a skill**: o e2e e essas rodadas rodam sem ela.
+
 ## 12. O gate
 
 | Alvo | Quando | Conteúdo | Bloqueia |

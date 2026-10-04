@@ -49,6 +49,7 @@ func TestDoctorReportsEverythingOffline(t *testing.T) {
 		"✗ não testei abrir o navegador",
 		"✓ Vitral instalado em",
 		"✓ " + filepath.Join(f.Cwd, ".vscode", "mcp.json") + " aponta para",
+		"✓ skill do Vitral em " + filepath.Join(f.Cwd, ".github", "skills", "vitral", "SKILL.md"),
 		"Algo precisa de atenção",
 	} {
 		if !strings.Contains(out, want) {

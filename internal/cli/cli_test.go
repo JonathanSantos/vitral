@@ -262,6 +262,9 @@ func TestSetupGlobal(t *testing.T) {
 	if prompts, _ := os.ReadDir(filepath.Join(userDir, "prompts")); len(prompts) != 5 {
 		t.Fatalf("global prompts = %d", len(prompts))
 	}
+	if v := SkillVersion([]byte(readFile(t, filepath.Join(f.Home, ".copilot", "skills", "vitral", "SKILL.md")))); v != config.Version {
+		t.Fatalf("global skill version %q", v)
+	}
 }
 
 func TestVSCodeCandidates(t *testing.T) {

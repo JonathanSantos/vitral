@@ -30,6 +30,7 @@ func Doctor(e Env, cfg config.Config) bool {
 	checks := []Check{checkBrowser(cfg, res, resErr), checkDownload(cfg), checkProfile(cfg.ProfileDir), checkLaunch(cfg, res, resErr)}
 	checks = append(checks, checkInstalled(e))
 	checks = append(checks, checkMCP(e)...)
+	checks = append(checks, checkSkill(e))
 	allOK := true
 	for _, c := range checks {
 		if c.OK {

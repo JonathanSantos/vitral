@@ -38,6 +38,11 @@ pedaço da tela ganha um número e uma cor, e você vê na janela o que a IA vai
 
 Ou peça do seu jeito: *"Abra o portal de pedidos e busque o pedido 1023."*
 
+O `vitral setup` também instala a **skill do Vitral** (`.github/skills/vitral/`, ou `~/.copilot/skills/vitral/`
+com `--global`): são as regras que o Copilot segue ao usar o navegador, como explicar antes de agir,
+pedir um "sim" antes de enviar qualquer coisa e nunca digitar senhas. O Vitral funciona sem ela, mas
+com ela a IA trabalha com mais cuidado. Se você editar a skill, o setup pergunta antes de trocá-la.
+
 ## É seguro?
 
 - **A IA usa um navegador próprio do Vitral**, baixado na primeira vez, com perfil separado. O seu
