@@ -176,7 +176,7 @@ func TestSnapshotText(t *testing.T) {
 		t.Fatalf("no region in:\n%s", long)
 	}
 	scoped := h.ok(t, "snapshot", map[string]any{"text": true, "scope": m[1]})
-	mustContain(t, scoped, "text of ["+m[1]+"] region:", "… showing chars 0-4000 of 7199: call again with textFrom=4000")
+	mustContain(t, scoped, "text of ["+m[1]+"] region:", "… showing chars 0-4000 of 7199. Looking for something specific? Use find=", "To keep reading: textFrom=4000")
 	rest := h.ok(t, "snapshot", map[string]any{"text": true, "scope": m[1], "textFrom": 4000})
 	mustContain(t, rest, "text of ["+m[1]+"] region, from char 4000:")
 	if strings.Contains(rest, "showing chars") {
@@ -258,5 +258,44 @@ func TestSnapshotTextHeadingsAndTOC(t *testing.T) {
 	mustContain(t, sec, "Texto da história.")
 	if strings.Contains(sec, "Texto da técnica") {
 		t.Fatalf("toc link should read only its section:\n%s", sec)
+	}
+}
+
+// find traz só os trechos com o termo (sem acento, sem maiúsculas), com links marcados e a posição
+// para ler em volta; legendas vêm marcadas como (caption).
+func TestSnapshotTextFindAndCaptions(t *testing.T) {
+	h.ok(t, "open", map[string]any{"url": h.url("/pages/styles.html")})
+	h.mainWorld(t, `() => { const a = document.createElement('article');
+		a.innerHTML = '<figure><img alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><figcaption>Vitral na Catédral de Friburgo</figcaption></figure>' +
+			'<p>' + 'texto de enchimento '.repeat(300) + '</p>' +
+			'<p>O exemplo mais famoso fica na <a href="#c">Catedral de Chartres</a>, na França.</p>' +
+			'<p>' + 'mais texto '.repeat(200) + '</p>';
+		(document.querySelector('main') || document.body).prepend(a); return {}; }`)
+	text := h.ok(t, "snapshot", map[string]any{"text": true})
+	mustContain(t, text, "(caption) Vitral na Catédral de Friburgo")
+
+	found := h.ok(t, "snapshot", map[string]any{"find": "CATEDRAL"})
+	mustContain(t, found, `"CATEDRAL" in the text of main content`, "2 match(es)", "Catedral de Chartres[e", "textFrom=<@number>")
+	m := regexp.MustCompile(`@(\d+): [^\n]*Catedral de Chartres`).FindStringSubmatch(found)
+	if m == nil || len(found) > 1500 {
+		t.Fatalf("passages should be short and positioned:\n%s", found)
+	}
+	around := h.ok(t, "snapshot", map[string]any{"text": true, "textFrom": atoi(t, m[1])})
+	mustContain(t, around, "Catedral de Chartres[e")
+	mustContain(t, h.ok(t, "snapshot", map[string]any{"find": "inexistente"}), `"inexistente" not found`)
+	// Frase que não existe inteira: cai para qualquer uma das palavras, e a resposta diz isso.
+	mustContain(t, h.ok(t, "snapshot", map[string]any{"find": "França catedral gótica"}),
+		`the exact phrase "França catedral gótica" is not in the text`, "passages with any of its words", "Catedral de Chartres[e")
+}
+
+// Notas de rodapé ([2]) saem do texto lido; links de verdade continuam marcados.
+func TestSnapshotTextDropsFootnotes(t *testing.T) {
+	h.ok(t, "open", map[string]any{"url": h.url("/pages/styles.html")})
+	h.mainWorld(t, `() => { const p = document.createElement('p');
+		p.innerHTML = 'Vidro colorido<sup><a href="#n1">[1]</a></sup><sup><a href="#n2">[2]</a></sup> em <a href="#ig">igrejas</a>.';
+		(document.querySelector('main') || document.body).prepend(p); return {}; }`)
+	text := h.ok(t, "snapshot", map[string]any{"text": true})
+	if !regexp.MustCompile(`Vidro colorido em igrejas\[e\d+\]\.`).MatchString(text) {
+		t.Fatalf("footnotes should be dropped and real links kept:\n%s", text)
 	}
 }

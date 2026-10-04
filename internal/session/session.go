@@ -345,8 +345,8 @@ func refError(ref, code string) error {
 const ReadTextMax = 4000
 
 // ReadText devolve o texto visível de um elemento (ou do conteúdo principal da página): é como a IA
-// lê parágrafos, que o snapshot não lista.
-func (s *Session) ReadText(ctx context.Context, scope string, from int) (string, error) {
+// lê parágrafos, que o snapshot não lista. Com find, devolve só os trechos que contêm o termo.
+func (s *Session) ReadText(ctx context.Context, scope string, from int, find string) (string, error) {
 	from = max(from, 0)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -360,8 +360,15 @@ func (s *Session) ReadText(ctx context.Context, scope string, from int) (string,
 		Section bool   `json:"section"`
 		Text    string `json:"text"`
 		Total   int    `json:"total"`
+		Count   int    `json:"count"`
+		AnyWord bool   `json:"anyWord"`
+		Hits    []struct {
+			At   int    `json:"at"`
+			Text string `json:"text"`
+		} `json:"hits"`
 	}
-	if err := s.evalInto(ctx, &res, `(r, m, f) => window.__vitral.readText(r, m, f)`, scope, ReadTextMax, from); err != nil {
+	js := `(r, m, f, q) => window.__vitral.readText(r, m, f, q)`
+	if err := s.evalInto(ctx, &res, js, scope, ReadTextMax, from, strings.TrimSpace(find)); err != nil {
 		return "", err
 	}
 	if err := refError(scope, res.Error); err != nil {
@@ -380,6 +387,25 @@ func (s *Session) ReadText(ctx context.Context, scope string, from int) (string,
 		what = "section " + what
 	}
 	lines := []string{fmt.Sprintf("page: %q (%s)", head.Title, head.URL)}
+
+	if find = strings.TrimSpace(find); find != "" {
+		if res.Count == 0 {
+			return strings.Join(append(lines, fmt.Sprintf("%q not found in the text of %s (%d chars).", find, what, res.Total)), "\n"), nil
+		}
+		summary := fmt.Sprintf("%q in the text of %s (%d chars): %d match(es)", find, what, res.Total, res.Count)
+		if res.AnyWord {
+			summary = fmt.Sprintf("the exact phrase %q is not in the text of %s (%d chars); passages with any of its words: %d match(es)", find, what, res.Total, res.Count)
+		}
+		if len(res.Hits) > 0 && res.Count > len(res.Hits) {
+			summary += fmt.Sprintf(", passages around the first %d shown", len(res.Hits))
+		}
+		lines = append(lines, summary+":")
+		for _, h := range res.Hits {
+			lines = append(lines, fmt.Sprintf("@%d: %s", h.At, h.Text))
+		}
+		return strings.Join(append(lines, "To read around a passage, use text=true with textFrom=<@number>."), "\n"), nil
+	}
+
 	if res.Text == "" {
 		if from > 0 && res.Total > 0 {
 			return strings.Join(append(lines, fmt.Sprintf("text of %s: nothing after char %d (it has %d chars).", what, from, res.Total)), "\n"), nil
@@ -392,7 +418,7 @@ func (s *Session) ReadText(ctx context.Context, scope string, from int) (string,
 	}
 	lines = append(lines, header, res.Text)
 	if end := from + len([]rune(res.Text)); end < res.Total {
-		lines = append(lines, fmt.Sprintf("… showing chars %d-%d of %d: call again with textFrom=%d for more, or read one section with scope=<heading ref> (headings are marked like ## Title[eN]).", from, end, res.Total, end))
+		lines = append(lines, fmt.Sprintf("… showing chars %d-%d of %d. Looking for something specific? Use find=<words> to get only the passages with them. To keep reading: textFrom=%d, or one section with scope=<heading ref> (headings are marked like ## Title[eN]).", from, end, res.Total, end))
 	}
 	return strings.Join(lines, "\n"), nil
 }

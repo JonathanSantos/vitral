@@ -20,6 +20,7 @@ type flowSaveInput struct {
 	Params      map[string]string `json:"params,omitempty" jsonschema:"turn typed values into parameters: {name: value used in this session}, e.g. {numero: 1023}"`
 	FromStep    int               `json:"fromStep,omitempty" jsonschema:"first step number to save (default: everything since the last flow_save)"`
 	ToStep      int               `json:"toStep,omitempty" jsonschema:"last step number to save (default: the last step)"`
+	Expect      string            `json:"expect,omitempty" jsonschema:"text that must be visible at the end: adds a final wait_for so flow_run checks the result (a param value inside it becomes the placeholder)"`
 }
 
 type flowRunInput struct {
@@ -30,7 +31,7 @@ type flowRunInput struct {
 func registerFlows(s *mcp.Server, d Deps) {
 	addTool(s, d, &mcp.Tool{
 		Name:        "flow_save",
-		Description: "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow; fromStep/toStep pick a range. Use params to turn typed values into placeholders. End the flow with a wait_for step so flow_run checks the result.",
+		Description: "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow; fromStep/toStep pick a range. Use params to turn typed values into placeholders. Use expect=<text> so flow_run checks the result.",
 	}, flowSaveTool(d))
 
 	addTool(s, d, &mcp.Tool{
@@ -53,6 +54,11 @@ func flowSaveTool(d Deps) mcp.ToolHandlerFor[flowSaveInput, any] {
 		steps, from, to, err := rec.Range(in.FromStep, in.ToStep)
 		if err != nil {
 			return "", err
+		}
+		// O resultado esperado vira um wait_for no fim; o Parameterize troca o valor do parâmetro por
+		// {{nome}} também nele, então o fluxo confere o termo que rodou, não o da gravação.
+		if expect := strings.TrimSpace(in.Expect); expect != "" {
+			steps = append(steps, flow.Step{WaitFor: &flow.WaitStep{Text: expect}})
 		}
 		steps, subs, err := flow.Parameterize(steps, in.Params)
 		if err != nil {
@@ -77,6 +83,9 @@ func flowSaveTool(d Deps) mcp.ToolHandlerFor[flowSaveInput, any] {
 		}
 		for i, s := range steps {
 			lines = append(lines, fmt.Sprintf("%d. %s", i+1, s.Describe()))
+		}
+		if last := steps[len(steps)-1]; last.WaitFor == nil {
+			lines = append(lines, "tip: this flow does not check its result. Save it again with the same steps and expect=<text visible at the end> so flow_run confirms it worked.")
 		}
 		if len(subs) > 0 {
 			lines = append(lines, "substitutions:")

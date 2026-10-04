@@ -94,3 +94,23 @@ func TestFlowWithMockStep(t *testing.T) {
 	// Sem passos novos desde o último save.
 	h.fail(t, "flow_save", map[string]any{"name": "vazio"}, "no new steps since the last flow_save")
 }
+
+// expect adiciona o wait_for no fim, com o valor do parâmetro trocado pelo placeholder: o fluxo
+// confere o resultado do termo que rodou, mesmo sem um wait_for gravado logo depois dos passos.
+func TestFlowSaveExpect(t *testing.T) {
+	first := recordForm(t, "Maria Silva")
+	out := h.ok(t, "flow_save", map[string]any{
+		"name": "cadastro-expect", "fromStep": first, "toStep": first + 5,
+		"params": map[string]any{"nome": "Maria Silva"}, "expect": "Cadastro enviado: Maria Silva",
+	})
+	mustContain(t, out, "(7 steps", `6. click button "Enviar"`, `7. wait_for text "Cadastro enviado: {{nome}}"`,
+		`step 7 wait_for.text: "Cadastro enviado: Maria Silva" → "Cadastro enviado: {{nome}}"`)
+	if strings.Contains(out, "tip: this flow does not check") {
+		t.Fatalf("a flow with expect needs no tip:\n%s", out)
+	}
+	run := h.ok(t, "flow_run", map[string]any{"name": "cadastro-expect", "params": map[string]any{"nome": "Ana Prado"}})
+	mustContain(t, run, "7. ok wait_for text", "done: 7/7 steps passed.")
+	// Sem verificação no fim, a resposta sugere o expect.
+	noCheck := h.ok(t, "flow_save", map[string]any{"name": "sem-expect", "fromStep": first, "toStep": first + 1})
+	mustContain(t, noCheck, "tip: this flow does not check its result", "expect=<text visible at the end>")
+}

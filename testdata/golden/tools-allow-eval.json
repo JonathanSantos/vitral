@@ -111,12 +111,16 @@
   },
   {
     "name": "flow_save",
-    "description": "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow; fromStep/toStep pick a range. Use params to turn typed values into placeholders. End the flow with a wait_for step so flow_run checks the result.",
+    "description": "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow; fromStep/toStep pick a range. Use params to turn typed values into placeholders. Use expect=\u003ctext\u003e so flow_run checks the result.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "description": {
           "description": "what the flow does, in one sentence",
+          "type": "string"
+        },
+        "expect": {
+          "description": "text that must be visible at the end: adds a final wait_for so flow_run checks the result (a param value inside it becomes the placeholder)",
           "type": "string"
         },
         "fromStep": {
@@ -401,10 +405,14 @@
   },
   {
     "name": "snapshot",
-    "description": "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=\u003cref\u003e to read them in full. Paragraph text is not listed: use text=true to read it: links come as text[ref], headings as ## Title[ref]; scope=\u003cheading or table-of-contents link ref\u003e reads that section.",
+    "description": "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=\u003cref\u003e to read them in full. Paragraph text is not listed: use text=true to read it: links come as text[ref], headings as ## Title[ref], captions as (caption); scope=\u003cheading or table-of-contents link ref\u003e reads that section; find=\u003cwords\u003e returns only the passages with them.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "find": {
+          "description": "show only the text passages with this word or exact phrase (accents and case ignored; if the phrase is not found, any of its words), with their position; implies text=true",
+          "type": "string"
+        },
         "full": {
           "description": "include elements outside the visible area",
           "type": "boolean"

@@ -508,13 +508,14 @@
     return parts;
   }
 
-  function readText(ref, max, from) {
-    from = Math.max(0, from || 0);
+  // pageText monta o texto lido: conteúdo principal, scope, seção de um título ou de um link de
+  // índice; sem menus; com legendas, títulos e links marcados.
+  function pageText(ref) {
     let parts;
     let root = null;
     if (ref) {
       let el = find(ref);
-      if (!el) return { error: 'not_found' };
+      if (!el) return { error: 'not_found', chars: [] };
       // Link de índice ("#História"): lê a seção para onde ele aponta.
       const hash = el.tagName === 'A' && (el.getAttribute('href') || '').startsWith('#') ? el.getAttribute('href').slice(1) : '';
       if (hash) {
@@ -557,6 +558,21 @@
       }
     }
     // O selo do Vitral fica pendurado no <html>, fora do <body>: o texto dele nunca entra aqui.
+    // Legendas de imagens e tabelas marcadas, para não se misturarem ao texto corrido.
+    let capAt = 0;
+    for (const part of parts) {
+      for (const c of part.querySelectorAll ? part.querySelectorAll('figcaption, caption, .thumbcaption') : []) {
+        const first = ((c.innerText || '').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).find(Boolean)) || '';
+        if (!first || !isVisible(c)) continue;
+        for (let i = capAt; i < lines.length; i++) {
+          if (lines[i] === first) {
+            lines[i] = '(caption) ' + first;
+            capAt = i + 1;
+            break;
+          }
+        }
+      }
+    }
     // Títulos marcados com o nível e a ref ("## História[e12]"): dá para ler uma seção direto.
     let marked = 0;
     for (const part of parts) {
@@ -581,7 +597,17 @@
       for (const a of part.querySelectorAll ? part.querySelectorAll('a[href]') : []) {
         if (a.closest(CHROME_SEL)) continue;
         const label = (a.innerText || '').replace(/\s+/g, ' ').trim();
-        if (label.length < 2 || !isVisible(a)) continue;
+        if (!label || !isVisible(a)) continue;
+        // Notas de rodapé ("[2]", "[nota 1]") só poluem a leitura: saem do texto.
+        if (/^\[(nota |n\. ?)?\d+\]$/i.test(label)) {
+          const j = text.indexOf(label, at);
+          if (j >= 0) {
+            text = text.slice(0, j) + text.slice(j + label.length);
+            at = j;
+          }
+          continue;
+        }
+        if (label.length < 2) continue;
         const i = text.indexOf(label, at);
         if (i < 0) continue;
         const tag = '[' + refFor(a) + ']';
@@ -590,11 +616,59 @@
         at = end + tag.length;
       }
     }
-    const chars = Array.from(text);
     return {
       role: root ? (roleOf(root) || root.tagName.toLowerCase()) : '', ref: (root && root.getAttribute(REF_ATTR)) || '',
-      section: !!(ref && headingLevel(root)),
-      text: chars.slice(from, from + max).join(''), total: chars.length,
+      section: !!(ref && headingLevel(root)), chars: Array.from(text),
+    };
+  }
+
+  // Busca sem acento e sem diferenciar maiúsculas: cada caractere vira um só, então as posições no
+  // texto dobrado são as mesmas do texto original.
+  const fold = (c) => c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()[0] || c;
+
+  // readText devolve uma página do texto (from, max) ou, com query, só os trechos que a contêm, com
+  // around caracteres de contexto e a posição de cada trecho (para continuar com textFrom).
+  function readText(ref, max, from, query) {
+    const page = pageText(ref);
+    if (page.error) return { error: page.error };
+    const { chars } = page;
+    const base = { role: page.role, ref: page.ref, section: page.section, total: chars.length };
+    if (!query) {
+      from = Math.max(0, from || 0);
+      return { ...base, text: chars.slice(from, from + max).join('') };
+    }
+    const hay = chars.map(fold).join('');
+    const around = 160, maxHits = 8;
+    const hits = [];
+    let count = 0;
+    // A frase exata primeiro; se não aparece e tem várias palavras, qualquer uma delas (em ordem de
+    // posição no texto), e a resposta avisa.
+    const phrase = Array.from(query.trim()).map(fold).join('');
+    let terms = [phrase];
+    const occurrences = (q) => { const out = []; for (let i = q ? hay.indexOf(q) : -1; i >= 0; i = hay.indexOf(q, i + q.length)) out.push([i, q.length]); return out; };
+    let found = occurrences(phrase);
+    let anyWord = false;
+    if (!found.length) {
+      terms = phrase.split(/\s+/).filter((w) => w.length >= 3);
+      if (terms.length > 1) {
+        anyWord = true;
+        found = terms.flatMap(occurrences).sort((x, y) => x[0] - y[0]);
+      }
+    }
+    for (const [i, len] of found) {
+      const q = { length: len };
+      count++;
+      if (hits.length >= maxHits && i > hits[hits.length - 1].end) continue;
+      let a = Math.max(0, i - around), b = Math.min(chars.length, i + q.length + around);
+      while (a > 0 && !/\s/.test(chars[a - 1]) && i - a < around + 30) a--;
+      while (b < chars.length && !/\s/.test(chars[b]) && b - i < around + q.length + 30) b++;
+      const last = hits[hits.length - 1];
+      if (last && a <= last.end) last.end = Math.max(last.end, b);
+      else if (hits.length < maxHits) hits.push({ start: a, end: b });
+    }
+    return {
+      ...base, count, query, anyWord,
+      hits: hits.map((h) => ({ at: h.start, text: chars.slice(h.start, h.end).join('').replace(/\n/g, ' | ') })),
     };
   }
 
