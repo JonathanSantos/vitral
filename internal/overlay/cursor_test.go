@@ -80,3 +80,19 @@ func TestArrival(t *testing.T) {
 		t.Fatal("arrival is the press with a click and the end of the move without one")
 	}
 }
+
+func TestRecentPlansKeepsTheLastOnes(t *testing.T) {
+	m := newTestManager()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	for i := 0; i < recentPlans+3; i++ {
+		m.PlayCursor(ctx, cursor.Plan{Frames: []float64{0, float64(i), 0}, End: cursor.Point{X: float64(i)}}, "", false)
+	}
+	plans := m.RecentPlans()
+	if len(plans) != recentPlans || plans[len(plans)-1].End.X != float64(recentPlans+2) || plans[0].End.X != 3 {
+		t.Fatalf("got %d plans, last %v", len(plans), plans[len(plans)-1].End)
+	}
+	if at, shown := m.CursorPosition(); !shown || at.X != float64(recentPlans+2) {
+		t.Fatalf("position %v %v", at, shown)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"image"
 	"image/png"
+	"math/rand/v2"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 
 	"github.com/JonathanSantos/vitral/internal/browser/install"
+	"github.com/JonathanSantos/vitral/internal/cursor"
 	"github.com/JonathanSantos/vitral/internal/ux"
 	"github.com/JonathanSantos/vitral/test/visual"
 )
@@ -39,6 +41,8 @@ func TestVisual(t *testing.T) {
 	}
 
 	snap := h.ok(t, "open", map[string]any{"url": h.url("/pages/visual.html")})
+	// O cursor de testes anteriores reaparece na página nova: estes goldens são só do selo.
+	_ = h.app.Overlay.HideCursor(context.Background())
 	img, _ := h.shot(t, map[string]any{})
 	check("marks-page", img)
 
@@ -82,6 +86,92 @@ func TestVisual(t *testing.T) {
 	if st := h.app.Overlay.State(); st.Mode != ux.Idle || st.Collapsed {
 		t.Fatalf("overlay should be back to idle, got %+v", st)
 	}
+}
+
+// Goldens do cursor visual (docs/CURSOR.md, seção 9): parado com etiqueta, mão sobre botão, anel no
+// meio do efeito (animações congeladas pelo CDP para o quadro ser sempre o mesmo) e keycap.
+func TestVisualCursor(t *testing.T) {
+	p, err := h.app.Browser.Page()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := goldenDir(t, p)
+	out := filepath.Join("..", "..", ".quality", "out", "visual")
+	check := func(name string, img image.Image) {
+		t.Helper()
+		if err := visual.Golden(filepath.Join(dir, name+".png"), img, *update, out); err != nil {
+			t.Error(err)
+		}
+	}
+	snap := h.ok(t, "open", map[string]any{"url": h.url("/pages/visual.html")})
+	ctx := context.Background()
+	prof := cursor.DefaultProfile()
+	rng := rand.New(rand.NewPCG(5, 6))
+	// still é um plano sem movimento no ponto: só a forma, a etiqueta e (com anel) o clique.
+	still := func(at cursor.Point, kind cursor.Kind) cursor.Plan {
+		return cursor.Compute(cursor.Input{From: at, To: at, Target: cursor.Rect{X: at.X - 10, Y: at.Y - 10, W: 20, H: 20}, Kind: kind}, prof, rng)
+	}
+	around := func(at cursor.Point) image.Rectangle {
+		return image.Rect(int(at.X)-24, int(at.Y)-24, int(at.X)+140, int(at.Y)+76)
+	}
+
+	blank := cursor.Point{X: 700, Y: 300}
+	if err := h.app.Overlay.PlaceCursor(ctx, blank, true); err != nil {
+		t.Fatal(err)
+	}
+	h.app.Overlay.PlayCursor(ctx, still(blank, cursor.Arrow), "", false)
+	check("cursor-idle-label", stable(t, p, around(blank)))
+
+	button := boxOf(t, h.ok(t, "inspect", map[string]any{"ref": ref(t, snap, "button", "Sobreposto")}))
+	onButton := cursor.Point{X: float64(button.Min.X + button.Dx()/2), Y: float64(button.Min.Y + button.Dy()/2)}
+	h.app.Overlay.PlayCursor(ctx, still(onButton, cursor.Pointer), "", false)
+	check("cursor-pointer-on-button", stable(t, p, around(onButton)))
+
+	// Anel no meio: as animações criadas no press (anel e encolhimento) são pausadas e levadas a
+	// 150 ms; o release termina normalmente antes da captura. Congelar tudo pararia também o relógio
+	// do requestAnimationFrame, e o cursor nunca chegaria ao press.
+	if err := (proto.AnimationEnable{}).Call(p); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = proto.AnimationDisable{}.Call(p) }()
+	created := make(chan string, 16)
+	wait := p.Context(ctx).EachEvent(func(e *proto.AnimationAnimationCreated) bool {
+		created <- e.ID
+		return false
+	})
+	go wait()
+	ringAt := cursor.Point{X: 500, Y: 400}
+	ringPlan := still(ringAt, cursor.Arrow)
+	if !h.app.Overlay.PlayCursor(ctx, ringPlan, "#e5484d", false) {
+		t.Fatal("no arrival for the ring plan")
+	}
+	var ids []string
+collect:
+	for {
+		select {
+		case id := <-created:
+			ids = append(ids, id)
+		case <-time.After(60 * time.Millisecond):
+			break collect
+		}
+	}
+	if len(ids) == 0 {
+		t.Fatal("the click ring animation was not created")
+	}
+	if err := (proto.AnimationSetPaused{Animations: ids, Paused: true}).Call(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := (proto.AnimationSeekAnimations{Animations: ids, CurrentTime: 150}).Call(p); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Duration(ringPlan.Release-ringPlan.Press)*time.Millisecond + 250*time.Millisecond)
+	check("cursor-ring-mid", stable(t, p, around(ringAt).Inset(-20)))
+
+	vw, vh := viewport(t, p)
+	if err := h.app.Overlay.Keycap(ctx, "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	check("keycap-enter", stable(t, p, image.Rect(vw/2-120, vh-150, vw/2+120, vh-60)))
 }
 
 // goldenDir é testdata/visual/<sistema>-chrome-<versão>. Os goldens são atrelados ao Chrome for

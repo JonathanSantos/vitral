@@ -112,14 +112,21 @@ browser; fechar o stdin no meio de uma ação mata o browser lançado (e não o 
 - Regressão visual: goldens PNG com tolerância de 8 por canal e 0,5% de pixels (`test/visual`).
   - Marcações em Go puro (`internal/screenshot`, rótulos que colidem, bordas, refs longas): fonte Go
     Mono embutida, resultado igual em qualquer sistema, roda em todo `go test`.
-  - Com navegador (`make visual`, noturno): marcações num print real e o selo em cada estado (ocioso,
-    trabalhando, fluxo, pausado, "Sua vez" com destaque, recolhido). Página só com fontes locais;
+  - Com navegador (`make visual`, noturno): marcações num print real, o selo em cada estado (ocioso,
+    trabalhando, fluxo, pausado, "Sua vez" com destaque, recolhido) e o cursor visual (parado com
+    etiqueta, mão sobre botão, anel no meio do efeito com as animações pausadas pelo CDP, keycap). Página só com fontes locais;
     goldens em `testdata/visual/<sistema>-chrome-<versão>`, atrelados ao Chrome for Testing fixado
     (outro navegador reprova). Falha grava `.got.png` e `.diff.png` em `.quality/out/visual`;
     `make visual-update` aceita.
 - Matriz (`make matrix`, noturno): compila o binário e checa os testes com todas as tags para Linux,
   macOS e Windows. Rodar os testes em cada sistema depende de máquinas de cada um (pendente, junto
   com o agendamento do noturno).
+- Cursor visual (docs/CURSOR.md, seção 9): física pura com propriedades, fuzz e mutação em
+  `internal/cursor`; integração com `--cursor=force` em headless (`internal/app/cursor_*_test.go`):
+  clique real no ponto final com um único `mousemove`, nunca no filho interativo (card com lixeira,
+  botão dividido), aba oculta antes e durante a animação, `prefers-reduced-motion`, falha visível com
+  o mesmo erro para a IA, orçamento de 1,3 s em `normal`. `make demo-cursor` abre a janela visível
+  com o roteiro da `cursor-playground` em `slow` (fora do gate).
 - Instalação e atualização (`make install-test`, release): binários reais de duas versões, setup numa
   pasta com `mcp.json` comentado, setup repetido, atualização e o `doctor` detectando versão antiga.
 - Benchmarks com `benchstat` (noturno, só relatório).

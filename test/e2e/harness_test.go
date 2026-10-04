@@ -129,6 +129,10 @@ func start(t *testing.T, extraArgs ...string) *Session {
 		"--lang", "pt-BR", "--window-size", "1280,800", "--debug-info", s.debugInfo,
 	}, browserArgs...)
 	args = append(args, extraArgs...)
+	// make demo-cursor: janela visível para uma pessoa acompanhar (e gravar o GIF).
+	if os.Getenv("VITRAL_E2E_VISIBLE") != "" {
+		args = args[1:]
+	}
 	s.cmd = exec.Command(binPath, args...)
 	s.cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home, "TZ=UTC", "GOCOVERDIR="+coverDir,
 		"PUPPETEER_CACHE_DIR="+filepath.Join(home, "none"), "PLAYWRIGHT_BROWSERS_PATH="+filepath.Join(home, "none"))

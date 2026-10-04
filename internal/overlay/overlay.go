@@ -70,6 +70,7 @@ type Manager struct {
 	waiters     map[string]chan struct{}
 	cursorAt    cursor.Point
 	cursorShown bool
+	plans       []cursor.Plan // últimos planos tocados (diagnóstico e testes)
 }
 
 // New cria o gerenciador. O token impede que scripts da página acionem a pausa pela binding.

@@ -13,7 +13,7 @@ MUTATION_BASE ?= main
 OUT         := .quality/out
 
 .PHONY: build dist test unit integration integration-cover e2e mutation mutation-all fuzz network visual visual-update \
-        matrix install-test lint fmt vuln gate gate-fast check check-fast nightly release-check clean brand cursorlab tokens-baseline
+        matrix install-test demo-cursor lint fmt vuln gate gate-fast check check-fast nightly release-check clean brand cursorlab tokens-baseline
 
 # ---------- build ----------
 
@@ -93,6 +93,11 @@ visual-update:
 	go test -count=1 -tags integration,visual -run '^TestVisual$$' ./internal/app/ -update
 	go test -count=1 -run '^TestMarksGolden$$' ./internal/screenshot/ -update
 
+# Demonstração do cursor visual (docs/demo.md): janela visível, cursor em slow, roteiro na
+# cursor-playground. Fora do gate; serve para avaliar o movimento e gravar o GIF do README.
+demo-cursor:
+	VITRAL_E2E_VISIBLE=1 VITRAL_E2E_OUT=$(abspath $(OUT)/demo) go test -count=1 -tags 'e2e demo' -run '^TestDemoCursor$$' -v ./test/e2e/
+
 # Matriz: compila o binário e checa os testes (todas as tags) para Linux, macOS e Windows. Rodar os
 # testes em cada sistema depende de máquinas de cada um (pendente com o noturno).
 MATRIX_OS := linux darwin windows
@@ -100,7 +105,7 @@ matrix:
 	@for os in $(MATRIX_OS); do \
 		echo "matrix $$os"; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=amd64 go build -o /dev/null ./cmd/vitral || exit 1; \
-		GOOS=$$os GOARCH=amd64 go vet -tags integration,e2e,visual,install,network,eval ./... || exit 1; \
+		GOOS=$$os GOARCH=amd64 go vet -tags integration,e2e,visual,install,network,eval,demo ./... || exit 1; \
 	done
 
 # Instalação e atualização com binários reais (setup, setup de novo, atualização, doctor).

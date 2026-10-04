@@ -78,9 +78,12 @@ func TestCursorPlaysAndStaysOutOfScreenshot(t *testing.T) {
 	}
 }
 
-func pageShot(t *testing.T) image.Image {
+func pageShot(t *testing.T) image.Image { return pageShotOf(t, h) }
+
+// pageShotOf captura a página como a pessoa vê (com o overlay), direto pelo CDP.
+func pageShotOf(t *testing.T, hh *harness) image.Image {
 	t.Helper()
-	p, err := h.app.Browser.Page()
+	p, err := hh.app.Browser.Page()
 	if err != nil {
 		t.Fatal(err)
 	}

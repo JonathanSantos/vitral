@@ -18,6 +18,16 @@ const cursorFn = `(c) => { const o = window.__vitralOverlay; if (!o || !o.cursor
 // errNoOverlay indica que a página ainda não tem o overlay (documento novo carregando).
 var errNoOverlay = errors.New("overlay not ready")
 
+// recentPlans é quantos planos o Manager lembra (RecentPlans).
+const recentPlans = 8
+
+// RecentPlans devolve os últimos planos tocados, do mais antigo ao mais novo.
+func (m *Manager) RecentPlans() []cursor.Plan {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]cursor.Plan(nil), m.plans...)
+}
+
 // arrivalSlack é a folga sobre a duração do plano antes de desistir de esperar o overlay (2.1).
 const arrivalSlack = 300 * time.Millisecond
 
@@ -70,6 +80,10 @@ func (m *Manager) PlayCursor(ctx context.Context, plan cursor.Plan, ring string,
 	}()
 
 	m.cursorAt, m.cursorShown = plan.End, true
+	m.plans = append(m.plans, plan)
+	if len(m.plans) > recentPlans {
+		m.plans = m.plans[len(m.plans)-recentPlans:]
+	}
 	m.mu.Unlock()
 	cmd := map[string]any{"op": "play", "id": id, "plan": plan, "appear": appear, "label": ux.TextCursorLabel}
 	if ring != "" {
