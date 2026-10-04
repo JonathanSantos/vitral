@@ -149,7 +149,7 @@ terminam com `step #N`.
 
 `open`, `snapshot`, `click`, `type`, `select`, `press`, `scroll`, `wait_for`, `back`, `screenshot`,
 `inspect`, `network_list`, `network_get`, `mock_add`, `mock_list`, `mock_clear`, `console_list`,
-`emulate`, `eval_js` (só com `--allow-eval`), `flow_save`, `flow_list`, `flow_run`.
+`emulate`, `eval_js` (só com `--allow-eval`), `flow_save`, `flow_list`, `flow_run`, `flow_update`.
 
 `wait_for` com `text` procura no texto visível real do DOM (innerText dos elementos visíveis,
 incluindo shadow roots abertos e iframes same-origin), não no snapshot, e devolve a ref do elemento
@@ -199,6 +199,15 @@ perfil sempre dedicado; headers sensíveis mascarados.
   (passo, campo, antes → depois).
 - `flow_run` executa sem IA, resolvendo cada seletor no snapshot atual; em falha para no passo e
   devolve passo, motivo e snapshot.
+- Autocura (`internal/heal`): cada seletor gravado leva uma assinatura (papel, nome, label,
+  placeholder, `data-testid`, `id` estável, `name`, caminho do `href`, tipo do campo, região, dialog,
+  título acima, cabeçalhos da tabela, posição entre iguais e na página). Se o seletor não acha
+  exatamente o elemento, o `flow_run` pontua os candidatos e aceita só com nota ≥ 0,75, margem ≥ 0,15
+  sobre o segundo e papel compatível (botão ↔ link; o tipo do campo nunca troca). Passo sensível
+  (léxico em `internal/heal/sensitive.txt` ou o último clique) e `heal: ask` param e pedem
+  confirmação (`resumeFrom` + `acceptHealing`); `heal: off` desliga. O resultado lista os passos
+  curados; `flow_update` com `applyHealing=true` regrava o fluxo e guarda a versão anterior em
+  `.history/`.
 
 ## 13. Fases
 

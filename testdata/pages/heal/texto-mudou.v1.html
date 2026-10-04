@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Autocura: texto mudou - Fixture</title></head>
+<body>
+  <!-- Autocura, caso "texto mudou levemente" (v1/v2). -->
+  <main>
+    <h1>Perfil</h1>
+    <button type="button" onclick="say('alteracoes')">Salvar alterações</button>
+    <button type="button" onclick="say('rascunho')">Salvar rascunho</button>
+  </main>
+  <p id="status" role="status">nada</p>
+  <button type="button" onclick="say('continuar')">Continuar</button>
+  <script>
+    function say(t) { const s = document.getElementById('status'); s.textContent = s.textContent === 'nada' ? t : s.textContent + ', ' + t; }
+  </script>
+</body>
+</html>

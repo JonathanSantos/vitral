@@ -27,8 +27,15 @@ type flowSaveInput struct {
 }
 
 type flowRunInput struct {
-	Name   string            `json:"name" jsonschema:"flow name from flow_list"`
-	Params map[string]string `json:"params,omitempty" jsonschema:"values for the flow parameters, e.g. {numero: 2048}"`
+	Name          string            `json:"name" jsonschema:"flow name from flow_list"`
+	Params        map[string]string `json:"params,omitempty" jsonschema:"values for the flow parameters, e.g. {numero: 2048}"`
+	ResumeFrom    int               `json:"resumeFrom,omitempty" jsonschema:"continue a stopped run from this step number"`
+	AcceptHealing bool              `json:"acceptHealing,omitempty" jsonschema:"with resumeFrom: the user approved the healing proposed for that step"`
+}
+
+type flowUpdateInput struct {
+	Name         string `json:"name" jsonschema:"flow name"`
+	ApplyHealing bool   `json:"applyHealing" jsonschema:"true: rewrite the steps healed in the last flow_run with the elements found"`
 }
 
 func registerFlows(s *mcp.Server, d Deps) {
@@ -44,8 +51,13 @@ func registerFlows(s *mcp.Server, d Deps) {
 
 	addTool(s, d, &mcp.Tool{
 		Name:        "flow_run",
-		Description: "Run a saved flow step by step without AI. On failure it stops and shows the step, the reason and the page.",
+		Description: "Run a saved flow step by step without AI. If the page changed, it heals steps by finding the same element (asks first on sensitive steps). On failure it stops and shows the step, the reason and the page.",
 	}, flowRunTool(d))
+
+	addTool(s, d, &mcp.Tool{
+		Name:        "flow_update",
+		Description: "After the user agrees, save the steps healed in the last flow_run into the flow file (the previous version goes to .history).",
+	}, flowUpdateTool(d))
 }
 
 func flowSaveTool(d Deps) mcp.ToolHandlerFor[flowSaveInput, any] {
@@ -211,7 +223,10 @@ func flowRunTool(d Deps) mcp.ToolHandlerFor[flowRunInput, any] {
 		if err != nil {
 			return "", err
 		}
-		out, err := d.Session.RunFlow(ctx, f, in.Params, mockAdder(d.Mocks))
+		if in.AcceptHealing && in.ResumeFrom == 0 {
+			return "", errors.New("acceptHealing needs resumeFrom: the step number where flow_run asked for confirmation")
+		}
+		out, err := d.Session.RunFlow(ctx, f, in.Params, mockAdder(d.Mocks), session.RunOptions{ResumeFrom: in.ResumeFrom, AcceptHealing: in.AcceptHealing})
 		var flowErr *session.FlowError
 		if errors.As(err, &flowErr) {
 			return "", flowErr
@@ -235,4 +250,37 @@ func mockRule(m flow.MockStep) mock.Rule {
 		URLPattern: m.URLPattern, Method: m.Method, Status: m.Status, Body: m.Body,
 		Headers: m.Headers, Fail: m.Fail, DelayMs: m.DelayMs, Times: m.Times,
 	}
+}
+
+func flowUpdateTool(d Deps) mcp.ToolHandlerFor[flowUpdateInput, any] {
+	return textHandler(func(_ context.Context, in flowUpdateInput) (string, error) {
+		if !in.ApplyHealing {
+			return "", errors.New("nothing to update: call flow_update with applyHealing=true to save the steps healed in the last flow_run")
+		}
+		f, err := d.Flows.Load(in.Name)
+		if err != nil {
+			return "", err
+		}
+		healed := d.Session.LastHealing(in.Name)
+		if len(healed) == 0 {
+			return "", fmt.Errorf("no healed steps for flow %s: run it with flow_run first", in.Name)
+		}
+		changes := map[int]flow.Selector{}
+		lines := []string{}
+		for _, h := range healed {
+			changes[h.Step] = h.Healing.Now
+			lines = append(lines, fmt.Sprintf("  step %d: %s → %s", h.Step, h.Healing.Was.Describe(), h.Healing.Now.Describe()))
+		}
+		updated, err := flow.ApplyHealing(f, changes)
+		if err != nil {
+			return "", err
+		}
+		path, history, err := d.Flows.Update(updated)
+		if err != nil {
+			return "", err
+		}
+		d.Session.ForgetHealing(in.Name)
+		head := fmt.Sprintf("updated %s (%d steps changed; previous version in %s)", path, len(healed), history)
+		return strings.Join(append([]string{head}, lines...), "\n"), nil
+	})
 }

@@ -74,7 +74,7 @@ de uso em [`docs/UX-TASKS.md`](docs/UX-TASKS.md) e roteiro de validação manual
 | Visão | `screenshot` (com marcações por ref), `inspect` |
 | Rede e console | `network_list`, `network_get`, `console_list` |
 | Simulação | `mock_add`, `mock_list`, `mock_clear`, `emulate` |
-| Fluxos | `flow_save`, `flow_list`, `flow_run` |
+| Fluxos | `flow_save`, `flow_list`, `flow_run`, `flow_update` |
 | Opcional | `eval_js` (só com `--allow-eval`) |
 
 As ações devolvem só o que mudou na tela. Enquanto a pessoa pausa, as ferramentas que agem respondem

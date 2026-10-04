@@ -248,3 +248,61 @@ func TestInsertState(t *testing.T) {
 		t.Fatal("unknown state goes last")
 	}
 }
+
+// text adiciona um nó de texto do DOM (sem nó AX), como o conteúdo de um <label>.
+func (f *axFixture) text(parent int, s string) {
+	f.next++
+	b := f.next
+	f.in.DOM[b] = &DOMNode{Backend: b, Parent: parent, Tag: "#text", Text: s, Attrs: map[string]string{}}
+	f.in.DOM[parent].Children = append(f.in.DOM[parent].Children, b)
+}
+
+func TestBuildAXAttrs(t *testing.T) {
+	f := newAXFixture()
+	// Label por for=id e label em volta; a opção do select não entra no texto do label.
+	lab := f.add(1, "LabelText", "", "LABEL", map[string]string{"for": "cep"})
+	f.text(lab.Backend, "CEP de entrega")
+	f.add(1, "textbox", "CEP de entrega", "INPUT", map[string]string{"id": "cep", "name": "cep", "placeholder": " 00000-000 ", "data-qa": "q", "data-testid": "t"})
+	wrap := f.add(1, "LabelText", "", "LABEL", nil)
+	f.text(wrap.Backend, "Parcelas")
+	sel := f.add(wrap.Backend, "combobox", "Parcelas", "SELECT", nil)
+	opt := f.add(sel.Backend, "option", "2x", "OPTION", nil)
+	f.text(opt.Backend, "2x")
+	f.add(1, "textbox", "Senha", "INPUT", map[string]string{"type": "PASSWORD"})
+	f.add(1, "textbox", "Estranho", "INPUT", map[string]string{"type": "weird"})
+	f.add(1, "link", "Pedido", "A", map[string]string{"href": "https://x.test/pedidos/1023?aba=2#topo"})
+	f.add(1, "link", "Seção", "A", map[string]string{"href": "#secao"})
+	f.add(1, "link", "Quebrado", "A", map[string]string{"href": "http://[::1"})
+	f.add(1, "button", "Ok", "BUTTON", map[string]string{"data-test": "ok"})
+	// Tabela: cabeçalho da coluna pela posição e cabeçalho da linha.
+	table := f.add(1, "table", "", "TABLE", nil)
+	head := f.add(table.Backend, "row", "", "TR", nil)
+	f.add(head.Backend, "columnheader", "Cliente", "TH", nil)
+	f.add(head.Backend, "columnheader", "Ações", "TH", nil)
+	row := f.add(table.Backend, "row", "", "TR", nil)
+	f.add(row.Backend, "rowheader", "Ana", "TH", nil)
+	cell := f.add(row.Backend, "cell", "", "TD", nil)
+	f.add(cell.Backend, "button", "Editar", "BUTTON", nil)
+
+	attrs := map[string]*Attrs{}
+	Walk(BuildAX(f.in, true, 0), func(n, _ *Node) { attrs[n.Role+" "+n.Name] = n.Attrs })
+	want := map[string]Attrs{
+		"textbox CEP de entrega": {Tag: "INPUT", ID: "cep", TestID: "t", NameAttr: "cep", Label: "CEP de entrega", Placeholder: "00000-000", InputType: "text"},
+		"combobox Parcelas":      {Tag: "SELECT", Label: "Parcelas"},
+		"textbox Senha":          {Tag: "INPUT", InputType: "password"},
+		"textbox Estranho":       {Tag: "INPUT", InputType: "text"},
+		"link Pedido":            {Tag: "A", Href: "/pedidos/1023"},
+		"link Seção":             {Tag: "A", Href: "#secao"},
+		"link Quebrado":          {Tag: "A"},
+		"button Ok":              {Tag: "BUTTON", TestID: "ok"},
+		"button Editar":          {Tag: "BUTTON", Column: "Ações", RowHeader: "Ana"},
+	}
+	for k, w := range want {
+		if got := attrs[k]; got == nil || *got != w {
+			t.Errorf("%s: %+v, want %+v", k, got, w)
+		}
+	}
+	if hrefPath("https://x.test#frag") != "#frag" || hrefPath(" /a/b?c ") != "/a/b" {
+		t.Error("hrefPath")
+	}
+}

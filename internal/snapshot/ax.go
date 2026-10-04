@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"math"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -105,6 +106,10 @@ var htmlInputTypes = map[string]bool{
 type axBuilder struct {
 	in   AXInput
 	full bool
+	// Cabeçalhos da tabela em que a visita está: os da coluna (pela posição da célula) e o da linha.
+	headers      []string
+	col, rowHead string
+	labels       map[string]int // id do campo → backend do <label for>
 }
 
 // BuildAX monta os nós a partir da árvore de acessibilidade. scope (backend) restringe à subárvore
@@ -190,9 +195,73 @@ func (b *axBuilder) visit(id string, out *[]*Node) {
 			}()
 		}
 	}
+	b.visitChildren(n, target)
+}
+
+var axCellRoles = map[string]bool{"cell": true, "gridcell": true, "columnheader": true, "rowheader": true, "LayoutTableCell": true}
+
+// visitChildren visita os filhos guardando os cabeçalhos: numa tabela, os da primeira linha com
+// columnheader; numa linha, o cabeçalho da coluna de cada célula e o rowheader da linha.
+func (b *axBuilder) visitChildren(n *AXNode, target *[]*Node) {
+	prevHeaders, prevCol, prevRow := b.headers, b.col, b.rowHead
+	defer func() { b.headers, b.col, b.rowHead = prevHeaders, prevCol, prevRow }()
+	switch n.Role {
+	case "table", "grid", "treegrid", "LayoutTable":
+		b.headers = b.headerRow(n)
+	case "row", "LayoutTableRow":
+		rowHead := ""
+		for _, c := range n.Children {
+			if cn := b.in.AX[c]; cn != nil && cn.Role == "rowheader" {
+				rowHead = axNorm(cn.Name)
+				break
+			}
+		}
+		k := 0
+		for _, c := range n.Children {
+			if cn := b.in.AX[c]; cn != nil && axCellRoles[cn.Role] {
+				b.col, b.rowHead = "", rowHead
+				if k < len(b.headers) {
+					b.col = b.headers[k]
+				}
+				k++
+			}
+			b.visit(c, target)
+		}
+		return
+	}
 	for _, c := range n.Children {
 		b.visit(c, target)
 	}
+}
+
+// headerRow acha a primeira linha da tabela com columnheader e devolve os nomes das células dela.
+func (b *axBuilder) headerRow(table *AXNode) []string {
+	queue := append([]string{}, table.Children...)
+	for len(queue) > 0 {
+		n := b.in.AX[queue[0]]
+		queue = queue[1:]
+		if n == nil {
+			continue
+		}
+		if n.Role != "row" && n.Role != "LayoutTableRow" {
+			if !axCellRoles[n.Role] {
+				queue = append(queue, n.Children...)
+			}
+			continue
+		}
+		var names []string
+		header := false
+		for _, c := range n.Children {
+			if cn := b.in.AX[c]; cn != nil && axCellRoles[cn.Role] {
+				names = append(names, axNorm(cn.Name))
+				header = header || cn.Role == "columnheader"
+			}
+		}
+		if header {
+			return names
+		}
+	}
+	return nil
 }
 
 func (b *axBuilder) role(n *AXNode, d *DOMNode) string {
@@ -389,6 +458,7 @@ func (b *axBuilder) node(n *AXNode, d *DOMNode, role string) *Node {
 	if c, ok := b.count(n, d, role); ok {
 		node.Count = &c
 	}
+	node.Attrs = b.attrs(d)
 	node.Box = [4]int{int(math.Round(d.Box[0])), int(math.Round(d.Box[1])), int(math.Round(d.Box[2])), int(math.Round(d.Box[3]))}
 	return node
 }
@@ -725,4 +795,93 @@ func unionBox(a, b [4]float64) [4]float64 {
 	x0, y0 := math.Min(a[0], b[0]), math.Min(a[1], b[1])
 	x1, y1 := math.Max(a[0]+a[2], b[0]+b[2]), math.Max(a[1]+a[3], b[1]+b[3])
 	return [4]float64{x0, y0, x1 - x0, y1 - y0}
+}
+
+// attrs junta os atributos estáveis do elemento (para a assinatura dos fluxos).
+func (b *axBuilder) attrs(d *DOMNode) *Attrs {
+	a := &Attrs{
+		Tag: d.Tag, ID: d.Attrs["id"], NameAttr: d.Attrs["name"], Placeholder: axNorm(d.Attrs["placeholder"]),
+		Column: b.col, RowHeader: b.rowHead,
+	}
+	for _, k := range []string{"data-testid", "data-test", "data-qa"} {
+		if v := d.Attrs[k]; v != "" {
+			a.TestID = v
+			break
+		}
+	}
+	if href, ok := d.Attrs["href"]; ok && d.Tag == "A" {
+		a.Href = hrefPath(href)
+	}
+	if d.Tag == "INPUT" {
+		a.InputType = strings.ToLower(strings.TrimSpace(d.Attrs["type"]))
+		if !htmlInputTypes[a.InputType] {
+			a.InputType = "text"
+		}
+	}
+	if d.Tag == "INPUT" || d.Tag == "SELECT" || d.Tag == "TEXTAREA" {
+		a.Label = axCut(b.labelOf(d))
+	}
+	return a
+}
+
+// labelOf é o texto do <label for=id> do campo ou do <label> em volta dele.
+func (b *axBuilder) labelOf(d *DOMNode) string {
+	if b.labels == nil {
+		b.labels = map[string]int{}
+		for _, n := range b.in.DOM {
+			if f := n.Attrs["for"]; n.Tag == "LABEL" && f != "" {
+				b.labels[f] = n.Backend
+			}
+		}
+	}
+	if id := d.Attrs["id"]; id != "" {
+		if l := b.in.DOM[b.labels[id]]; l != nil {
+			return b.domText(l)
+		}
+	}
+	for p := b.in.DOM[d.Parent]; p != nil; p = b.in.DOM[p.Parent] {
+		if p.Tag == "LABEL" {
+			return b.domText(p)
+		}
+	}
+	return ""
+}
+
+// domText junta o texto da subárvore do DOM, sem o conteúdo de campos (opções, textarea).
+func (b *axBuilder) domText(d *DOMNode) string {
+	var parts []string
+	var walk func(n *DOMNode)
+	walk = func(n *DOMNode) {
+		switch n.Tag {
+		case "#text":
+			parts = append(parts, n.Text)
+			return
+		case "SELECT", "TEXTAREA", "OPTION", "SCRIPT", "STYLE":
+			return
+		}
+		for _, c := range n.Children {
+			if cn := b.in.DOM[c]; cn != nil {
+				walk(cn)
+			}
+		}
+	}
+	walk(d)
+	return axNorm(strings.Join(parts, " "))
+}
+
+// hrefPath é o caminho do link, sem query: "/pedidos/1023" de "https://x/pedidos/1023?aba=2". Um link
+// só de âncora vira "#secao".
+func hrefPath(href string) string {
+	href = strings.TrimSpace(href)
+	if strings.HasPrefix(href, "#") {
+		return href
+	}
+	u, err := url.Parse(href)
+	if err != nil {
+		return ""
+	}
+	if u.Path == "" && u.Fragment != "" {
+		return "#" + u.Fragment
+	}
+	return u.Path
 }

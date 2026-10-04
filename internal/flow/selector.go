@@ -59,20 +59,23 @@ func matching(all []located, role, name string, within *Context) []located {
 	return out
 }
 
-// Describe gera o seletor semântico mínimo que acha a ref na página (role+name, depois contexto, depois nth).
+// Describe gera o seletor semântico mínimo que acha a ref na página (role+name, depois contexto, depois
+// nth), com a assinatura do elemento para a autocura.
 func Describe(page *snapshot.Page, ref string) (Selector, error) {
 	all := locate(page.Nodes)
-	var target *located
+	idx := -1
 	for i := range all {
 		if all[i].node.Ref == ref {
-			target = &all[i]
+			idx = i
 			break
 		}
 	}
-	if target == nil {
+	if idx < 0 {
 		return Selector{}, fmt.Errorf("element %s has no role/name in the snapshot", ref)
 	}
-	sel := Selector{Role: target.node.Role, Name: target.node.Name}
+	target := all[idx]
+	sig := signatures(page, all)[idx]
+	sel := Selector{Role: target.node.Role, Name: target.node.Name, Sig: &sig}
 	matches := matching(all, sel.Role, sel.Name, nil)
 	if len(matches) == 1 {
 		return sel, nil
@@ -97,18 +100,44 @@ func Describe(page *snapshot.Page, ref string) (Selector, error) {
 	return sel, nil
 }
 
-// Resolve acha a ref atual de um seletor. O erro explica o que existe na página para ajudar a corrigir.
-func Resolve(page *snapshot.Page, sel Selector) (string, error) {
+// Resolve acha a ref atual de um seletor. Com assinatura (fluxos gravados com ela), um seletor que
+// não acha exatamente o elemento esperado passa pela autocura (heal != nil quando ela escolheu outro).
+// O erro explica o que existe na página para ajudar a corrigir.
+func Resolve(page *snapshot.Page, sel Selector, allowHeal bool) (ref string, h *Healing, err error) {
 	all := locate(page.Nodes)
 	matches := matching(all, sel.Role, sel.Name, sel.Within)
 	nth := max(sel.Nth, 1)
-	if len(matches) >= nth {
-		return matches[nth-1].node.Ref, nil
+	if sel.Sig == nil {
+		if len(matches) >= nth {
+			return matches[nth-1].node.Ref, nil, nil
+		}
+		if len(matches) > 0 {
+			return "", nil, fmt.Errorf("only %d %s found, step wants the %s", len(matches), sel.Describe(), ordinal(nth))
+		}
+		return "", nil, fmt.Errorf("no %s found. %s", sel.Describe(), similar(all, sel.Role))
 	}
-	if len(matches) > 0 {
-		return "", fmt.Errorf("only %d %s found, step wants the %s", len(matches), sel.Describe(), ordinal(nth))
+	// O tipo do campo nunca troca: um campo de e-mail que virou senha não é o mesmo passo.
+	var typed []located
+	for _, m := range matches {
+		if m.node.Attrs == nil || m.node.Attrs.InputType == sel.Sig.InputType {
+			typed = append(typed, m)
+		}
 	}
-	return "", fmt.Errorf("no %s found. %s", sel.Describe(), similar(all, sel.Role))
+	switch {
+	case len(typed) == 1 && nth == 1:
+		return typed[0].node.Ref, nil, nil
+	case len(typed) > 1 && sel.Sig.Same > 1 && len(typed) >= nth:
+		// Já havia iguais ao gravar: vale a posição gravada.
+		return typed[nth-1].node.Ref, nil, nil
+	}
+	if !allowHeal {
+		return "", nil, fmt.Errorf("no %s found yet", sel.Describe())
+	}
+	h, err = healSelector(page, all, sel)
+	if err != nil {
+		return "", nil, err
+	}
+	return h.Ref, h, nil
 }
 
 // similar lista nomes de elementos do mesmo papel, para a IA perceber um botão renomeado.

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Autocura: tipo do campo - Fixture</title></head>
+<body>
+  <!-- Autocura, caso "input trocou de tipo" (v2). -->
+  <main>
+    <h1>Carrinho</h1>
+    <label>Quantidade <input type="number" name="qtd" oninput="say('qtd')"></label>
+  </main>
+  <p id="status" role="status">nada</p>
+  <button type="button" onclick="say('continuar')">Continuar</button>
+  <script>
+    function say(t) { const s = document.getElementById('status'); s.textContent = s.textContent === 'nada' ? t : s.textContent + ', ' + t; }
+  </script>
+</body>
+</html>

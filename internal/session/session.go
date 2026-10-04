@@ -76,7 +76,8 @@ type Session struct {
 	rec       *flow.Recorder
 	replaying atomic.Bool
 	cur       *pointer
-	ax        *axRefs // motor ax: refs do documento atual
+	ax        *axRefs                 // motor ax: refs do documento atual
+	healed    map[string][]HealedStep // autocura da última execução de cada fluxo (flow_update)
 	axStats   AXStats
 
 	// AXFullTree faz o snapshot da área visível usar a árvore de acessibilidade inteira: só para os

@@ -60,7 +60,23 @@ func cloneSteps(steps []Step) []Step {
 		}
 		if s.WaitFor != nil {
 			w := *s.WaitFor
+			if w.Element != nil {
+				e := *w.Element
+				w.Element = &e
+			}
 			c.WaitFor = &w
+		}
+		if s.Click != nil {
+			v := *s.Click
+			c.Click = &v
+		}
+		if s.Scroll != nil {
+			v := *s.Scroll
+			if v.Selector != nil {
+				e := *v.Selector
+				v.Selector = &e
+			}
+			c.Scroll = &v
 		}
 		out[i] = c
 	}

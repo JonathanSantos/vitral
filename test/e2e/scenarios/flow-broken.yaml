@@ -18,7 +18,8 @@ steps:
       isError: true
       contains:
         - '4. FAILED click button "Enviar"'
-        - 'reason: no button "Enviar" found. button elements on the page:'
+        - 'reason: no button "Enviar" found and healing did not pick a replacement'
+        - 'Closest matches: ['
         - '"Confirmar"'
         - "stopped at step 4 of 4."
         - "current page:"

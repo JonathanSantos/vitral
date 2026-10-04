@@ -71,7 +71,8 @@ func TestFlowRecordSaveRun(t *testing.T) {
 		`6. FAILED click button "Enviar"`)
 	out, _ = h.call(t, "flow_run", map[string]any{"name": "cadastro", "params": map[string]any{"nome": "Ana Lima"}})
 	mustContain(t, out, `5. ok click checkbox "Aceito os termos"`,
-		`reason: no button "Enviar" found. button elements on the page: `, `"Confirmar"`,
+		`reason: no button "Enviar" found and healing did not pick a replacement: best match is below the confidence threshold.`,
+		`Closest matches: [`, `button "Confirmar" (0.`,
 		"stopped at step 6 of 7.", "current page:", `button "Confirmar"`)
 }
 

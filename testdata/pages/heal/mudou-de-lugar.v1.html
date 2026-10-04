@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Autocura: mudou de lugar - Fixture</title></head>
+<body>
+  <!-- Autocura, caso "elemento mudou de lugar" (v1/v2): dois Exportar, um em cada região. -->
+  <h1>Painel</h1>
+  <section aria-label="Relatório"><h2>Relatório</h2>
+    <button type="button" data-testid="exportar-relatorio" onclick="say('relatorio')">Exportar</button>
+  </section>
+  <section aria-label="Gráfico"><h2>Gráfico</h2>
+    <button type="button" data-testid="exportar-grafico" onclick="say('grafico')">Exportar</button>
+  </section>
+  <p id="status" role="status">nada</p>
+  <button type="button" onclick="say('continuar')">Continuar</button>
+  <script>
+    function say(t) { const s = document.getElementById('status'); s.textContent = s.textContent === 'nada' ? t : s.textContent + ', ' + t; }
+  </script>
+</body>
+</html>

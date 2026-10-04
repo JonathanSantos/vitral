@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/JonathanSantos/vitral/internal/heal"
 )
 
 // Selector acha um elemento pelo papel e nome, nunca pela ref (que é volátil).
@@ -14,6 +16,8 @@ type Selector struct {
 	Name   string   `yaml:"name"`
 	Nth    int      `yaml:"nth,omitempty"`
 	Within *Context `yaml:"within,omitempty"`
+	// Sig é a assinatura do elemento ao gravar: o plano B (autocura) quando o seletor não acha um só.
+	Sig *heal.Signature `yaml:"signature,omitempty"`
 }
 
 // Context restringe a busca a um ancestral (dialog, tabela, linha…).
@@ -83,12 +87,21 @@ type Step struct {
 	Emulate *EmulateStep `yaml:"emulate,omitempty"`
 }
 
+// Modos de autocura (campo heal do fluxo).
+const (
+	HealAuto = "auto"
+	HealAsk  = "ask"
+	HealOff  = "off"
+)
+
 // Flow é o conteúdo de um arquivo .yaml de fluxo.
 type Flow struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description,omitempty"`
-	Params      []string `yaml:"params,omitempty"`
-	Steps       []Step   `yaml:"steps"`
+	Name        string `yaml:"name"`
+	Description string `yaml:"description,omitempty"`
+	// Heal é a autocura: auto (padrão), ask (sempre pergunta) ou off. Passo sensível sempre pergunta.
+	Heal   string   `yaml:"heal,omitempty"`
+	Params []string `yaml:"params,omitempty"`
+	Steps  []Step   `yaml:"steps"`
 }
 
 // Kind devolve o nome da ação do passo (vazio se inválido).
@@ -127,6 +140,11 @@ func Validate(f Flow) error {
 	}
 	if len(f.Steps) == 0 {
 		return errors.New("flow has no steps")
+	}
+	switch f.Heal {
+	case "", HealAuto, HealAsk, HealOff:
+	default:
+		return fmt.Errorf("heal must be auto, ask or off, got %q", f.Heal)
 	}
 	for i, s := range f.Steps {
 		switch kinds := s.kinds(); len(kinds) {
@@ -230,4 +248,38 @@ func describeWait(w WaitStep) string {
 		return "wait_for " + target + " gone"
 	}
 	return "wait_for " + target
+}
+
+// Target devolve o seletor do passo (nil se o passo não tem alvo).
+func (s *Step) Target() *Selector {
+	switch {
+	case s.Click != nil:
+		return s.Click
+	case s.Type != nil:
+		return &s.Type.Selector
+	case s.Select != nil:
+		return &s.Select.Selector
+	case s.Scroll != nil:
+		return s.Scroll.Selector
+	case s.WaitFor != nil:
+		return s.WaitFor.Element
+	}
+	return nil
+}
+
+// ApplyHealing troca os seletores dos passos curados (número do passo, a partir de 1) pelos novos.
+func ApplyHealing(f Flow, healed map[int]Selector) (Flow, error) {
+	out := f
+	out.Steps = cloneSteps(f.Steps)
+	for n, sel := range healed {
+		if n < 1 || n > len(out.Steps) {
+			return f, fmt.Errorf("step %d is not in flow %s (%d steps)", n, f.Name, len(f.Steps))
+		}
+		target := out.Steps[n-1].Target()
+		if target == nil {
+			return f, fmt.Errorf("step %d of flow %s has no element to update", n, f.Name)
+		}
+		*target = sel
+	}
+	return out, nil
 }

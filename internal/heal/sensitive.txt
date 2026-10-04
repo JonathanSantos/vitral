@@ -1,0 +1,56 @@
+# Léxico de ações sensíveis da autocura (pedido "próximos passos", 3.3). Um passo cujo nome original ou o
+# do candidato tem uma destas palavras nunca é curado sozinho: o flow_run para e pede confirmação.
+# Uma palavra por linha, sem acento e em minúsculas (a comparação normaliza os dois lados); linhas com
+# # são comentários.
+
+# português
+excluir
+apagar
+remover
+deletar
+cancelar
+pagar
+pagamento
+confirmar
+enviar
+finalizar
+concluir
+aprovar
+rejeitar
+recusar
+comprar
+assinar
+transferir
+desativar
+encerrar
+publicar
+
+# inglês
+delete
+remove
+cancel
+pay
+payment
+confirm
+submit
+send
+finish
+approve
+reject
+decline
+buy
+purchase
+checkout
+transfer
+deactivate
+publish
+
+# substantivos das mesmas ações (botões como "Confirmação" ou "Finalizar compra")
+exclusao
+cancelamento
+confirmacao
+envio
+compra
+transferencia
+encerramento
+publicacao

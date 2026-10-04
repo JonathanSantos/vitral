@@ -26,6 +26,24 @@ type Node struct {
 	Count          *int    `json:"count,omitempty"`
 	Box            [4]int  `json:"box"`
 	Children       []*Node `json:"children,omitempty"`
+	// Attrs são atributos estáveis do elemento para a assinatura dos fluxos (autocura). Não entram no
+	// texto do snapshot.
+	Attrs *Attrs `json:"-"`
+}
+
+// Attrs são os atributos de um elemento que ajudam a reconhecê-lo depois de uma mudança na página.
+// Só textos de controles e cabeçalhos: nunca o valor de um campo nem o conteúdo de células.
+type Attrs struct {
+	Tag         string // BUTTON, A, INPUT...
+	ID          string
+	TestID      string // data-testid, data-test ou data-qa
+	NameAttr    string // atributo name
+	Href        string // caminho do link, sem query
+	Label       string // texto do <label> do campo
+	Placeholder string
+	InputType   string // tipo do <input> (text quando não informado)
+	Column      string // cabeçalho da coluna, dentro de uma tabela
+	RowHeader   string // cabeçalho da linha, dentro de uma tabela
 }
 
 // Page é um snapshot da página.

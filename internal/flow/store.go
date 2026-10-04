@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -56,6 +57,39 @@ func (s Store) Save(f Flow) (path string, replaced bool, err error) {
 		return "", false, fmt.Errorf("write flow: %w", err)
 	}
 	return path, replaced, nil
+}
+
+// Update regrava um fluxo existente e guarda a versão anterior em .history/<nome>.<data>.yaml.
+func (s Store) Update(f Flow) (path, history string, err error) {
+	path = s.Path(f.Name)
+	old, err := os.ReadFile(path)
+	if err != nil {
+		return "", "", fmt.Errorf("flow %q not found in %s. Call flow_list.", f.Name, s.Dir)
+	}
+	dir := filepath.Join(s.Dir, ".history")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return "", "", fmt.Errorf("create history dir: %w", err)
+	}
+	stamp := now().Format("20060102-150405")
+	history = filepath.Join(dir, f.Name+"."+stamp+".yaml")
+	for i := 2; fileExists(history); i++ {
+		history = filepath.Join(dir, fmt.Sprintf("%s.%s-%d.yaml", f.Name, stamp, i))
+	}
+	if err := os.WriteFile(history, old, 0o644); err != nil {
+		return "", "", fmt.Errorf("write flow history: %w", err)
+	}
+	if _, _, err := s.Save(f); err != nil {
+		return "", "", err
+	}
+	return path, history, nil
+}
+
+// now é o relógio do histórico (trocado nos testes).
+var now = time.Now
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 // Load lê um fluxo pelo nome.

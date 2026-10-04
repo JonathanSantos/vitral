@@ -9,10 +9,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync/atomic"
 )
+
+// healPage é o nome de uma página de autocura (testdata/pages/heal/<nome>.v1.html).
+var healPage = regexp.MustCompile(`^[a-z-]+$`)
 
 // Server é o site de fixtures.
 type Server struct {
@@ -21,6 +25,8 @@ type Server struct {
 	RenameSubmit atomic.Bool
 	// OrdersStatus força o status da API /api/orders (0 = 200 normal).
 	OrdersStatus atomic.Int32
+	// HealV2 serve a versão 2 das páginas de autocura (/pages/heal/<caso>.html): a tela mudou.
+	HealV2 atomic.Bool
 }
 
 // PagesDir é o caminho absoluto de testdata/pages, achado a partir deste arquivo.
@@ -54,6 +60,25 @@ func (s *Server) mux() *http.ServeMux {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(html)
+	})
+	// Autocura: a mesma URL serve <caso>.v1.html ou <caso>.v2.html (testdata/pages/heal).
+	mux.HandleFunc("/pages/heal/", func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimSuffix(filepath.Base(r.URL.Path), ".html")
+		if !healPage.MatchString(name) {
+			http.NotFound(w, r)
+			return
+		}
+		version := ".v1.html"
+		if s.HealV2.Load() {
+			version = ".v2.html"
+		}
+		html, err := os.ReadFile(filepath.Join(dir, "heal", name+version))
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(html) //nolint:gosec // G705: só serve arquivos de testdata/pages/heal, com nome validado
 	})
 	// Página com link para outro host (o mesmo servidor por "localhost"), para o --allowed-hosts.
 	mux.HandleFunc("/pages/external.html", func(w http.ResponseWriter, r *http.Request) {

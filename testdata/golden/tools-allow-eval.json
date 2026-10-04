@@ -87,10 +87,14 @@
   },
   {
     "name": "flow_run",
-    "description": "Run a saved flow step by step without AI. On failure it stops and shows the step, the reason and the page.",
+    "description": "Run a saved flow step by step without AI. If the page changed, it heals steps by finding the same element (asks first on sensitive steps). On failure it stops and shows the step, the reason and the page.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "acceptHealing": {
+          "description": "with resumeFrom: the user approved the healing proposed for that step",
+          "type": "boolean"
+        },
         "name": {
           "description": "flow name from flow_list",
           "type": "string"
@@ -101,6 +105,10 @@
           },
           "description": "values for the flow parameters, e.g. {numero: 2048}",
           "type": "object"
+        },
+        "resumeFrom": {
+          "description": "continue a stopped run from this step number",
+          "type": "integer"
         }
       },
       "required": [
@@ -163,6 +171,28 @@
       },
       "required": [
         "name"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "flow_update",
+    "description": "After the user agrees, save the steps healed in the last flow_run into the flow file (the previous version goes to .history).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "applyHealing": {
+          "description": "true: rewrite the steps healed in the last flow_run with the elements found",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "flow name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "applyHealing"
       ],
       "type": "object"
     }

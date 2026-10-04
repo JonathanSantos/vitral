@@ -1,9 +1,12 @@
 package flow
 
 import (
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JonathanSantos/vitral/internal/snapshot"
 )
@@ -48,7 +51,7 @@ func TestDescribeAndResolveRoundTrip(t *testing.T) {
 			if got.Describe() != tt.want.Describe() {
 				t.Fatalf("Describe = %s, want %s", got.Describe(), tt.want.Describe())
 			}
-			ref, err := Resolve(page, got)
+			ref, _, err := Resolve(page, got, true)
 			if err != nil || ref != tt.ref {
 				t.Fatalf("Resolve = %s, %v; want %s", ref, err, tt.ref)
 			}
@@ -61,20 +64,20 @@ func TestDescribeAndResolveRoundTrip(t *testing.T) {
 
 func TestResolveErrors(t *testing.T) {
 	page := samplePage()
-	_, err := Resolve(page, Selector{Role: "button", Name: "Buscar"})
+	_, _, err := Resolve(page, Selector{Role: "button", Name: "Buscar"}, true)
 	if err == nil || !strings.Contains(err.Error(), `no button "Buscar" found`) || !strings.Contains(err.Error(), `"Filtrar"`) {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	_, err = Resolve(page, Selector{Role: "link", Name: "Ver detalhes", Nth: 3})
+	_, _, err = Resolve(page, Selector{Role: "link", Name: "Ver detalhes", Nth: 3}, true)
 	if err == nil || !strings.Contains(err.Error(), "only 2") {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	_, err = Resolve(page, Selector{Role: "checkbox", Name: "x"})
+	_, _, err = Resolve(page, Selector{Role: "checkbox", Name: "x"}, true)
 	if err == nil || !strings.Contains(err.Error(), "There is no checkbox") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Espaços e caixa diferentes ainda casam.
-	if ref, err := Resolve(page, Selector{Role: "textbox", Name: "buscar  PEDIDO"}); err != nil || ref != "e1" {
+	if ref, _, err := Resolve(page, Selector{Role: "textbox", Name: "buscar  PEDIDO"}, true); err != nil || ref != "e1" {
 		t.Fatalf("normalized match failed: %s %v", ref, err)
 	}
 }
@@ -463,5 +466,221 @@ func TestExpectWarnings(t *testing.T) {
 	}
 	if got := ExpectWarnings("o vitral", map[string]string{"vazio": ""}); len(got) != 0 {
 		t.Errorf("empty value: %v", got)
+	}
+}
+
+// healPage monta uma página com atributos e caixas, como o snapshot completo do motor ax.
+func healPage(nodes ...*snapshot.Node) *snapshot.Page {
+	return &snapshot.Page{Viewport: [2]int{1000, 800}, Scroll: [2]int{200, 1200}, Nodes: nodes}
+}
+
+func btn(ref, name string, attrs *snapshot.Attrs, box [4]int) *snapshot.Node {
+	if attrs == nil {
+		attrs = &snapshot.Attrs{Tag: "BUTTON"}
+	}
+	return &snapshot.Node{Ref: ref, Role: "button", Name: name, Attrs: attrs, Box: box}
+}
+
+func TestSignatures(t *testing.T) {
+	page := healPage(
+		&snapshot.Node{Ref: "e1", Role: "navigation", Name: "Menu", Children: []*snapshot.Node{btn("e2", "Ir", nil, [4]int{0, 0, 10, 10})}},
+		&snapshot.Node{Ref: "e3", Role: "heading", Name: "Perfil"},
+		&snapshot.Node{Ref: "e4", Role: "main", Children: []*snapshot.Node{
+			btn("e5", "Salvar", &snapshot.Attrs{Tag: "BUTTON", ID: "salvar", TestID: "save", NameAttr: "s", Href: "/x", Label: "L", Placeholder: "P", InputType: "", Column: "C", RowHeader: "R"}, [4]int{490, 390, 20, 20}),
+			btn("e6", "Salvar", &snapshot.Attrs{Tag: "BUTTON", ID: "react-select-3"}, [4]int{}),
+			{Ref: "e7", Role: "dialog", Name: "Confirmar", Children: []*snapshot.Node{btn("e8", "Salvar", nil, [4]int{0, 0, 10, 10})}},
+		}},
+		&snapshot.Node{Ref: "e9", Role: "button", Name: "Sem atributos"},
+	)
+	all := locate(page.Nodes)
+	sigs := signatures(page, all)
+	byRef := map[string]int{}
+	for i, l := range all {
+		byRef[l.node.Ref] = i
+	}
+	s := sigs[byRef["e2"]]
+	if s.Landmark != "navigation Menu" || s.Heading != "" || s.Ordinal != 1 || s.Same != 1 {
+		t.Errorf("e2: %+v", s)
+	}
+	s = sigs[byRef["e5"]]
+	want := "main|Perfil|1|3|salvar|save|s|/x|L|P|C|R|0.5|0.3" // y: (390 + 200 de rolagem + 10) / (1200 + 800)
+	got := strings.Join([]string{
+		s.Landmark, s.Heading, strconv.Itoa(s.Ordinal), strconv.Itoa(s.Same), s.ID, s.TestID, s.NameAttr, s.Href,
+		s.Label, s.Placeholder, s.Column, s.RowHeader, strconv.FormatFloat(s.Pos[0], 'f', -1, 64), strconv.FormatFloat(s.Pos[1], 'f', -1, 64),
+	}, "|")
+	if got != want {
+		t.Errorf("e5: %s, want %s", got, want)
+	}
+	if s := sigs[byRef["e6"]]; s.ID != "" || s.Ordinal != 2 || s.Pos != [2]float64{} {
+		t.Errorf("e6 (generated id, second in main, no box): %+v", s)
+	}
+	if s := sigs[byRef["e8"]]; s.Dialog != "Confirmar" || s.Landmark != "main" || s.Ordinal != 1 {
+		t.Errorf("e8 (in a dialog inside main): %+v", s)
+	}
+	if s := sigs[byRef["e9"]]; s.Tag != "" || s.Heading != "Perfil" {
+		t.Errorf("e9 (no attrs): %+v", s)
+	}
+	if got := round2(1.7); got != 1 {
+		t.Errorf("round2 clamps: %v", got)
+	}
+}
+
+func TestResolveHealing(t *testing.T) {
+	v1 := healPage(&snapshot.Node{Ref: "e1", Role: "main", Children: []*snapshot.Node{
+		btn("e2", "Salvar alterações", nil, [4]int{100, 100, 50, 20}),
+		btn("e3", "Cancelar", nil, [4]int{200, 100, 50, 20}),
+	}})
+	sel, err := Describe(v1, "e2")
+	if err != nil || sel.Sig == nil || sel.Sig.Name != "Salvar alterações" {
+		t.Fatalf("%+v %v", sel, err)
+	}
+	// O seletor ainda acha: sem autocura.
+	if ref, h, err := Resolve(v1, sel, true); ref != "e2" || h != nil || err != nil {
+		t.Fatalf("primary: %s %v %v", ref, h, err)
+	}
+	v2 := healPage(&snapshot.Node{Ref: "e1", Role: "main", Children: []*snapshot.Node{
+		btn("e7", "Cancelar", nil, [4]int{200, 100, 50, 20}),
+		btn("e8", "Salvar as alterações", nil, [4]int{100, 100, 50, 20}),
+	}})
+	// Antes de liberar a autocura, só o seletor vale.
+	if _, _, err := Resolve(v2, sel, false); err == nil || err.Error() != `no button "Salvar alterações" found yet` {
+		t.Fatalf("no heal yet: %v", err)
+	}
+	ref, h, err := Resolve(v2, sel, true)
+	if err != nil || ref != "e8" || h == nil || h.Now.Name != "Salvar as alterações" || h.Now.Sig == nil || h.Confidence < 0.75 {
+		t.Fatalf("heal: %s %+v %v", ref, h, err)
+	}
+	if got := h.Describe(); !strings.HasPrefix(got, `was button "Salvar alterações", now [e8] button "Salvar as alterações" (confidence 1.00)`) {
+		t.Fatalf("describe: %s", got)
+	}
+	// Nada compatível: a falha diz por quê.
+	v3 := healPage(&snapshot.Node{Ref: "e1", Role: "textbox", Name: "Busca"})
+	if _, _, err := Resolve(v3, sel, true); err == nil || !strings.Contains(err.Error(), "There is no element of a compatible role on the page.") {
+		t.Fatalf("no candidate: %v", err)
+	}
+	// Abaixo do limiar: mostra os melhores com a nota.
+	v4 := healPage(btn("e9", "Cancelar", nil, [4]int{100, 100, 50, 20}))
+	if _, _, err := Resolve(v4, sel, true); err == nil || !strings.Contains(err.Error(), `below the confidence threshold. Closest matches: [e9] button "Cancelar" (0.`) {
+		t.Fatalf("low score: %v", err)
+	}
+}
+
+func TestResolveWithSignatureRules(t *testing.T) {
+	field := func(ref, typ string) *snapshot.Node {
+		return &snapshot.Node{Ref: ref, Role: "textbox", Name: "E-mail", Attrs: &snapshot.Attrs{Tag: "INPUT", InputType: typ}, Box: [4]int{10, 10, 100, 20}}
+	}
+	v1 := healPage(field("e1", "email"))
+	sel, _ := Describe(v1, "e1")
+	// O campo virou senha: o seletor (papel + nome) acharia, mas o tipo nunca troca.
+	if _, _, err := Resolve(healPage(field("e2", "password")), sel, true); err == nil || !strings.Contains(err.Error(), "no compatible element") {
+		t.Fatalf("input type: %v", err)
+	}
+	// Já havia dois iguais ao gravar: vale a posição gravada, sem autocura.
+	dup := healPage(btn("e1", "Ok", nil, [4]int{0, 0, 9, 9}), btn("e2", "Ok", nil, [4]int{0, 50, 9, 9}))
+	sel, _ = Describe(dup, "e2")
+	if sel.Nth != 2 || sel.Sig.Same != 2 {
+		t.Fatalf("%+v", sel)
+	}
+	if ref, h, err := Resolve(dup, sel, true); ref != "e2" || h != nil || err != nil {
+		t.Fatalf("recorded duplicates: %s %v %v", ref, h, err)
+	}
+	// Gravado único, agora há dois: pontua (aqui ambíguo).
+	one := healPage(btn("e1", "Ok", nil, [4]int{0, 0, 9, 9}))
+	sel, _ = Describe(one, "e1")
+	if _, _, err := Resolve(dup, sel, true); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("new duplicate: %v", err)
+	}
+	// Gravado o segundo de dois; agora só existe um: autocura acha o que sobrou.
+	sel, _ = Describe(dup, "e2")
+	if ref, h, err := Resolve(healPage(btn("e5", "Ok", nil, [4]int{0, 50, 9, 9})), sel, true); err != nil || ref != "e5" || h == nil {
+		t.Fatalf("one left: %s %v %v", ref, h, err)
+	}
+}
+
+func TestApplyHealingAndTarget(t *testing.T) {
+	sel := func(n string) Selector { return Selector{Role: "button", Name: n} }
+	sc := sel("Topo")
+	el := sel("Aviso")
+	f := Flow{Name: "f", Steps: []Step{
+		{Open: "http://x"},
+		{Click: &Selector{Role: "button", Name: "A"}},
+		{Type: &TypeStep{Selector: sel("Campo"), Text: "x"}},
+		{Select: &SelectStep{Selector: sel("Lista"), Option: "o"}},
+		{Scroll: &ScrollStep{Selector: &sc}},
+		{WaitFor: &WaitStep{Element: &el}},
+		{Press: "Enter"},
+	}}
+	got, err := ApplyHealing(f, map[int]Selector{2: sel("B"), 3: sel("C"), 4: sel("D"), 5: sel("E"), 6: sel("F")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{got.Steps[1].Click.Name, got.Steps[2].Type.Name, got.Steps[3].Select.Name, got.Steps[4].Scroll.Selector.Name, got.Steps[5].WaitFor.Element.Name}
+	if strings.Join(names, "") != "BCDEF" || got.Steps[2].Type.Text != "x" || got.Steps[3].Select.Option != "o" {
+		t.Fatalf("%v", names)
+	}
+	// O fluxo original não muda.
+	if f.Steps[1].Click.Name != "A" || f.Steps[4].Scroll.Selector.Name != "Topo" || f.Steps[5].WaitFor.Element.Name != "Aviso" || f.Steps[2].Type.Name != "Campo" {
+		t.Fatal("ApplyHealing changed the original flow")
+	}
+	if _, err := ApplyHealing(f, map[int]Selector{1: sel("x")}); err == nil || !strings.Contains(err.Error(), "step 1 of flow f has no element") {
+		t.Fatalf("%v", err)
+	}
+	for _, n := range []int{0, 8} {
+		if _, err := ApplyHealing(f, map[int]Selector{n: sel("x")}); err == nil || !strings.Contains(err.Error(), "is not in flow f (7 steps)") {
+			t.Fatalf("%d: %v", n, err)
+		}
+	}
+	if (&Step{Press: "Enter"}).Target() != nil || (&Step{Scroll: &ScrollStep{Direction: "down"}}).Target() != nil || (&Step{WaitFor: &WaitStep{Text: "x"}}).Target() != nil {
+		t.Fatal("steps without an element have no target")
+	}
+}
+
+func TestHealModeValidation(t *testing.T) {
+	f := Flow{Name: "f", Steps: []Step{{Open: "http://x"}}}
+	for _, mode := range []string{"", HealAuto, HealAsk, HealOff} {
+		f.Heal = mode
+		if err := Validate(f); err != nil {
+			t.Errorf("%q: %v", mode, err)
+		}
+	}
+	f.Heal = "never"
+	if err := Validate(f); err == nil || err.Error() != `heal must be auto, ask or off, got "never"` {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestStoreUpdateKeepsHistory(t *testing.T) {
+	dir := t.TempDir()
+	st := Store{Dir: dir}
+	f := Flow{Name: "f", Steps: []Step{{Open: "http://x"}}}
+	if _, _, err := st.Update(f); err == nil || !strings.Contains(err.Error(), `flow "f" not found`) {
+		t.Fatalf("update of a missing flow: %v", err)
+	}
+	if _, _, err := st.Save(f); err != nil {
+		t.Fatal(err)
+	}
+	defer func(old func() time.Time) { now = old }(now)
+	now = func() time.Time { return time.Date(2026, 10, 4, 15, 4, 5, 0, time.UTC) }
+	var histories []string
+	for _, url := range []string{"http://y", "http://z"} {
+		f.Steps[0].Open = url
+		path, hist, err := st.Update(f)
+		if err != nil || path != st.Path("f") {
+			t.Fatal(path, err)
+		}
+		histories = append(histories, hist)
+	}
+	if histories[0] != filepath.Join(dir, ".history", "f.20261004-150405.yaml") || histories[1] != filepath.Join(dir, ".history", "f.20261004-150405-2.yaml") {
+		t.Fatalf("%v", histories)
+	}
+	first, _ := os.ReadFile(histories[0])
+	second, _ := os.ReadFile(histories[1])
+	cur, _ := st.Load("f")
+	if !strings.Contains(string(first), "http://x") || !strings.Contains(string(second), "http://y") || cur.Steps[0].Open != "http://z" {
+		t.Fatalf("%s / %s / %+v", first, second, cur)
+	}
+	// List ignora o diretório de histórico.
+	if list, err := st.List(); err != nil || len(list) != 1 {
+		t.Fatalf("%v %v", list, err)
 	}
 }

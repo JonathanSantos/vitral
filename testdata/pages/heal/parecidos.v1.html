@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Autocura: dois parecidos - Fixture</title></head>
+<body>
+  <!-- Autocura, caso "dois botões parecidos" (v1/v2). -->
+  <main>
+    <h1>Pedidos</h1>
+    <button type="button" onclick="say('detalhes')">Detalhes</button>
+  </main>
+  <p id="status" role="status">nada</p>
+  <button type="button" onclick="say('continuar')">Continuar</button>
+  <script>
+    function say(t) { const s = document.getElementById('status'); s.textContent = s.textContent === 'nada' ? t : s.textContent + ', ' + t; }
+  </script>
+</body>
+</html>
