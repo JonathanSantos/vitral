@@ -98,6 +98,7 @@ func TestReadmeShots(t *testing.T) {
 		}
 	}
 	save("selo-estados", stack(badges))
+	save("selo-pausar", badges[0])
 
 	// 4. "Sua vez" num campo de código (2FA): a IA nunca digita ali.
 	h.call(t, "open", map[string]any{"url": h.url("/pages/verify/codigo.html")}) // sem janela: "verification required"

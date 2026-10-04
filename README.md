@@ -71,8 +71,9 @@ screen: "Lista de pedidos" (known)
 flow step #7
 ```
 
-Nos cenários do e2e, abrir uma página custa de 60 a 230 tokens e um clique de 20 a 90 (os números de
-cada passo ficam em `.quality/out/tokens.json` e têm teto no gate). Quando layout, cores ou imagens
+Nos cenários do e2e, abrir uma página custa de 60 a 230 tokens; um clique que muda parte da tela custa
+de 20 a 90, e um que leva a outra página custa como um `open` (160 a 240). Os números de cada passo
+ficam em `.quality/out/tokens.json` e têm teto no gate. Quando layout, cores ou imagens
 importam, o `screenshot` devolve o print com as mesmas refs desenhadas por cima, para a IA ligar o que
 vê ao que pode clicar:
 
@@ -227,7 +228,7 @@ Algo estranho? Rode `vitral doctor`: ele confere tudo e diz o que fazer.
 Do mais rápido ao mais duradouro:
 
 - **Agora, no meio de uma tarefa:** clique em "⏸ Pausar IA" no canto da janela do navegador.
-  <!-- print: botão Pausar IA no selo -->
+  <br><img src="docs/img/selo-pausar.png" alt="Selo 'A IA está trabalhando…' com o botão '⏸ Pausar IA'" width="400">
 - **Só nesta conversa:** no chat do Copilot, clique no botão *Configure Tools* (o ícone de
   ferramentas, ao lado de onde você digita) e desmarque o Vitral.
   <!-- print: Configure Tools com o Vitral desmarcado -->
