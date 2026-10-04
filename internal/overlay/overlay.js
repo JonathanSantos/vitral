@@ -191,15 +191,75 @@
   function ring(h, hold) {
     const r = el('div', 'ring' + (hold ? ' hold' : ''));
     const [x, y, w, hgt] = h.box;
-    Object.assign(r.style, {
-      left: `${x - 6}px`, top: `${y - 6}px`, width: `${w + 12}px`, height: `${hgt + 12}px`,
-      borderColor: `var(--vitral-mark${h.mark})`,
-    });
+    setBox(r, x, y, w, hgt);
+    r.style.borderColor = `var(--vitral-mark${h.mark})`;
     const tag = el('span', 'tag', h.ref);
     tag.style.background = `var(--vitral-mark${h.mark})`;
     tag.style.color = `var(--vitral-${h.text})`;
     r.append(tag);
+    r._ref = h.ref;
+    follow();
     return r;
+  }
+
+  function setBox(r, x, y, w, hgt) {
+    Object.assign(r.style, { left: `${x - 6}px`, top: `${y - 6}px`, width: `${w + 12}px`, height: `${hgt + 12}px` });
+  }
+
+  // O contorno acompanha o elemento: a caixa do Go vale só no primeiro quadro. Enquanto houver
+  // contorno, cada quadro lê a caixa do próprio elemento (pela ref), então rolagem da página ou de um
+  // contêiner, mudança de tamanho, de lugar e de cantos arredondados mudam o contorno junto. A parte
+  // escondida por um contêiner com rolagem (ou fora da janela) não é contornada, e o contorno some
+  // quando nada do elemento está visível. Sem o elemento (saiu do documento), fica onde estava.
+  let following = false;
+  function follow() {
+    if (following) return;
+    following = true;
+    requestAnimationFrame(function frame() {
+      const rings = root ? root.querySelectorAll('.hl .ring') : [];
+      if (!rings.length) { following = false; return; }
+      rings.forEach(place);
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function place(r) {
+    const target = r._ref && window.__vitral && window.__vitral.find(r._ref);
+    if (!target) return;
+    const b = visibleBox(target);
+    if (!b) { r.style.display = 'none'; return; }
+    r.style.display = '';
+    setBox(r, b.x, b.y, b.w, b.h);
+    r.style.borderRadius = ringRadius(target);
+  }
+
+  // visibleBox é a caixa do elemento recortada pela janela e por cada ancestral que corta o conteúdo.
+  function visibleBox(target) {
+    const rc = target.getBoundingClientRect();
+    let x1 = Math.max(rc.left, 0), y1 = Math.max(rc.top, 0);
+    let x2 = Math.min(rc.right, innerWidth), y2 = Math.min(rc.bottom, innerHeight);
+    for (let a = target.parentElement; a && x1 < x2 && y1 < y2; a = a.parentElement) {
+      const st = getComputedStyle(a);
+      if (st.position === 'fixed') break;
+      const cx = st.overflowX !== 'visible', cy = st.overflowY !== 'visible';
+      if (!cx && !cy) continue;
+      const ar = a.getBoundingClientRect();
+      if (cx) { x1 = Math.max(x1, ar.left + a.clientLeft); x2 = Math.min(x2, ar.left + a.clientLeft + a.clientWidth); }
+      if (cy) { y1 = Math.max(y1, ar.top + a.clientTop); y2 = Math.min(y2, ar.top + a.clientTop + a.clientHeight); }
+    }
+    if (x2 - x1 < 1 || y2 - y1 < 1) return null;
+    return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  }
+
+  // ringRadius segue os cantos do elemento (6 px mais largos, porque o contorno fica 6 px fora); canto
+  // reto mantém o arredondamento padrão do contorno.
+  function ringRadius(target) {
+    const st = getComputedStyle(target);
+    const corners = [st.borderTopLeftRadius, st.borderTopRightRadius, st.borderBottomRightRadius, st.borderBottomLeftRadius];
+    if (corners.every((c) => parseFloat(c) === 0)) return '';
+    const grow = (v) => (parseFloat(v) === 0 ? '6px' : `calc(${v} + 6px)`);
+    const radii = corners.map((c) => c.split(' ').map(grow));
+    return radii.map((r) => r[0]).join(' ') + ' / ' + radii.map((r) => r[1] || r[0]).join(' ');
   }
 
   function highlight(h) {
