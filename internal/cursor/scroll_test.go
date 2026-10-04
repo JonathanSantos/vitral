@@ -86,11 +86,11 @@ func TestPropertyScroll(t *testing.T) {
 		distance := rapid.Float64Range(-20, 20).Draw(t, "views") * viewport
 		speed := rapid.SampledFrom([]Speed{Slow, Normal, Fast}).Draw(t, "speed")
 		seed := rapid.Uint64().Draw(t, "seed")
-		plan := Scroll(distance, viewport, speed, Animated, p, newRand(seed))
+		plan := Scroll(distance, viewport, 0, speed, Animated, p, newRand(seed))
 		if msg := checkScroll(plan, distance, viewport, speed, p); msg != "" {
 			t.Fatalf("%s: %+v", msg, plan)
 		}
-		if !reflect.DeepEqual(plan, Scroll(distance, viewport, speed, Animated, p, newRand(seed))) {
+		if !reflect.DeepEqual(plan, Scroll(distance, viewport, 0, speed, Animated, p, newRand(seed))) {
 			t.Fatal("same seed, different plan")
 		}
 	})
@@ -112,7 +112,7 @@ func TestScrollShapes(t *testing.T) {
 		{-3, 2, false, false},
 	}
 	for _, tt := range tests {
-		plan := Scroll(tt.views*vh, vh, Normal, Animated, p, newRand(1))
+		plan := Scroll(tt.views*vh, vh, 0, Normal, Animated, p, newRand(1))
 		if plan.Flicks != tt.flicks || (plan.Jump != 0) != tt.jump {
 			t.Errorf("%.1f viewports: %d flicks, jump %.0f", tt.views, plan.Flicks, plan.Jump)
 		}
@@ -123,7 +123,7 @@ func TestScrollShapes(t *testing.T) {
 			t.Errorf("%.1f viewports: %s", tt.views, msg)
 		}
 	}
-	if plan := Scroll(5.5*vh, vh, Normal, Animated, p, newRand(2)); plan.Duration > p.Cap || plan.Flicks > p.MaxFlicks {
+	if plan := Scroll(5.5*vh, vh, 0, Normal, Animated, p, newRand(2)); plan.Duration > p.Cap || plan.Flicks > p.MaxFlicks {
 		t.Errorf("5.5 viewports must fit the cap: %+v", plan)
 	}
 }
@@ -134,20 +134,20 @@ func TestScrollSpeedCap(t *testing.T) {
 	p := DefaultScrollProfile()
 	vh := 700.0
 	for _, views := range []float64{2, 3, 5} {
-		plan := Scroll(views*vh, vh, Normal, Animated, p, newRand(7))
+		plan := Scroll(views*vh, vh, 0, Normal, Animated, p, newRand(7))
 		if plan.Jump == 0 || plan.Flicks != 1 || plan.PeakStep > p.MaxStep*vh {
 			t.Errorf("%.0f viewports with the cap: jump %.0f, %d flicks, peak %.0f px/frame", views, plan.Jump, plan.Flicks, plan.PeakStep)
 		}
 	}
 	slow := p
 	slow.MaxStep = 0.3 // teto alto: 3 telas cabem em dois flicks
-	if plan := Scroll(3*vh, vh, Normal, Animated, slow, newRand(7)); plan.Jump != 0 || plan.Flicks != 2 {
+	if plan := Scroll(3*vh, vh, 0, Normal, Animated, slow, newRand(7)); plan.Jump != 0 || plan.Flicks != 2 {
 		t.Errorf("a higher cap keeps two flicks: %+v", plan)
 	}
 	// Um flick rápido demais é esticado (se ainda couber no teto de tempo).
 	tight := p
 	tight.MaxStep = 0.05
-	if plan := Scroll(0.6*vh, vh, Normal, Animated, tight, newRand(8)); plan.TimeScale <= 1 || plan.PeakStep > 0.05*vh*1.001 {
+	if plan := Scroll(0.6*vh, vh, 0, Normal, Animated, tight, newRand(8)); plan.TimeScale <= 1 || plan.PeakStep > 0.05*vh*1.001 {
 		t.Errorf("fast flick should be stretched: scale %.2f, peak %.1f", plan.TimeScale, plan.PeakStep)
 	}
 }
@@ -189,21 +189,21 @@ func TestScrollWithoutAnimation(t *testing.T) {
 		speed  Speed
 		motion Motion
 	}{{Instant, Animated}, {Normal, Reduced}, {Normal, Hidden}} {
-		plan := Scroll(1500, 700, tt.speed, tt.motion, p, newRand(3))
+		plan := Scroll(1500, 700, 0, tt.speed, tt.motion, p, newRand(3))
 		if len(plan.Frames) != 2 || plan.Frames[1] != 1500 || plan.Duration != 0 {
 			t.Fatalf("%v/%v must go straight to the end: %+v", tt.speed, tt.motion, plan)
 		}
 	}
-	if plan := Scroll(3, 700, Normal, Animated, p, newRand(3)); len(plan.Frames) != 2 || plan.Frames[1] != 3 {
+	if plan := Scroll(3, 700, 0, Normal, Animated, p, newRand(3)); len(plan.Frames) != 2 || plan.Frames[1] != 3 {
 		t.Fatalf("a 3 px scroll is not a gesture: %+v", plan)
 	}
 	for _, d := range []float64{0, math.NaN(), math.Inf(1)} {
-		plan := Scroll(d, 0, Normal, Animated, p, newRand(4))
+		plan := Scroll(d, 0, 0, Normal, Animated, p, newRand(4))
 		if msg := checkScroll(plan, d, 1, Normal, p); msg != "" || plan.Distance != 0 {
 			t.Fatalf("distance %v: %s %+v", d, msg, plan)
 		}
 	}
-	if plan := Scroll(1e9, 700, Normal, Animated, p, newRand(5)); checkScroll(plan, 1e9, 700, Normal, p) != "" || plan.Jump == 0 {
+	if plan := Scroll(1e9, 700, 0, Normal, Animated, p, newRand(5)); checkScroll(plan, 1e9, 700, Normal, p) != "" || plan.Jump == 0 {
 		t.Fatalf("huge distance must jump: %+v", plan.Jump)
 	}
 }
@@ -230,5 +230,19 @@ func TestTargetOffsetAndBand(t *testing.T) {
 	}
 	if InBand(header, vh, header) || InBand(vh, vh, header) {
 		t.Fatal("top edge or bottom edge are outside the band")
+	}
+}
+
+// O teto de px/frame é relativo à janela, não ao contêiner: num contêiner pequeno a rolagem não vira
+// salto só porque ele é baixo.
+func TestScrollCapUsesWindow(t *testing.T) {
+	p := DefaultScrollProfile()
+	inBox := Scroll(500, 240, 700, Normal, Animated, p, newRand(10))
+	if inBox.PeakStep > p.MaxStep*700*1.001 || inBox.Jump != 0 {
+		t.Fatalf("window-based cap: %+v", inBox)
+	}
+	old := Scroll(500, 240, 0, Normal, Animated, p, newRand(10))
+	if old.PeakStep > p.MaxStep*240*1.001 || old.Jump == 0 {
+		t.Fatalf("container-based cap (window 0) should be stricter: %+v", old)
 	}
 }

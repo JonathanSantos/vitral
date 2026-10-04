@@ -45,6 +45,7 @@ type Overlay interface {
 
 	// Cursor visual (docs/CURSOR.md).
 	PlayCursor(ctx context.Context, plan cursor.Plan, ring string, appear bool) bool
+	PlayScroll(ctx context.Context, container string, plan cursor.ScrollPlan) string
 	CursorPosition() (cursor.Point, bool)
 	HideCursor(ctx context.Context) error
 	CursorNote(ctx context.Context, text string, d time.Duration) error

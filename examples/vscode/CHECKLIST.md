@@ -133,6 +133,10 @@ copiado para `.vscode/mcp.json`, com o caminho do binário em `command`).
 6. Peça um clique num botão desabilitado: o cursor faz "não" com a cabeça e mostra "Botão
    desabilitado"; a IA recebe o mesmo erro de sempre.
 7. Com `"--cursor-speed", "slow"` em `args`, o movimento fica mais lento; com `"--cursor", "off"`, some.
+8. Rolagem: peça para clicar num item lá embaixo de uma página longa. A página rola num gesto contínuo
+   (sem degraus), para com o item um pouco acima do meio, abaixo de cabeçalhos fixos, e só então o
+   cursor vai até ele. Repita num monitor de 120 Hz (ou ProMotion): continua fluido.
+9. Durante uma rolagem da IA, role com o seu mouse ou trackpad: a animação para na hora e a IA segue.
 
 ## Navegador do Vitral (Chrome for Testing)
 

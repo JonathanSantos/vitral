@@ -33,7 +33,7 @@ pode assumir o controle quando quiser.
 - Exportar em GIF (≤ 8 MB para o README) e em MP4. Salvar como `assets/demo.gif` e trocar o comentário
   `TODO` do topo do README pela imagem.
 
-## Só o cursor (`make demo-cursor`)
+## Só o cursor e a rolagem (`make demo-cursor`)
 
 Para avaliar o movimento ou gravar um GIF curto só do cursor, sem o VS Code:
 
@@ -60,3 +60,7 @@ outra trajetória, troque a semente:
 ```bash
 make demo-cursor CURSOR_SEED=2
 ```
+
+Em seguida, na `testdata/pages/scroll-playground.html` (velocidade `normal`): rolagens de 0,5, 1, 3, 5
+e 10 telas, cada uma a partir do topo, depois um clique no alvo bem longe, no fim da lista aninhada e no
+scroller que só responde à roda.

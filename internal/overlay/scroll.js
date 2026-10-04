@@ -3,8 +3,9 @@
 // que não briga com o scroll-behavior: smooth da página. Usado pelo overlay e pelo tools/cursorlab.
 
 // vitralScroll toca plan.f ([t, deslocamento, ...]) em el. done(result) recebe 'ok', 'hidden' (aba
-// oculta: aplicado na hora) ou 'unresponsive' (dois frames sem efeito: o container não aceita rolagem
-// programática e o Go cai para a roda do mouse).
+// oculta: aplicado na hora), 'unresponsive' (dois frames sem efeito: o container não aceita rolagem
+// programática e o Go cai para a roda do mouse) ou 'interrupted' (stop(): a pessoa rolou por conta
+// própria; a posição final é aplicada sem animação). Devolve { stop }.
 function vitralScroll(el, plan, done) {
   const f = plan.f;
   const base = el.scrollTop;
@@ -23,9 +24,11 @@ function vitralScroll(el, plan, done) {
       finish('hidden');
     }
   };
+  const ctl = { stop() { if (!finished) { apply(total); finish('interrupted'); } } };
   if (document.visibilityState !== 'visible' || f.length <= 2) {
     apply(total);
-    return finish(document.visibilityState !== 'visible' ? 'hidden' : 'ok');
+    finish(document.visibilityState !== 'visible' ? 'hidden' : 'ok');
+    return ctl;
   }
   document.addEventListener('visibilitychange', onHide);
   let start = 0, i = 0, frames = 0;
@@ -50,4 +53,5 @@ function vitralScroll(el, plan, done) {
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
+  return ctl;
 }

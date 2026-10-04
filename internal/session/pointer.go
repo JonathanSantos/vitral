@@ -28,6 +28,7 @@ type pointer struct {
 	rng    *rand.Rand
 	side   int         // lado do arco do último movimento (a "mão")
 	view   cursor.Rect // viewport vista no último movimento
+	scroll cursor.ScrollProfile
 }
 
 func newPointer(cfg config.Config) *pointer {
@@ -44,6 +45,7 @@ func newPointer(cfg config.Config) *pointer {
 		on: cfg.CursorActive(), pacing: cfg.TypePacingActive(),
 		// Sorteio visual reproduzível pela semente (--cursor-seed), não segurança.
 		prof: prof, flow: flowProf, rng: rand.New(rand.NewPCG(seed, seed^0x5eed)), //nolint:gosec // G404: ver acima
+		scroll: cursor.DefaultScrollProfile(),
 	}
 }
 
@@ -276,34 +278,6 @@ func (s *Session) awayFrom(ctx context.Context, from cursor.Point) {
 	s.ui.PlayCursor(ctx, plan, "", false)
 }
 
-// smoothReveal rola suavemente até o alvo, com o cursor parado, até ScrollCap; depois disso a
-// rolagem instantânea do hit termina o caminho (5.1).
-func (s *Session) smoothReveal(ctx context.Context, ref string) {
-	var res struct {
-		Scrolling bool `json:"scrolling"`
-	}
-	if err := s.evalInto(ctx, &res, `(r) => window.__vitral.revealSmooth(r)`, ref); err != nil || !res.Scrolling {
-		return
-	}
-	deadline := time.Now().Add(time.Duration(s.profile().ScrollCap) * time.Millisecond)
-	var last [4]int
-	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(50 * time.Millisecond):
-		}
-		var now [4]int
-		if err := s.evalInto(ctx, &now, `(r) => window.__vitral.box(r) || [0, 0, 0, 0]`, ref); err != nil {
-			return
-		}
-		if now == last {
-			return
-		}
-		last = now
-	}
-}
-
 // typeText digita com ritmo visível (5.2): teclas reais de 25 a 45 ms até 1,5 s; o resto de uma vez.
 func (s *Session) typeText(ctx context.Context, p *rod.Page, text string) error {
 	pc := p.Context(ctx)
@@ -337,31 +311,6 @@ func typeRune(p *rod.Page, r rune) error {
 		return err
 	}
 	return proto.InputDispatchKeyEvent{Type: proto.InputDispatchKeyEventTypeKeyUp, Key: ch}.Call(p)
-}
-
-// wheel rola em passos de roda visíveis no ponto do cursor (5.4).
-func (s *Session) wheel(ctx context.Context, p *rod.Page, at cursor.Point, amount float64) error {
-	mouse := p.Context(ctx).Mouse
-	if err := mouse.MoveTo(proto.Point{X: at.X, Y: at.Y}); err != nil {
-		return err
-	}
-	w := cursor.WheelSteps(amount, s.profile(), s.cur.rng)
-	for i, step := range w.Steps {
-		if d := w.Delays[i]; d > 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(time.Duration(d) * time.Millisecond):
-			}
-		}
-		if err := mouse.Scroll(0, step, 1); err != nil {
-			return err
-		}
-	}
-	if w.Rest != 0 {
-		return mouse.Scroll(0, w.Rest, 1)
-	}
-	return nil
 }
 
 // keyLabel é o nome curto da tecla no keycap (5.5).

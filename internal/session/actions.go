@@ -166,10 +166,17 @@ func (s *Session) Click(ctx context.Context, ref string) (string, error) {
 // clickWithCursor é o clique com o cursor visual (5.1): rolagem suave, ponto validado, movimento,
 // mira e o evento real no mesmo ponto final que a pessoa viu.
 func (s *Session) clickWithCursor(ctx context.Context, p *rod.Page, ref string) error {
-	s.smoothReveal(ctx, ref)
-	var hit hitInfo
-	if err := s.evalInto(ctx, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
+	if err := s.scrollIntoBand(ctx, p, ref); err != nil {
 		return err
+	}
+	var hit hitInfo
+	if err := s.evalInto(ctx, &hit, `(r) => window.__vitral.hit(r, true)`, ref); err != nil {
+		return err
+	}
+	if hit.Error == "offscreen" { // a pessoa rolou para longe no meio: traz de volta sem animar
+		if err := s.evalInto(ctx, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
+			return err
+		}
 	}
 	if err := refError(ref, hit.Error); err != nil {
 		return err
@@ -254,8 +261,13 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 		return flow.Step{Type: step}
 	}}
 	return s.action(ctx, rec, func(p *rod.Page) error {
+		if s.cur.on {
+			if err := s.scrollIntoBand(ctx, p, ref); err != nil {
+				return err
+			}
+		}
 		var info typeInfo
-		if err := s.evalInto(ctx, &info, `(r, c) => window.__vitral.prepareType(r, c)`, ref, clearFirst); err != nil {
+		if err := s.evalInto(ctx, &info, `(r, c, n) => window.__vitral.prepareType(r, c, n)`, ref, clearFirst, s.cur.on); err != nil {
 			return err
 		}
 		switch {
@@ -289,7 +301,7 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 				if err := pressAt(ctx, p, plan); err != nil {
 					return err
 				}
-				if err := s.evalInto(ctx, &info, `(r, c) => window.__vitral.prepareType(r, c)`, ref, clearFirst); err != nil {
+				if err := s.evalInto(ctx, &info, `(r, c) => window.__vitral.prepareType(r, c, true)`, ref, clearFirst); err != nil {
 					return err
 				}
 				s.awayFrom(ctx, plan.End)
@@ -333,7 +345,7 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		if s.cur.on {
 			// Vai até o select e clica só no visual: um clique real abriria a lista nativa (5.3).
-			box, kind, err := s.revealWithCursor(ctx, ref)
+			box, kind, err := s.revealWithCursor(ctx, p, ref)
 			if err != nil {
 				return err
 			}
@@ -365,8 +377,10 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 }
 
 // revealWithCursor rola suavemente até o alvo (cursor parado) e devolve a caixa e o tipo de cursor.
-func (s *Session) revealWithCursor(ctx context.Context, ref string) ([4]int, cursor.Kind, error) {
-	s.smoothReveal(ctx, ref)
+func (s *Session) revealWithCursor(ctx context.Context, p *rod.Page, ref string) ([4]int, cursor.Kind, error) {
+	if err := s.scrollIntoBand(ctx, p, ref); err != nil {
+		return [4]int{}, cursor.Arrow, err
+	}
 	var res struct {
 		Error string `json:"error"`
 		Box   [4]int `json:"box"`
@@ -438,7 +452,7 @@ func (s *Session) Scroll(ctx context.Context, opts ScrollOptions) (string, error
 				return s.revealAndHighlight(ctx, p, opts.Ref)
 			}
 			// Rola até o alvo com o cursor parado e depois leva o cursor até ele (5.4).
-			box, kind, err := s.revealWithCursor(ctx, opts.Ref)
+			box, kind, err := s.revealWithCursor(ctx, p, opts.Ref)
 			if err != nil {
 				return err
 			}
@@ -467,7 +481,7 @@ func (s *Session) Scroll(ctx context.Context, opts ScrollOptions) (string, error
 			// O cursor vai ao centro da viewport e rola em passos de roda visíveis.
 			center := cursor.Point{X: math.Round(vp[0] / 2), Y: math.Round(vp[1] / 2)}
 			s.travelTo(ctx, center, [4]int{int(center.X) - 20, int(center.Y) - 20, 40, 40}, cursor.Arrow)
-			return s.wheel(ctx, p, center, amount)
+			return s.scrollBy(ctx, p, center, amount)
 		}
 		mouse := p.Context(ctx).Mouse
 		if err := mouse.MoveTo(proto.Point{X: vp[0] / 2, Y: vp[1] / 2}); err != nil {

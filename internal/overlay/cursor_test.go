@@ -13,8 +13,8 @@ import (
 
 func TestCursorDoneNeedsTokenAndID(t *testing.T) {
 	m := newTestManager()
-	ch := make(chan struct{}, 1)
-	m.waiters = map[string]chan struct{}{"7": ch}
+	ch := make(chan string, 1)
+	m.waiters = map[string]chan string{"7": ch}
 	for _, payload := range []string{
 		`{"token":"chute","type":"cursor_done","id":"7"}`,
 		`{"token":"` + m.token + `","type":"cursor_done","id":"8"}`,

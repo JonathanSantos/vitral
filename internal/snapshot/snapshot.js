@@ -446,14 +446,14 @@
   }
 
   // Prepara o clique: rola até o elemento e devolve o ponto (coordenadas da página principal).
-  function hit(ref) {
+  function hit(ref, noScroll) {
     const el = find(ref);
     if (!el) return { error: 'not_found' };
     const role = roleOf(el);
     const info = { role, tag: el.tagName.toLowerCase(), password: el.tagName === 'INPUT' && el.type === 'password' };
     try { info.disabled = el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'; } catch (_) {}
     if (!isVisible(el)) return { ...info, error: 'hidden' };
-    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    if (!noScroll) el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
     const r = el.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return { ...info, error: 'hidden' };
     const win = el.ownerDocument.defaultView;
@@ -736,6 +736,70 @@
     return !!el && hitsOnly(el, x, y);
   }
 
+  // Rolagem humana (pedido "próximos passos", seção 1): a cadeia de contêineres roláveis até o alvo,
+  // do mais externo (a página) ao mais interno, com a posição do próximo elemento (contêiner interno ou
+  // o alvo) em relação à área visível de cada um e a altura coberta por headers fixos no topo.
+  function scrollableY(el) {
+    const st = getComputedStyle(el);
+    return /(auto|scroll|hidden|overlay)/.test(st.overflowY) && el.scrollHeight > el.clientHeight + 1;
+  }
+
+  function coveredTop(c, isPage) {
+    const r = isPage ? { left: 0, top: 0, width: innerWidth, height: innerHeight } : c.getBoundingClientRect();
+    let covered = 0;
+    for (const fx of [0.2, 0.5, 0.8]) {
+      for (const n of document.elementsFromPoint(r.left + r.width * fx, r.top + 2)) {
+        if (n.tagName === 'VITRAL-OVERLAY' || n === c) continue;
+        const pos = getComputedStyle(n).position;
+        if (pos !== 'fixed' && pos !== 'sticky') continue;
+        const h = n.getBoundingClientRect().bottom - r.top;
+        if (h > 0 && h < r.height / 3) covered = Math.max(covered, h);
+      }
+    }
+    return covered;
+  }
+
+  function scrollChain(ref) {
+    const el = find(ref);
+    if (!el) return { error: 'not_found' };
+    const page = document.scrollingElement || document.documentElement;
+    const inner = [];
+    for (let n = el.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      if (scrollableY(n)) inner.unshift(n);
+    }
+    // Alvo cortado por um ancestral que não rola por scrollTop (overflow clip, conteúdo movido por
+    // transform): só a roda do mouse alcança. Os contêineres de fora miram esse ancestral, não o alvo
+    // escondido dentro dele.
+    let clipEl = null;
+    const tr = el.getBoundingClientRect();
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+      if (scrollableY(n) || !/(clip|hidden)/.test(getComputedStyle(n).overflowY)) continue;
+      const r = n.getBoundingClientRect();
+      if (tr.top < r.top || tr.bottom > r.bottom) {
+        clipEl = n;
+        break;
+      }
+    }
+    const list = [page, ...inner];
+    const chain = list.map((c, i) => {
+      const isPage = c === page;
+      const next = list[i + 1] || clipEl || el;
+      const cr = isPage ? { top: 0 } : c.getBoundingClientRect();
+      return {
+        key: isPage ? 'page' : refFor(c), top: next.getBoundingClientRect().top - cr.top,
+        height: isPage ? innerHeight : c.clientHeight, scrollTop: c.scrollTop,
+        max: c.scrollHeight - c.clientHeight, covered: coveredTop(c, isPage),
+        rect: isPage ? [0, 0, innerWidth, innerHeight] : boxOf(c),
+      };
+    });
+    let clip = null;
+    if (clipEl) {
+      const r = clipEl.getBoundingClientRect();
+      clip = { key: refFor(clipEl), rect: boxOf(clipEl), top: tr.top - r.top, height: r.height };
+    }
+    return { chain, clip, ...env() };
+  }
+
   // revealSmooth começa uma rolagem suave até o alvo, se ele não estiver inteiro na tela (5.1).
   function revealSmooth(ref) {
     const el = find(ref);
@@ -766,7 +830,7 @@
   }
 
   // Foca e (opcionalmente) seleciona todo o conteúdo para que o Backspace real o apague.
-  function prepareType(ref, clear) {
+  function prepareType(ref, clear, noScroll) {
     const el = find(ref);
     if (!el) return { error: 'not_found' };
     const info = { role: roleOf(el), password: el.tagName === 'INPUT' && el.type === 'password' };
@@ -774,7 +838,7 @@
     info.readonly = !!el.readOnly;
     info.editable = editableInfo(el);
     if (!info.editable || info.disabled || info.readonly) return info;
-    el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    if (!noScroll) el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
     info.box = boxOf(el);
     // Campo de senha: só rola até ele (para o destaque); quem digita é a pessoa.
     if (info.password) return info;
@@ -930,6 +994,7 @@
     box: (ref) => { const el = find(ref); return el ? boxOf(el) : null; },
     reveal,
     revealSmooth,
+    scrollChain,
     readText,
     aim,
     aimAt,

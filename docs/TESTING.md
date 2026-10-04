@@ -125,7 +125,10 @@ browser; fechar o stdin no meio de uma ação mata o browser lançado (e não o 
   `internal/cursor`; integração com `--cursor=force` em headless (`internal/app/cursor_*_test.go`):
   clique real no ponto final com um único `mousemove`, nunca no filho interativo (card com lixeira,
   botão dividido), aba oculta antes e durante a animação, `prefers-reduced-motion`, falha visível com
-  o mesmo erro para a IA, orçamento de 1,3 s em `normal`. `make demo-cursor` abre a janela visível
+  o mesmo erro para a IA, orçamento de 1,3 s em `normal`. Rolagem humana na `scroll-playground`:
+  fluidez (intervalo entre mudanças de posição de no máximo ~2 frames), alvo na faixa abaixo do header,
+  contêiner aninhado, scroller que só aceita roda e interrupção pela pessoa; o diagnóstico de fluidez
+  fica na tag `diag`. `make demo-cursor` abre a janela visível
   com o roteiro da `cursor-playground` em `slow` (fora do gate).
 - Instalação e atualização (`make install-test`, release): binários reais de duas versões, setup numa
   pasta com `mcp.json` comentado, setup repetido, atualização e o `doctor` detectando versão antiga.

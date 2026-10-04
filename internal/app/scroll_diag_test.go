@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-rod/rod/lib/proto"
+	"github.com/ysmood/gson"
+
 	"github.com/JonathanSantos/vitral/internal/config"
 )
 
@@ -179,4 +182,57 @@ func percentile(v []float64, p float64) float64 {
 	sort.Float64s(s)
 	i := int(math.Round(p * float64(len(s)-1)))
 	return s[i]
+}
+
+// Fallback do scroller que só responde à roda: mouseWheel por keyframe (wheelPlan) contra
+// Input.synthesizeScrollGesture, medindo o translateY real do conteúdo por frame.
+func TestWheelFallbackDiagnostic(t *testing.T) {
+	visible := os.Getenv("VITRAL_DIAG_VISIBLE") != ""
+	sh, cleanup := newHarness(func(c *config.Config) {
+		c.Cursor, c.CursorSpeed, c.CursorSeed, c.HighlightMs, c.Headless = "force", "normal", 4, 0, !visible
+	})
+	defer cleanup()
+	record := `(() => { const tr = document.getElementById('track'); const d = { f: [], on: true }; window.__wheelDiag = d;
+		const y = () => { const m = /translateY\((-?[\d.]+)px\)/.exec(tr.style.transform); return m ? -Number(m[1]) : 0; };
+		const loop = (ts) => { if (!d.on) return; d.f.push([ts, y()]); requestAnimationFrame(loop); };
+		requestAnimationFrame(loop); return true; })()`
+	stop := func() [][2]float64 {
+		var f [][2]float64
+		_ = sh.app.World.Unmarshal(context.Background(), &f, `() => { window.__wheelDiag.on = false; return window.__wheelDiag.f; }`)
+		return f
+	}
+	prepare := func() (float64, float64) {
+		sh.ok(t, "open", map[string]any{"url": sh.url("/pages/scroll-playground.html")})
+		var r [4]float64
+		_ = sh.app.World.Unmarshal(context.Background(), &r, `() => { const w = document.getElementById('wheel');
+			w.scrollIntoView({block: 'center', behavior: 'instant'}); const b = w.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; }`)
+		return r[0] + r[2]/2, r[1] + r[3]/2
+	}
+	var report []string
+	report = append(report, "modo: "+map[bool]string{true: "janela visível", false: "headless"}[visible])
+
+	x, y := prepare()
+	if err := sh.app.World.Eval(context.Background(), record); err != nil {
+		t.Fatal(err)
+	}
+	full := sh.ok(t, "snapshot", map[string]any{"full": true})
+	ref := regexp.MustCompile(`\[(e\d+)\] button "Alvo da roda"`).FindStringSubmatch(full)[1]
+	start := time.Now()
+	sh.ok(t, "click", map[string]any{"ref": ref})
+	report = append(report, fmt.Sprintf("fallback do Vitral: salto + synthesizeScrollGesture (ação inteira %v)", time.Since(start).Round(time.Millisecond)), analyzeScroll(stop()))
+
+	x, y = prepare()
+	if err := sh.app.World.Eval(context.Background(), record); err != nil {
+		t.Fatal(err)
+	}
+	p := sh.page(t)
+	start = time.Now()
+	gesture := proto.InputSynthesizeScrollGesture{X: x, Y: y, YDistance: gson.Num(-1150), Speed: gson.Int(2000), GestureSourceType: proto.InputGestureSourceTypeMouse}
+	if err := gesture.Call(p); err != nil {
+		report = append(report, "synthesizeScrollGesture: erro: "+err.Error())
+	} else {
+		time.Sleep(300 * time.Millisecond)
+		report = append(report, fmt.Sprintf("synthesizeScrollGesture 2000 px/s (%v)", time.Since(start).Round(time.Millisecond)), analyzeScroll(stop()))
+	}
+	t.Log("\n" + strings.Join(report, "\n"))
 }

@@ -12,16 +12,17 @@
 
   // Tocador do cursor (cursor.js), no mesmo escopo: a página não alcança nada disso.
   __CURSOR__
+  __SCROLL__
 
   let host = null;
   let root = null;
   let state = null;
   let hidden = false;
 
-  const send = (type, id) => {
+  const send = (type, id, result) => {
     try {
       const fn = window[BINDING];
-      if (typeof fn === 'function') fn(JSON.stringify({ token: TOKEN, type, id }));
+      if (typeof fn === 'function') fn(JSON.stringify({ token: TOKEN, type, id, result }));
     } catch (_) { /* sem binding: nada a fazer */ }
   };
 
@@ -136,6 +137,27 @@
     if (cur) cur.paused(s.blocked);
   }
 
+  // Rolagem humana: toca o plano do Go no container ('page' ou a ref do container) e avisa
+  // scroll_done. Se a pessoa rolar por conta própria (roda, trackpad, toque ou teclado de verdade),
+  // para na hora com a posição final do plano: quem interrompe a IA é a pausa.
+  function scroll(c) {
+    const el = c.container === 'page' ? document.scrollingElement
+      : (window.__vitral && window.__vitral.find ? window.__vitral.find(c.container) : null);
+    if (!el) return send('scroll_done', c.id, 'missing');
+    let ctl = null;
+    const keys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+    const onUser = (e) => {
+      if (!e.isTrusted || (e.type === 'keydown' && !keys.has(e.key))) return;
+      if (ctl) ctl.stop();
+    };
+    const types = ['wheel', 'touchstart', 'keydown'];
+    types.forEach((t) => window.addEventListener(t, onUser, { capture: true, passive: true }));
+    ctl = vitralScroll(el, c.plan, (result) => {
+      types.forEach((t) => window.removeEventListener(t, onUser, { capture: true }));
+      send('scroll_done', c.id, result);
+    });
+  }
+
   // Cursor visual (docs/CURSOR.md). Criado na primeira ordem do Go; nunca no modo mínimo.
   let cur = null;
   const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -198,7 +220,7 @@
   }
 
   Object.defineProperty(window, '__vitralOverlay', {
-    value: Object.freeze({ render, highlight, hidden: setHidden, cursor }),
+    value: Object.freeze({ render, highlight, hidden: setHidden, cursor, scroll }),
     enumerable: false,
   });
 

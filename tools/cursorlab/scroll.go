@@ -52,7 +52,7 @@ func writeScrollTab(b *strings.Builder, speed cursor.Speed, seed uint64) string 
 		all[v] = make([][]cursor.ScrollPlan, len(scrollScenarios))
 		for i, sc := range scrollScenarios {
 			for j := 0; j < n; j++ {
-				all[v][i] = append(all[v][i], cursor.Scroll(sc.Views*scrollVH, scrollVH, speed, cursor.Animated, p, rng))
+				all[v][i] = append(all[v][i], cursor.Scroll(sc.Views*scrollVH, scrollVH, 0, speed, cursor.Animated, p, rng))
 			}
 		}
 	}
@@ -207,7 +207,7 @@ document.getElementById('splay').onclick = () => {
   spage.scrollTo({ top: startAt(plan.f[plan.f.length - 1]), behavior: 'instant' });
   const t0 = performance.now();
   sinfo.textContent = 'tocando ' + Math.round(plan.duration) + ' ms…';
-  vitralScroll(spage, plan, (r) => { sinfo.textContent = r + ' em ' + Math.round(performance.now() - t0) + ' ms, posição ' + Math.round(spage.scrollTop); });
+  vitralScroll(spage, plan, 0, (r) => { sinfo.textContent = r + ' em ' + Math.round(performance.now() - t0) + ' ms, posição ' + Math.round(spage.scrollTop); });
 };
 // Como era: passos secos de 100 px a cada ~85 ms (a roda via CDP não anima).
 document.getElementById('sold').onclick = () => {

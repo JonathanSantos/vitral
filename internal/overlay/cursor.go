@@ -31,14 +31,21 @@ func (m *Manager) RecentPlans() []cursor.Plan {
 // arrivalSlack é a folga sobre a duração do plano antes de desistir de esperar o overlay (2.1).
 const arrivalSlack = 300 * time.Millisecond
 
+// scrollFn entrega a rolagem ao overlay (mesmo protocolo do cursorFn).
+const scrollFn = `(c) => { const o = window.__vitralOverlay; if (!o || !o.scroll) return false; o.scroll(c); return true; }`
+
 func (m *Manager) cursorCmd(ctx context.Context, c map[string]any) error {
+	return m.cursorCmdFn(ctx, cursorFn, c)
+}
+
+func (m *Manager) cursorCmdFn(ctx context.Context, fn string, c map[string]any) error {
 	if m.opts.Minimal {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	var ok bool
-	if err := m.world.Unmarshal(ctx, &ok, cursorFn, c); err != nil {
+	if err := m.world.Unmarshal(ctx, &ok, fn, c); err != nil {
 		m.log.Debug("overlay cursor", "op", c["op"], "err", err)
 		return err
 	}
@@ -68,9 +75,9 @@ func (m *Manager) PlayCursor(ctx context.Context, plan cursor.Plan, ring string,
 	m.mu.Lock()
 	m.cursorSeq++
 	id := strconv.FormatUint(m.cursorSeq, 10)
-	ch := make(chan struct{}, 1)
+	ch := make(chan string, 1)
 	if m.waiters == nil {
-		m.waiters = map[string]chan struct{}{}
+		m.waiters = map[string]chan string{}
 	}
 	m.waiters[id] = ch
 	defer func() {
@@ -103,17 +110,96 @@ func (m *Manager) PlayCursor(ctx context.Context, plan cursor.Plan, ring string,
 	return false
 }
 
-// cursorDone acorda quem espera o plano id (evento cursor_done da página, já com token válido).
-func (m *Manager) cursorDone(id string) {
+// cursorDone acorda quem espera o plano id (cursor_done ou scroll_done da página, já com token
+// válido), com o resultado que a página informou.
+func (m *Manager) cursorDone(id, result string) {
 	m.mu.Lock()
 	ch := m.waiters[id]
 	m.mu.Unlock()
 	if ch != nil {
 		select {
-		case ch <- struct{}{}:
+		case ch <- result:
 		default:
 		}
 	}
+}
+
+// waiter registra quem espera o id; release tira o registro.
+func (m *Manager) waiter() (string, chan string, func()) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cursorSeq++
+	id := strconv.FormatUint(m.cursorSeq, 10)
+	ch := make(chan string, 1)
+	if m.waiters == nil {
+		m.waiters = map[string]chan string{}
+	}
+	m.waiters[id] = ch
+	return id, ch, func() {
+		m.mu.Lock()
+		delete(m.waiters, id)
+		m.mu.Unlock()
+	}
+}
+
+// Resultados de PlayScroll além dos que a página informa ("ok", "hidden", "unresponsive",
+// "interrupted", "missing").
+const (
+	ScrollTimeout   = "timeout"
+	ScrollNoOverlay = "no-overlay"
+)
+
+// PlayScroll toca a rolagem no container ("page" ou a ref do container) e espera o scroll_done, com
+// timeout = duração + 300 ms: a ação nunca fica presa na animação.
+func (m *Manager) PlayScroll(ctx context.Context, container string, plan cursor.ScrollPlan) string {
+	if m.opts.Minimal {
+		return ScrollNoOverlay
+	}
+	id, ch, release := m.waiter()
+	defer release()
+	m.mu.Lock()
+	m.scrollCount++
+	m.scrolls = append(m.scrolls, plan)
+	if len(m.scrolls) > recentPlans {
+		m.scrolls = m.scrolls[len(m.scrolls)-recentPlans:]
+	}
+	m.mu.Unlock()
+	if err := m.cursorCmdFn(ctx, scrollFn, map[string]any{"id": id, "container": container, "plan": plan}); err != nil {
+		return ScrollNoOverlay
+	}
+	timeout := time.Duration(plan.Duration*float64(time.Millisecond)) + arrivalSlack
+	result := ScrollTimeout
+	select {
+	case result = <-ch:
+	case <-time.After(timeout):
+		m.log.Debug("scroll_done timeout: acting anyway", "id", id, "timeout", timeout)
+	case <-ctx.Done():
+	}
+	m.mu.Lock()
+	m.lastScroll = result
+	m.mu.Unlock()
+	return result
+}
+
+// ScrollsStarted conta as rolagens enviadas ao overlay (diagnóstico e testes).
+func (m *Manager) ScrollsStarted() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.scrollCount
+}
+
+// LastScrollResult é o resultado da última rolagem tocada (diagnóstico e testes).
+func (m *Manager) LastScrollResult() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastScroll
+}
+
+// RecentScrollPlans devolve as últimas rolagens tocadas, da mais antiga à mais nova.
+func (m *Manager) RecentScrollPlans() []cursor.ScrollPlan {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]cursor.ScrollPlan(nil), m.scrolls...)
 }
 
 // PlaceCursor põe o cursor num ponto sem animar.

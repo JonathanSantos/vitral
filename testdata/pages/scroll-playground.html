@@ -18,7 +18,8 @@
     .lazy.loaded { height: 420px; }
     .nested { height: 260px; overflow: auto; border: 1px solid #aaa; border-radius: 8px; }
     .nested .row { height: 48px; border-bottom: 1px solid #eee; display: flex; align-items: center; padding: 0 12px; }
-    .wheel-only { position: relative; height: 240px; overflow: hidden; border: 1px solid #aaa; border-radius: 8px; }
+    /* overflow: clip não cria um container de rolagem: scrollTop não tem efeito, só a roda move. */
+    .wheel-only { position: relative; height: 240px; overflow: clip; border: 1px solid #aaa; border-radius: 8px; }
     .wheel-only .track { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
     .wheel-only .row { height: 48px; border-bottom: 1px solid #eee; display: flex; align-items: center; padding: 0 12px; }
     button { font: 600 14px system-ui; padding: 8px 14px; border-radius: 8px; border: 1px solid #1e1b2e; background: #fff; cursor: pointer; }
@@ -74,9 +75,10 @@
       track.append(row);
     }
     let offset = 0;
-    const max = 30 * 48 - 240;
-    document.getElementById('wheel').addEventListener('wheel', (e) => {
+    const wheel = document.getElementById('wheel');
+    wheel.addEventListener('wheel', (e) => {
       e.preventDefault();
+      const max = track.offsetHeight - wheel.clientHeight; // altura real (linhas com borda)
       offset = Math.max(0, Math.min(max, offset + e.deltaY));
       track.style.transform = `translateY(${-offset}px)`;
     }, { passive: false });

@@ -21,8 +21,8 @@ func FuzzOnPageEvent(f *testing.F) {
 			t.Skip()
 		}
 		m.state = ux.State{Mode: ux.Idle}
-		ch := make(chan struct{}, 1)
-		m.waiters = map[string]chan struct{}{"1": ch}
+		ch := make(chan string, 1)
+		m.waiters = map[string]chan string{"1": ch}
 		m.onPageEvent(payload)
 		if m.state != (ux.State{Mode: ux.Idle}) {
 			t.Fatalf("payload without token changed the state: %+v", m.state)

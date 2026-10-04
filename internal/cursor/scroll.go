@@ -128,9 +128,13 @@ func newFlick(dist, viewport float64, p ScrollProfile, k float64, rng *rand.Rand
 }
 
 // Scroll planeja a rolagem de distance px (negativo = para cima) num container de altura viewport.
-// Com speed instant (ou motion diferente de Animated), vai direto: um só keyframe no destino.
-func Scroll(distance, viewport float64, speed Speed, motion Motion, p ScrollProfile, rng *rand.Rand) ScrollPlan {
+// window é a altura da janela, base do teto de px/frame (MaxStep); 0 usa a do container. Com speed
+// instant (ou motion diferente de Animated), vai direto: um só keyframe no destino.
+func Scroll(distance, viewport, window float64, speed Speed, motion Motion, p ScrollProfile, rng *rand.Rand) ScrollPlan {
 	distance, viewport = finite(distance), math.Max(finite(viewport), 1)
+	if window = finite(window); window <= 0 {
+		window = viewport
+	}
 	plan := ScrollPlan{Distance: distance, TimeScale: 1}
 	k := speed.Factor()
 	if math.Abs(distance) < p.Still || speed == Instant || motion != Animated {
@@ -179,7 +183,7 @@ func Scroll(distance, viewport float64, speed Speed, motion Motion, p ScrollProf
 	// Tempo e velocidade: comprime para caber no teto (até MinCompress), mas nunca a ponto de passar
 	// de MaxStep por frame; flicks rápidos demais são esticados. Se não fecha, salto + flick final.
 	timeCap := p.Cap * k
-	maxStep := p.MaxStep * viewport
+	maxStep := p.MaxStep * window
 	scaleFor := func() (float64, bool) {
 		c := math.Min(1, timeCap/total())
 		if maxStep > 0 {

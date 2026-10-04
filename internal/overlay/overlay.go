@@ -72,10 +72,13 @@ type Manager struct {
 	// Cursor visual: quem espera o cursor_done de cada plano tocado, e onde o cursor está na página
 	// atual (para reaparecer no mesmo lugar depois de navegar).
 	cursorSeq   uint64
-	waiters     map[string]chan struct{}
+	waiters     map[string]chan string
 	cursorAt    cursor.Point
 	cursorShown bool
-	plans       []cursor.Plan // últimos planos tocados (diagnóstico e testes)
+	plans       []cursor.Plan       // últimos planos tocados (diagnóstico e testes)
+	scrolls     []cursor.ScrollPlan // últimas rolagens tocadas
+	lastScroll  string
+	scrollCount int
 }
 
 // New cria o gerenciador. O token impede que scripts da página acionem a pausa pela binding.
@@ -108,6 +111,7 @@ func Script(token string, minimal bool) string {
 		"__CSS_VARS__", q(brand.CSSVars()),
 		"__MINIMAL__", strconv.FormatBool(minimal),
 		"__CURSOR__", CursorScript,
+		"__SCROLL__", ScrollScript,
 	)
 	return r.Replace(scriptTemplate)
 }
@@ -134,9 +138,10 @@ func (m *Manager) Attach(p *rod.Page) error {
 }
 
 type pageEvent struct {
-	Token string `json:"token"`
-	Type  string `json:"type"`
-	ID    string `json:"id"`
+	Token  string `json:"token"`
+	Type   string `json:"type"`
+	ID     string `json:"id"`
+	Result string `json:"result"`
 }
 
 // onPageEvent valida o que veio da página. Só o botão do selo pausa, retoma ou recolhe.
@@ -152,8 +157,8 @@ func (m *Manager) onPageEvent(payload string) {
 	case "ready":
 		m.render()
 		m.rehydrateCursor()
-	case "cursor_done":
-		m.cursorDone(e.ID)
+	case "cursor_done", "scroll_done":
+		m.cursorDone(e.ID, e.Result)
 	}
 }
 

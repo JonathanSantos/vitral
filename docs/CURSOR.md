@@ -254,3 +254,35 @@ planos com o mesmo `cursor.js` do overlay, inclusive uma sequência que sai de o
 - Os candidatos são arredondados para 0,1 px **para dentro** da área permitida (num alvo minúsculo o
   arredondamento comum empurrava o ponto para fora).
 - Em Go, tipo e função não podem ter o mesmo nome: o tipo é `Plan` e a função é `Compute`.
+
+## 13. Rolagem humana
+
+**Diagnóstico** (`go test -tags 'integration diag' -run TestScrollDiagnostic ./internal/app/`): a roda via
+CDP salta 100 px por passo e fica 78% dos frames parada; rolar até um alvo usava o `scrollIntoView`
+suave do Chrome, que leva ~630 ms em qualquer distância (até 2.537 px num frame). Não havia espera de
+estabilidade entre passos nem conflito com `scroll-behavior: smooth`.
+
+**Modelo** (`internal/cursor/scroll.go`, `ScrollProfile`, ajustável):
+- flick com pico em 60–90 ms e atrito exponencial (τ 220–320 ms) que termina em 2,2τ com velocidade
+  **e** aceleração zero (sem tranco); há um modo natural (até 1% do pico) para comparar no cursorlab;
+- até 1,2 tela: um flick; mais longe: flicks de 75–90% com pausa de 120–250 ms (até 3); acima de 6
+  telas, ou se os tetos não fecham: salto até 1 tela antes e um flick final;
+- tetos: 1.200 ms em `normal` (escala com `--cursor-speed`) e 12% da **janela** por frame (`MaxStep`);
+  a compressão de tempo nunca passa do teto de velocidade, e um flick rápido demais é esticado;
+- alvo termina com o topo entre 30% e 40% da área visível, descontando headers fixos ou sticky;
+  abaixo de 4 px, vai direto.
+
+**Execução**: o overlay toca o plano com `scrollTo({behavior: "instant"})` por frame e avisa
+`scroll_done` (timeout = duração + 300 ms). O Go rola um contêiner por vez, do mais externo ao mais
+interno, mede de novo e corrige no máximo uma vez por contêiner (lazy load). Se a pessoa rolar com o
+próprio mouse, trackpad ou teclado durante a animação, ela para na posição final do plano e a ação
+segue (para interromper a IA, a pausa). Contêiner que não aceita rolagem programática (ou alvo cortado
+por `overflow: clip`): salto num evento de roda e `Input.synthesizeScrollGesture` com a velocidade
+média do plano; medido, o gesto é fluido (0% de frames parados) e a roda por keyframe engasga (47%),
+porque cada evento espera o CDP; se o gesto experimental falhar, cai para a roda por keyframe.
+
+**Testes**: propriedades do plano (início em 0, destino exato, monotônico, pico nos primeiros 30%, tetos,
+determinismo, fim suave); integração na `scroll-playground` (fluidez com no máximo ~2 frames entre
+mudanças no miolo do gesto, alvo na faixa abaixo do header, contêiner aninhado, scroller de roda,
+rolagem por direção, interrupção pela pessoa). 120 Hz não dá para emular pelo CDP: fica no CHECKLIST.
+`make demo-cursor` inclui rolagens de 0,5, 1, 3, 5 e 10 telas para avaliar na janela de verdade.

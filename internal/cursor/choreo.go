@@ -55,37 +55,3 @@ func Typing(chars int, p Profile, rng *rand.Rand) []float64 {
 	}
 	return delays
 }
-
-// Wheel divide uma rolagem em passos de roda de ~WheelStep px, com intervalo entre eles, até o
-// teto de tempo; o que sobrar vai num último passo sem espera (5.4).
-type Wheel struct {
-	Steps  []float64 // deslocamento de cada passo (sinal = direção)
-	Delays []float64 // espera antes de cada passo (o primeiro é 0)
-	Rest   float64   // o que sobrou depois do teto, aplicado de uma vez no fim
-}
-
-// WheelSteps planeja a rolagem de amount px (negativo = para cima).
-func WheelSteps(amount float64, p Profile, rng *rand.Rand) Wheel {
-	var w Wheel
-	amount = finite(amount)
-	left, sign := math.Abs(amount), math.Copysign(1, amount)
-	var elapsed float64
-	for left > 0 {
-		delay := 0.0
-		if len(w.Steps) > 0 {
-			delay = math.Round(uniform(rng, p.WheelMin, p.WheelMax))
-			if elapsed+delay > p.WheelCap {
-				break
-			}
-		}
-		step := math.Min(p.WheelStep, left)
-		elapsed += delay
-		left -= step
-		w.Steps = append(w.Steps, sign*step)
-		w.Delays = append(w.Delays, delay)
-	}
-	if left > 0 {
-		w.Rest = sign * left
-	}
-	return w
-}
