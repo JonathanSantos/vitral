@@ -32,6 +32,11 @@ var scriptTemplate string
 //go:embed cursor.js
 var CursorScript string
 
+// ScrollScript é o tocador da rolagem humana (scroll.js): o overlay e o tools/cursorlab usam o mesmo.
+//
+//go:embed scroll.js
+var ScrollScript string
+
 // Tag é o nome do elemento host. O snapshot ignora tudo dentro dele.
 const Tag = "vitral-overlay"
 

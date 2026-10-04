@@ -13,6 +13,14 @@ type wire struct {
 	Fade    float64   `json:"fade"`
 }
 
+// MarshalJSON da rolagem: keyframes num array plano e a duração.
+func (p ScrollPlan) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		F        []float64 `json:"f"`
+		Duration float64   `json:"duration"`
+	}{p.Frames, p.Duration})
+}
+
 // MarshalJSON envia só o que o overlay precisa para tocar o plano.
 func (p Plan) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire{p.Frames, p.Shape.String(), p.ShapeAt, p.Move, p.Press, p.Release, p.Fade})

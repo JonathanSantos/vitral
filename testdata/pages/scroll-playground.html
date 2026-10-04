@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Playground do scroll - Vitral</title>
+  <!-- Fixture do scroll (pedido "próximos passos", seção 1): página longa com scroll-behavior: smooth,
+       header sticky, container aninhado, lazy load que muda a altura e um scroller que só responde à
+       roda. Usada no diagnóstico, no cursorlab e nos testes de integração. -->
+  <style>
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f7f5f0; color: #1e1b2e; }
+    header { position: sticky; top: 0; z-index: 5; height: 64px; display: flex; align-items: center; padding: 0 24px;
+             background: #1e1b2e; color: #f7f5f0; font-weight: 600; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px; }
+    section { background: #fff; border: 1px solid #e3dfd6; border-radius: 12px; padding: 18px; margin: 24px 0; }
+    .gap { height: var(--h); }
+    .lazy { height: 0; overflow: hidden; background: #e9e5dc; transition: none; }
+    .lazy.loaded { height: 420px; }
+    .nested { height: 260px; overflow: auto; border: 1px solid #aaa; border-radius: 8px; }
+    .nested .row { height: 48px; border-bottom: 1px solid #eee; display: flex; align-items: center; padding: 0 12px; }
+    .wheel-only { position: relative; height: 240px; overflow: hidden; border: 1px solid #aaa; border-radius: 8px; }
+    .wheel-only .track { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+    .wheel-only .row { height: 48px; border-bottom: 1px solid #eee; display: flex; align-items: center; padding: 0 12px; }
+    button { font: 600 14px system-ui; padding: 8px 14px; border-radius: 8px; border: 1px solid #1e1b2e; background: #fff; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>Playground do scroll</header>
+  <main>
+    <p id="status" role="status">Pronto.</p>
+    <section><h2>Topo</h2><button onclick="say('perto')">Alvo perto</button></section>
+    <div class="gap" style="--h: 700px"></div>
+    <section><h2>Uma tela abaixo</h2><button onclick="say('uma tela')">Alvo a uma tela</button></section>
+    <div class="lazy" data-lazy></div>
+    <div class="gap" style="--h: 1600px"></div>
+    <section><h2>Três telas abaixo</h2><button onclick="say('três telas')">Alvo a três telas</button></section>
+    <div class="lazy" data-lazy></div>
+    <section>
+      <h2>Container aninhado</h2>
+      <div class="nested" aria-label="Lista aninhada" tabindex="0">
+        <div class="row">Item 1</div><div class="row">Item 2</div><div class="row">Item 3</div><div class="row">Item 4</div>
+        <div class="row">Item 5</div><div class="row">Item 6</div><div class="row">Item 7</div><div class="row">Item 8</div>
+        <div class="row">Item 9</div><div class="row">Item 10</div><div class="row">Item 11</div><div class="row">Item 12</div>
+        <div class="row">Item 13</div><div class="row">Item 14</div><div class="row">Item 15</div><div class="row">Item 16</div>
+        <div class="row">Item 17</div><div class="row">Item 18</div><div class="row">Item 19</div>
+        <div class="row"><button onclick="say('aninhado')">Alvo no fim da lista</button></div>
+      </div>
+    </section>
+    <section>
+      <h2>Só responde à roda</h2>
+      <div class="wheel-only" id="wheel" aria-label="Lista com rolagem própria">
+        <div class="track" id="track"></div>
+      </div>
+    </section>
+    <div class="gap" style="--h: 3600px"></div>
+    <section><h2>Bem longe</h2><button onclick="say('longe')">Alvo bem longe</button></section>
+    <div class="gap" style="--h: 600px"></div>
+  </main>
+  <script>
+    function say(text) { document.getElementById('status').textContent = 'Clicou: ' + text; }
+    // Lazy load: o bloco cresce 200 ms depois de entrar na tela (a página muda de altura no meio do scroll).
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) { setTimeout(() => e.target.classList.add('loaded'), 200); io.unobserve(e.target); }
+      }
+    }, { rootMargin: '200px' });
+    document.querySelectorAll('[data-lazy]').forEach((el) => io.observe(el));
+    // Scroller que só responde à roda: o conteúdo anda por transform; scrollTop não tem efeito.
+    const track = document.getElementById('track');
+    for (let i = 1; i <= 30; i++) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = i === 30 ? '<button onclick="say(\'roda\')">Alvo da roda</button>' : 'Linha ' + i;
+      track.append(row);
+    }
+    let offset = 0;
+    const max = 30 * 48 - 240;
+    document.getElementById('wheel').addEventListener('wheel', (e) => {
+      e.preventDefault();
+      offset = Math.max(0, Math.min(max, offset + e.deltaY));
+      track.style.transform = `translateY(${-offset}px)`;
+    }, { passive: false });
+  </script>
+</body>
+</html>

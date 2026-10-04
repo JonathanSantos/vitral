@@ -253,7 +253,9 @@ select{font:13px system-ui;padding:5px}
 </style></head><body><main>
 <h1>Vitral cursorlab</h1>
 <p class="muted">Velocidade <b>%s</b> · semente <code>%d</code> · %d trajetórias por cenário%s.
-Regere com <code>go run ./tools/cursorlab -speed slow -seed 2 -set FittsB=120</code>.</p>`,
+Regere com <code>go run ./tools/cursorlab -speed slow -seed 2 -set FittsB=120</code>.</p>
+<div class="controls"><button class="tab" data-tab="cursor">Cursor</button><button class="tab sec" data-tab="scroll">Scroll</button></div>
+<div id="tab-cursor">`,
 		brand.CSSVars(), stageW, stageH, p.Speed, seed, n, overrideNote(overrides))
 
 	fmt.Fprint(&b, `<div class="card"><h2 style="margin-top:0">Palco</h2>
@@ -274,10 +276,16 @@ Regere com <code>go run ./tools/cursorlab -speed slow -seed 2 -set FittsB=120</c
 	for si, sc := range scenarios {
 		writeScenario(&b, p, sc, all[si])
 	}
+	b.WriteString(`</div><div id="tab-scroll" hidden>`)
+	scrollData := writeScrollTab(&b, p.Speed, seed)
+	b.WriteString(`</div>`)
 
 	fmt.Fprintf(&b, `</main><script>%s
+%s
 const DATA = %s;
-%s</script></body></html>`, overlay.CursorScript, data, labJS)
+const SCROLL = %s;
+%s
+%s</script></body></html>`, overlay.CursorScript, overlay.ScrollScript, data, scrollData, labJS, scrollJS)
 	return b.String()
 }
 
