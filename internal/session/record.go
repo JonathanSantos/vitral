@@ -37,10 +37,12 @@ func (s *Session) record(rec *recording, sel *flow.Selector, note string) string
 	if rec.ref != "" && sel == nil {
 		return fmt.Sprintf("(not recorded for flows: %s)", note)
 	}
-	return fmt.Sprintf("flow step #%d", s.rec.Add(rec.step(sel)))
+	return fmt.Sprintf("flow step #%d", s.rec.AddAt(rec.step(sel), s.pageURL()))
 }
 
 // Record grava um passo vindo de fora da sessão (ex.: mock_add). Devolve vazio durante flow_run.
 func (s *Session) Record(step flow.Step) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.record(&recording{step: func(*flow.Selector) flow.Step { return step }}, nil, "")
 }

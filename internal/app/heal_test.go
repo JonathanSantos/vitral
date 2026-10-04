@@ -122,8 +122,11 @@ func TestFlowHealing(t *testing.T) {
 		hh.fail(t, "flow_run", map[string]any{"name": "sensivel", "acceptHealing": true}, "acceptHealing needs resumeFrom")
 		// Sem acceptHealing, pergunta de novo; com ele, continua do passo 2.
 		mustContain(t, hh.ok(t, "flow_run", map[string]any{"name": "sensivel", "resumeFrom": 2}), "Healing needed at step 2")
+		// Outra página aberta no meio (a pessoa conferiu outra coisa): retomar volta para onde parou.
+		hh.ok(t, "open", map[string]any{"url": hh.url("/pages/form.html")})
 		out = hh.ok(t, "flow_run", map[string]any{"name": "sensivel", "resumeFrom": 2, "acceptHealing": true})
-		mustContain(t, out, "resuming at step 2", `2. ok (healed) click button "Confirmar"`, "done: 3/3 steps passed.")
+		mustContain(t, out, "resuming at step 2", "reopened "+hh.url("/pages/heal/sensivel.html")+" (where the flow stopped)",
+			`2. ok (healed) click button "Confirmar"`, "done: 3/3 steps passed.")
 		if got := status(t); got != "confirmar, continuar" {
 			t.Fatalf("status %q", got)
 		}

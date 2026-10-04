@@ -109,6 +109,18 @@ func (s *Session) RunFlow(ctx context.Context, f flow.Flow, values map[string]st
 		header += fmt.Sprintf(", resuming at step %d", start)
 	}
 	lines := []string{header}
+	// Retomar é continuar de onde parou: se outra página foi aberta no meio, volta para aquela.
+	if start > 1 {
+		s.mu.Lock()
+		stopped, current := s.stoppedAt[f.Name], s.pageURL()
+		s.mu.Unlock()
+		if stopped != "" && withoutFragment(stopped) != withoutFragment(current) {
+			if _, err := s.Open(ctx, stopped); err != nil {
+				return "", fmt.Errorf("could not reopen %s, where flow %s stopped: %w", stopped, f.Name, err)
+			}
+			lines = append(lines, fmt.Sprintf("reopened %s (where the flow stopped)", stopped))
+		}
+	}
 	defer s.ui.FlowEnded()
 	for i, step := range steps {
 		if i+1 < start {
@@ -126,6 +138,7 @@ func (s *Session) RunFlow(ctx context.Context, f flow.Flow, values map[string]st
 		s.ui.FlowProgress(f.Name, i+1, len(steps))
 		healedBefore := len(run.healed)
 		if err := s.runStep(ctx, step, addMock, run); err != nil {
+			s.rememberStop(f.Name)
 			var confirm needsConfirm
 			if errors.As(err, &confirm) {
 				h := confirm.healing
@@ -152,6 +165,21 @@ func (s *Session) RunFlow(ctx context.Context, f flow.Flow, values map[string]st
 	}
 	lines = append(lines, healedReport(f.Name, run.healed)...)
 	return s.withSnapshot(ctx, lines, fmt.Sprintf("done: %d/%d steps passed.", len(steps)-start+1, len(steps)-start+1)), nil
+}
+
+// rememberStop guarda a página onde o fluxo parou.
+func (s *Session) rememberStop(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stoppedAt == nil {
+		s.stoppedAt = map[string]string{}
+	}
+	s.stoppedAt[name] = s.pageURL()
+}
+
+func withoutFragment(u string) string {
+	before, _, _ := strings.Cut(u, "#")
+	return before
 }
 
 // keepHealing guarda os passos curados para o flow_update. Uma execução retomada continua a anterior:

@@ -177,7 +177,7 @@
   },
   {
     "name": "flow_update",
-    "description": "After the user agrees, save the steps healed in the last flow_run into the flow file (the previous version goes to .history).",
+    "description": "After the user agrees, save the steps healed in the last flow_run of this flow into its file (the previous version goes to .history).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

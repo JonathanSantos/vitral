@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -140,15 +141,20 @@ func (s Store) List() ([]Flow, error) {
 type Recorder struct {
 	mu        sync.Mutex
 	steps     []Step
+	urls      []string // página depois de cada passo (para conferir o expect na página certa)
 	savedUpTo int
 	preview   *Selection
 }
 
-// Selection é a escolha de passos de uma prévia do flow_save.
+// Selection é a prévia do flow_save: a escolha de passos e o resto da chamada (parâmetros, resultado
+// esperado e descrição), para o save logo depois reaproveitar o que não for repetido.
 type Selection struct {
-	Name     string
-	From, To int
-	Exclude  []int
+	Name        string
+	From, To    int
+	Exclude     []int
+	Params      map[string]string
+	Expect      string
+	Description string
 }
 
 // RememberPreview guarda a escolha da última prévia: o save logo depois, com o mesmo nome e sem
@@ -157,6 +163,7 @@ func (r *Recorder) RememberPreview(sel Selection) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	sel.Exclude = slices.Clone(sel.Exclude)
+	sel.Params = maps.Clone(sel.Params)
 	r.preview = &sel
 }
 
@@ -171,11 +178,25 @@ func (r *Recorder) LastPreview(name string) (Selection, bool) {
 }
 
 // Add grava um passo e devolve seu número.
-func (r *Recorder) Add(s Step) int {
+func (r *Recorder) Add(s Step) int { return r.AddAt(s, "") }
+
+// AddAt grava um passo com a URL da página depois dele.
+func (r *Recorder) AddAt(s Step, url string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.steps = append(r.steps, s)
+	r.urls = append(r.urls, url)
 	return len(r.steps)
+}
+
+// URLAt é a URL da página depois do passo n ("" se não registrada).
+func (r *Recorder) URLAt(n int) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if n < 1 || n > len(r.urls) {
+		return ""
+	}
+	return r.urls[n-1]
 }
 
 // Range devolve os passos de from até to (1-based, inclusive); from 0 usa "desde o último

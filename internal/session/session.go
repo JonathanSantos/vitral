@@ -80,6 +80,7 @@ type Session struct {
 	ax        *axRefs                 // motor ax: refs do documento atual
 	healed    map[string][]HealedStep // autocura da última execução de cada fluxo (flow_update)
 	smap      *screenMap              // mapa de telas (nil com --no-map)
+	stoppedAt map[string]string       // página onde cada fluxo parou (para o resumeFrom)
 	axStats   AXStats
 
 	// AXFullTree faz o snapshot da área visível usar a árvore de acessibilidade inteira: só para os
@@ -359,21 +360,35 @@ func (s *Session) Snapshot(ctx context.Context, opts SnapshotOptions) (string, e
 	return withScreenLine(snapshot.Format(page, format), s.screenLine(ctx)), nil
 }
 
-// TextOnPage diz se o texto está visível na página atual (como o wait_for procura) e se está no título.
-func (s *Session) TextOnPage(ctx context.Context, text string) (visible, inTitle bool, err error) {
+// TextOnPage diz se o texto está visível na página atual (como o wait_for procura), se está no
+// título e qual é a URL da página.
+func (s *Session) TextOnPage(ctx context.Context, text string) (visible, inTitle bool, url string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, err := s.page(); err != nil {
-		return false, false, err
+		return false, false, "", err
 	}
 	var res struct {
-		Found bool `json:"found"`
-		Title bool `json:"title"`
+		Found bool   `json:"found"`
+		Title bool   `json:"title"`
+		URL   string `json:"url"`
 	}
-	js := `(t) => ({found: window.__vitral.findText(t).found,
+	js := `(t) => ({found: window.__vitral.findText(t).found, url: location.href,
 		title: document.title.toLowerCase().includes(t.replace(/\s+/g, ' ').trim().toLowerCase())})`
 	err = s.evalInto(ctx, &res, js, text)
-	return res.Found, res.Title, err
+	return res.Found, res.Title, res.URL, err
+}
+
+// pageURL é a URL da página ativa ("" sem página). Com s.mu travado.
+func (s *Session) pageURL() string {
+	if s.current == nil {
+		return ""
+	}
+	info, err := s.current.Info()
+	if err != nil {
+		return ""
+	}
+	return info.URL
 }
 
 // refError traduz o resultado das funções JS em mensagens acionáveis.

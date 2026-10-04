@@ -56,7 +56,7 @@ func registerFlows(s *mcp.Server, d Deps) {
 
 	addTool(s, d, &mcp.Tool{
 		Name:        "flow_update",
-		Description: "After the user agrees, save the steps healed in the last flow_run into the flow file (the previous version goes to .history).",
+		Description: "After the user agrees, save the steps healed in the last flow_run of this flow into its file (the previous version goes to .history).",
 	}, flowUpdateTool(d))
 }
 
@@ -67,9 +67,20 @@ func flowSaveTool(d Deps) mcp.ToolHandlerFor[flowSaveInput, any] {
 		}
 		rec := d.Session.Recorder()
 		asPreviewed := false
-		if !in.Preview && in.FromStep == 0 && in.ToStep == 0 && len(in.Exclude) == 0 {
-			if sel, ok := rec.LastPreview(in.Name); ok {
+		// O save logo depois da prévia reaproveita a chamada da prévia no que não for repetido (um
+		// modelo confere a prévia e salva só com o nome).
+		if sel, ok := rec.LastPreview(in.Name); ok && !in.Preview {
+			if in.FromStep == 0 && in.ToStep == 0 && len(in.Exclude) == 0 {
 				in.FromStep, in.ToStep, in.Exclude, asPreviewed = sel.From, sel.To, sel.Exclude, true
+			}
+			if in.Params == nil && sel.Params != nil {
+				in.Params, asPreviewed = sel.Params, true
+			}
+			if in.Expect == "" && sel.Expect != "" {
+				in.Expect, asPreviewed = sel.Expect, true
+			}
+			if in.Description == "" && sel.Description != "" {
+				in.Description, asPreviewed = sel.Description, true
 			}
 		}
 		all, from, to, err := rec.Range(in.FromStep, in.ToStep)
@@ -100,7 +111,7 @@ func flowSaveTool(d Deps) mcp.ToolHandlerFor[flowSaveInput, any] {
 		if expect := strings.TrimSpace(in.Expect); expect != "" {
 			if w := flow.ExpectWarnings(expect, in.Params); len(w) > 0 {
 				warn = append(warn, w...)
-			} else if w := expectWarning(ctx, d, expect); w != "" {
+			} else if w := expectWarning(ctx, d, expect, rec.URLAt(picked[len(picked)-1].N)); w != "" {
 				warn = append(warn, w)
 			}
 		}
@@ -133,7 +144,10 @@ func flowSaveTool(d Deps) mcp.ToolHandlerFor[flowSaveInput, any] {
 		}
 		var lines []string
 		if in.Preview {
-			rec.RememberPreview(flow.Selection{Name: in.Name, From: from, To: to, Exclude: in.Exclude})
+			rec.RememberPreview(flow.Selection{
+				Name: in.Name, From: from, To: to, Exclude: in.Exclude,
+				Params: in.Params, Expect: in.Expect, Description: in.Description,
+			})
 			lines = []string{fmt.Sprintf("preview of flow %s: %d steps from session steps #%d to #%d (nothing saved yet)", in.Name, len(steps), from, to)}
 			lines = append(lines, describe()...)
 		} else {
@@ -172,17 +186,18 @@ func flowSaveTool(d Deps) mcp.ToolHandlerFor[flowSaveInput, any] {
 			}
 		}
 		if in.Preview {
-			lines = append(lines, "Check these steps against the task (leave out extra ones with excludeSteps=[N] or narrow fromStep/toStep), then call flow_save again without preview to save (with no fromStep/toStep/excludeSteps it saves exactly these steps).")
+			lines = append(lines, "Check these steps against the task (leave out extra ones with excludeSteps=[N] or narrow fromStep/toStep), then call flow_save again without preview to save. With only the name it saves exactly this preview (steps, params, expect and description).")
 		}
 		return strings.Join(lines, "\n"), nil
 	})
 }
 
-// expectWarning confere o expect na página atual: o flow_run espera esse texto visível na página
-// (wait_for), e um modelo pequeno às vezes escolhe o título da aba ou o nome de um campo.
-func expectWarning(ctx context.Context, d Deps, expect string) string {
-	visible, inTitle, err := d.Session.TextOnPage(ctx, expect)
-	if err != nil || visible {
+// expectWarning confere o expect na página onde o fluxo termina: o flow_run espera esse texto visível
+// (wait_for), e um modelo pequeno às vezes escolhe o título da aba ou o nome de um campo. Só confere
+// quando a página atual é a do último passo salvo (endURL); em outra página, não dá para saber.
+func expectWarning(ctx context.Context, d Deps, expect, endURL string) string {
+	visible, inTitle, current, err := d.Session.TextOnPage(ctx, expect)
+	if err != nil || visible || endURL != "" && withoutFragment(current) != withoutFragment(endURL) {
 		return ""
 	}
 	where := "is not in the visible text of the current page"
@@ -283,4 +298,9 @@ func flowUpdateTool(d Deps) mcp.ToolHandlerFor[flowUpdateInput, any] {
 		head := fmt.Sprintf("updated %s (%d steps changed; previous version in %s)", path, len(healed), history)
 		return strings.Join(append([]string{head}, lines...), "\n"), nil
 	})
+}
+
+func withoutFragment(u string) string {
+	before, _, _ := strings.Cut(u, "#")
+	return before
 }

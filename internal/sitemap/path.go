@@ -3,6 +3,7 @@ package sitemap
 import (
 	"container/heap"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/JonathanSantos/vitral/internal/heal"
@@ -50,11 +51,14 @@ func (m *Map) PathWith(from, to string, now time.Time, allow func(*Edge) bool) (
 		if cur.id == to {
 			break
 		}
-		for _, e := range m.Edges {
-			if e.From != cur.id || e.Suspect() || e.To == e.From || allow != nil && !allow(e) {
+		for _, e := range m.outgoing(cur.id) {
+			if e.Suspect() || e.To == e.From || allow != nil && !allow(e) {
 				continue
 			}
 			d := cur.dist + weight(e, now)
+			if e.Global {
+				d += globalPenalty
+			}
 			if old, ok := dist[e.To]; !ok || d < old {
 				dist[e.To], prev[e.To] = d, e
 				heap.Push(pq, item{id: e.To, dist: d})
@@ -96,4 +100,61 @@ func SanitizeSig(s heal.Signature) heal.Signature {
 		s.Href = normalizePath(s.Href)
 	}
 	return s
+}
+
+// globalPenalty é o custo extra de usar, numa tela, um link de menu aprendido em outra: preferível a
+// um caminho mais longo, mas uma transição vista na própria tela ganha.
+const globalPenalty = 0.15
+
+// globalRoles são as regiões repetidas em todas as telas de um sistema (menu, cabeçalho, rodapé).
+var globalRoles = map[string]bool{"navigation": true, "banner": true, "contentinfo": true}
+
+// landmarkKey é a região como aparece na assinatura ("navigation Menu").
+func landmarkKey(it Item) string { return strings.TrimSpace(it.Role + " " + it.Name) }
+
+func globalLandmark(l string) bool {
+	role, _, _ := strings.Cut(l, " ")
+	return globalRoles[role]
+}
+
+// outgoing são as saídas de uma tela: as transições vistas nela e os links de menu global usados em
+// outra tela que tem o mesmo menu (pedido 5, "goto" mais curto): o clique aconteceu de verdade, só vale
+// também onde o mesmo menu existe. A resolução continua conferindo a página ao vivo; quando o passo
+// funciona, a transição real é aprendida.
+func (m *Map) outgoing(id string) []*Edge {
+	var out []*Edge
+	for _, e := range m.Edges {
+		if e.From == id {
+			out = append(out, e)
+		}
+	}
+	s := m.Screen(id)
+	if s == nil {
+		return out
+	}
+	menus := map[string]bool{}
+	for _, it := range s.Print {
+		if globalRoles[it.Role] {
+			menus[landmarkKey(it)] = true
+		}
+	}
+	for _, e := range m.Edges {
+		t := e.Action.Target
+		if e.From == id || e.To == id || t == nil || !globalLandmark(t.Landmark) || !menus[t.Landmark] || hasAction(out, e.To, e.Action) {
+			continue
+		}
+		v := *e
+		v.From, v.Global = id, true
+		out = append(out, &v)
+	}
+	return out
+}
+
+func hasAction(list []*Edge, to string, a Action) bool {
+	for _, e := range list {
+		if e.To == to && e.Action.same(a) {
+			return true
+		}
+	}
+	return false
 }

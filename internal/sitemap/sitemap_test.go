@@ -406,3 +406,55 @@ func TestLineFindScreenAndNavigable(t *testing.T) {
 		t.Fatal("none")
 	}
 }
+
+func TestGlobalMenuEdges(t *testing.T) {
+	m := New("p.test")
+	menu := Item{"navigation", "Menu"}
+	list := m.Visit(visit("/pedidos", "Pedidos", menu, Item{"heading", "Pedidos"}), t0)
+	detail := m.Visit(visit("/pedido", "Pedido", menu, Item{"heading", "Pedido"}), t0)
+	clients := m.Visit(visit("/clientes", "Clientes", menu, Item{"heading", "Clientes"}), t0)
+	lonely := m.Visit(visit("/login", "Entrar", Item{"heading", "Entrar"}), t0)
+	navClients := &heal.Signature{Role: "link", Name: "Clientes", Landmark: "navigation Menu"}
+	m.Transition(list, detail, Action{Kind: "click", Target: sig("link", "Ver detalhes")}, t0)
+	m.Transition(detail, clients, Action{Kind: "click", Target: navClients}, t0)
+	m.Transition(lonely, list, Action{Kind: "click", Target: sig("button", "Entrar")}, t0)
+
+	// O link "Clientes" do menu, usado na tela do pedido, vale na lista (mesmo menu): 1 passo.
+	p, ok := m.Path(list.ID, clients.ID, t0)
+	if !ok || len(p) != 1 || !p[0].Global || p[0].From != list.ID || p[0].Action.Target.Name != "Clientes" {
+		t.Fatalf("%+v", p)
+	}
+	if len(m.Edges) != 3 {
+		t.Fatal("virtual edges are not stored")
+	}
+	// A tela sem o menu não ganha o atalho: primeiro "Entrar" (visto ali), depois o menu da lista.
+	if p, ok := m.Path(lonely.ID, clients.ID, t0); !ok || len(p) != 2 || p[0].Global || !p[1].Global {
+		t.Fatalf("lonely: %+v", p)
+	}
+	// Um caminho visto na própria tela, com o mesmo custo, ganha do atalho do menu.
+	direct := m.Transition(list, clients, Action{Kind: "click", Target: sig("button", "Ver clientes")}, t0)
+	if p, _ := m.Path(list.ID, clients.ID, t0); len(p) != 1 || p[0] != direct {
+		t.Fatalf("observed wins: %+v", p)
+	}
+	// O mesmo link já visto na própria tela não vira atalho repetido; e a saída para a própria tela não conta.
+	m.Transition(list, clients, Action{Kind: "click", Target: navClients}, t0)
+	for _, e := range m.outgoing(list.ID) {
+		if e.Global && e.To == clients.ID {
+			t.Fatalf("duplicate global edge: %+v", e)
+		}
+	}
+	for _, e := range m.outgoing(clients.ID) {
+		if e.Global && e.To == clients.ID {
+			t.Fatal("a menu link to the same screen is not an exit")
+		}
+	}
+	if m.outgoing("s99") != nil {
+		t.Fatal("unknown screen")
+	}
+	// Só regiões globais: um link de uma região comum não vira atalho.
+	region := &heal.Signature{Role: "link", Name: "Pedido", Landmark: "region Resumo"}
+	m.Transition(clients, detail, Action{Kind: "click", Target: region}, t0)
+	if !globalLandmark("banner") || globalLandmark("region Resumo") || globalLandmark("") {
+		t.Fatal("globalLandmark")
+	}
+}

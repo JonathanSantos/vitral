@@ -684,3 +684,19 @@ func TestStoreUpdateKeepsHistory(t *testing.T) {
 		t.Fatalf("%v %v", list, err)
 	}
 }
+
+func TestRecorderURLsAndPreviewCall(t *testing.T) {
+	r := &Recorder{}
+	n := r.AddAt(Step{Open: "a"}, "https://p.test/a")
+	r.Add(Step{Press: "Enter"})
+	if r.URLAt(n) != "https://p.test/a" || r.URLAt(2) != "" || r.URLAt(0) != "" || r.URLAt(3) != "" {
+		t.Fatal("URLAt")
+	}
+	params := map[string]string{"termo": "Vitral"}
+	r.RememberPreview(Selection{Name: "f", From: 1, To: 2, Params: params, Expect: "Vitral", Description: "busca"})
+	params["termo"] = "outro"
+	sel, ok := r.LastPreview("f")
+	if !ok || sel.Params["termo"] != "Vitral" || sel.Expect != "Vitral" || sel.Description != "busca" {
+		t.Fatalf("%+v", sel)
+	}
+}

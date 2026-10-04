@@ -103,8 +103,8 @@ func TestScreenMapMiniSystem(t *testing.T) {
 	if strings.Contains(goOut, "Warning") {
 		t.Fatalf("goto should arrive:\n%s", goOut)
 	}
-	// Ida e volta: do pedido até o Painel pelo caminho aprendido.
-	mustContain(t, hh.ok(t, "goto", map[string]any{"screen": "Painel"}), `goto "Painel" from "Pedido <num>": 3 steps`, "done: 3/3")
+	// O link "Início" do menu, usado na tela de Clientes, vale no pedido (mesmo menu): 1 passo.
+	mustContain(t, hh.ok(t, "goto", map[string]any{"screen": "Painel"}), `goto "Painel" from "Pedido <num>": 1 steps`, "done: 1/1")
 	// Passo sensível: o caminho do cadastro para a lista passa por "Enviar pedido".
 	snap = hh.ok(t, "open", map[string]any{"url": hh.url("/pages/mini/novo-pedido.html")})
 	hh.ok(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "Cliente"), "text": "Bia"})
@@ -114,6 +114,10 @@ func TestScreenMapMiniSystem(t *testing.T) {
 		t.Fatalf("goto must not run before the user agrees: %v", got)
 	}
 	mustContain(t, hh.ok(t, "goto", map[string]any{"screen": "Lista de pedidos", "confirm": true}), "done: 1/1", `status "Pedido criado"`)
+
+	// Link do menu usado em outra tela: do cadastro (mesmo menu) até Clientes em 1 passo, sem desvio.
+	hh.ok(t, "open", map[string]any{"url": hh.url("/pages/mini/novo-pedido.html")})
+	mustContain(t, hh.ok(t, "goto", map[string]any{"screen": "Clientes"}), `goto "Clientes" from "Cadastro de pedido": 1 steps`, "done: 1/1", `heading "Clientes"`)
 
 	// Tokens para "ir até o detalhe de um pedido" saindo de Clientes: à mão (ler a tela e clicar) e com o mapa.
 	estimate := func(s string) int { return (len(s) + 3) / 4 }

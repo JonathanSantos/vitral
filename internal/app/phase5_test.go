@@ -125,13 +125,14 @@ func TestFlowSavePreviewAndExclude(t *testing.T) {
 
 	h.fail(t, "flow_save", map[string]any{"name": "cadastro-previa", "fromStep": first, "excludeSteps": []int{first - 1}},
 		fmt.Sprintf("excludeSteps: step #%d is not in the steps being saved (#%d-#%d)", first-1, first, first+7))
-	// A prévia com a escolha certa; o save logo depois, sem repetir o intervalo, usa a mesma escolha.
+	// A prévia com a chamada completa; o save logo depois, só com o nome, reaproveita tudo (passos,
+	// parâmetros, resultado esperado e descrição).
 	h.ok(t, "flow_save", map[string]any{
 		"name": "cadastro-previa", "fromStep": first, "excludeSteps": []int{first + 7}, "preview": true,
+		"params": map[string]any{"nome": "Maria Silva"}, "expect": "Cadastro enviado: Maria Silva", "description": "Cadastro de teste",
 	})
-	out := h.ok(t, "flow_save", map[string]any{
-		"name": "cadastro-previa", "params": map[string]any{"nome": "Maria Silva"}, "expect": "Cadastro enviado: Maria Silva",
-	})
+	out := h.ok(t, "flow_save", map[string]any{"name": "cadastro-previa"})
+	mustContain(t, h.ok(t, "flow_list", nil), "cadastro-previa — Cadastro de teste (params: nome; 8 steps)")
 	mustContain(t, out, "cadastro-previa.yaml (8 steps", "as in the last preview", fmt.Sprintf(`7. wait_for text "Cadastro enviado: {{nome}}" (#%d)`, first+6),
 		`8. wait_for text "Cadastro enviado: {{nome}}" (expect)`)
 	if strings.Contains(out, "scroll down") || strings.Contains(out, "warning:") {
@@ -139,6 +140,20 @@ func TestFlowSavePreviewAndExclude(t *testing.T) {
 	}
 	run := h.ok(t, "flow_run", map[string]any{"name": "cadastro-previa", "params": map[string]any{"nome": "Rui Costa"}})
 	mustContain(t, run, "done: 8/8 steps passed.")
+}
+
+// O expect só é conferido na página onde o fluxo termina: salvando com outra página aberta, não há aviso.
+func TestFlowSaveExpectOnAnotherPage(t *testing.T) {
+	first := recordForm(t, "Maria Silva")
+	h.ok(t, "open", map[string]any{"url": h.url("/pages/api.html")})
+	out := h.ok(t, "flow_save", map[string]any{"name": "cadastro-outra-pagina", "fromStep": first, "toStep": first + 6, "expect": "Cadastro enviado: Maria Silva", "preview": true})
+	if strings.Contains(out, "is not in the visible text") || strings.Contains(out, "warning:") {
+		t.Fatalf("the expect cannot be checked on another page:\n%s", out)
+	}
+	// Na própria página, o texto que não está lá ainda avisa.
+	recordForm(t, "Maria Silva")
+	out = h.ok(t, "flow_save", map[string]any{"name": "cadastro-outra-pagina", "fromStep": first + 8, "expect": "Texto que não existe", "preview": true})
+	mustContain(t, out, `expect "Texto que não existe" is not in the visible text`)
 }
 
 // expect adiciona o wait_for no fim, com o valor do parâmetro trocado pelo placeholder: o fluxo

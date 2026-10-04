@@ -95,6 +95,8 @@ type Edge struct {
 	Failures  int       `json:"failures"`
 	Streak    int       `json:"failStreak,omitempty"` // falhas seguidas
 	LastUsed  time.Time `json:"lastUsed"`
+	// Global marca, nos caminhos, um link de menu global aprendido em outra tela (não é gravado).
+	Global bool `json:"-"`
 }
 
 // Suspect diz se a aresta saiu das sugestões (3 falhas seguidas, até um sucesso).

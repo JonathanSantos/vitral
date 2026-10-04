@@ -23,7 +23,7 @@ steps:
     expect: { contains: ['link "Voltar para pedidos" on screen "Pedido <num>": 2 step(s) from here'] }
   - call: goto
     args: { screen: "Clientes" }
-    expect: { contains: ['goto "Clientes" from "Painel": 2 steps', "done: 2/2 steps passed."] }
+    expect: { contains: ['goto "Clientes" from "Painel": 1 steps', "done: 1/1 steps passed."] }
   - call: goto
     args: { screen: "Painel" }
     expect: { contains: ['goto "Painel" from "Clientes": 1 steps', "done: 1/1 steps passed.", 'heading "Painel"'] }
