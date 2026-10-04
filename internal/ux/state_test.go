@@ -66,3 +66,30 @@ func TestResumeClearsHoldAndCollapseIsIndependent(t *testing.T) {
 		t.Fatal("button label")
 	}
 }
+
+func TestNavNote(t *testing.T) {
+	s := Next(State{Mode: Idle}, Event{Kind: ToolStarted})
+	s = Next(s, Event{Kind: NavStarted, Reason: "Abrindo exemplo.com"})
+	if Label(s) != "Abrindo exemplo.com" {
+		t.Fatalf("label %q", Label(s))
+	}
+	if s2 := Next(s, Event{Kind: NavEnded}); Label(s2) != TextWorking || s2.Note != "" {
+		t.Fatalf("nav ended: %q", Label(s2))
+	}
+	if s3 := Next(s, Event{Kind: ToolFinished}); s3.Note != "" || s3.Mode != Idle {
+		t.Fatalf("tool finished clears the note: %+v", s3)
+	}
+	// Com outra ferramenta ainda rodando, a nota fica.
+	two := Next(Next(s, Event{Kind: ToolStarted}), Event{Kind: ToolFinished})
+	if two.Note == "" {
+		t.Fatal("note stays while a tool is still running")
+	}
+	paused := Next(State{Mode: Paused}, Event{Kind: NavStarted, Reason: "Voltando"})
+	if paused.Note != "" || Label(paused) != TextPaused {
+		t.Fatalf("paused ignores navigation notes: %+v", paused)
+	}
+	// A nota só aparece no modo trabalhando.
+	if Label(State{Mode: Idle, Note: "x"}) != TextIdle {
+		t.Fatal("idle shows the idle text")
+	}
+}

@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"time"
@@ -62,13 +63,14 @@ func (m *Manager) PlayCursor(ctx context.Context, plan cursor.Plan, ring string,
 		m.waiters = map[string]chan struct{}{}
 	}
 	m.waiters[id] = ch
-	m.mu.Unlock()
 	defer func() {
 		m.mu.Lock()
 		delete(m.waiters, id)
 		m.mu.Unlock()
 	}()
 
+	m.cursorAt, m.cursorShown = plan.End, true
+	m.mu.Unlock()
 	cmd := map[string]any{"op": "play", "id": id, "plan": plan, "appear": appear, "label": ux.TextCursorLabel}
 	if ring != "" {
 		cmd["ring"] = ring
@@ -100,10 +102,58 @@ func (m *Manager) cursorDone(id string) {
 	}
 }
 
-// PlaceCursor põe o cursor num ponto sem animar (reidratação depois de navegar).
+// PlaceCursor põe o cursor num ponto sem animar.
 func (m *Manager) PlaceCursor(ctx context.Context, p cursor.Point, visible bool) error {
+	if m.opts.Minimal {
+		return nil
+	}
+	m.mu.Lock()
+	m.cursorAt, m.cursorShown = p, true
+	m.mu.Unlock()
 	return m.cursorCmd(ctx, map[string]any{"op": "place", "x": p.X, "y": p.Y, "visible": visible, "label": ux.TextCursorLabel})
 }
+
+// CursorPosition é onde o cursor está na página atual; ok=false antes da primeira aparição.
+func (m *Manager) CursorPosition() (cursor.Point, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cursorAt, m.cursorShown
+}
+
+// rehydrateCursor recoloca o cursor na última posição quando um documento novo monta o overlay
+// (navegação ou reload; a página limita à viewport).
+func (m *Manager) rehydrateCursor() {
+	at, shown := m.CursorPosition()
+	if !shown || m.opts.Minimal {
+		return
+	}
+	_ = m.cursorCmd(context.Background(), map[string]any{"op": "place", "x": at.X, "y": at.Y, "visible": true, "label": ux.TextCursorLabel})
+}
+
+// NavStart mostra "Abrindo {host}" ou "Voltando" no selo e deixa o cursor a 40% (5.6).
+func (m *Manager) NavStart(ctx context.Context, label string) {
+	m.Apply(ux.Event{Kind: ux.NavStarted, Reason: label})
+	_ = m.CursorNav(ctx, true)
+}
+
+// NavEnd devolve o selo e o cursor ao normal depois que a página carregou.
+func (m *Manager) NavEnd(ctx context.Context) {
+	m.Apply(ux.Event{Kind: ux.NavEnded})
+	_ = m.CursorNav(ctx, false)
+}
+
+// ShowHighlight mostra o destaque por d sem esperar: com o cursor, o destaque começa junto com o
+// movimento e a espera mínima vai para a mira (5.1).
+func (m *Manager) ShowHighlight(ctx context.Context, ref string, box [4]int, d time.Duration) {
+	if m.opts.Minimal || d <= 0 || box[2] <= 0 || box[3] <= 0 {
+		return
+	}
+	data, _ := json.Marshal(newMark(ref, ux.Box(box), int(d.Milliseconds())))
+	m.eval(ctx, "highlight", string(data))
+}
+
+// HighlightDuration é o tempo mínimo de destaque configurado (--highlight-ms).
+func (m *Manager) HighlightDuration() time.Duration { return m.opts.Highlight }
 
 // CursorNav deixa o cursor a 40% enquanto a página carrega (open/back).
 func (m *Manager) CursorNav(ctx context.Context, on bool) error {

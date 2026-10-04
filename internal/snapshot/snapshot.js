@@ -462,7 +462,83 @@
     info.x = cx + off.x;
     info.y = cy + off.y;
     info.box = boxOf(el);
+    info.kind = cursorKind(el);
     return info;
+  }
+
+  // Cursor visual (docs/CURSOR.md, 12.2). Um ponto só vale se acertar o alvo ou um descendente NÃO
+  // interativo: num card clicável com uma lixeira dentro, um ponto na lixeira não é clique no card.
+  function isInteractive(n) {
+    if (!n || n.nodeType !== 1) return false;
+    if (n.matches('a[href],button,input,select,textarea,[onclick]')) return true;
+    const ce = n.getAttribute('contenteditable');
+    if (ce !== null && ce !== 'false') return true;
+    const ti = n.getAttribute('tabindex');
+    if (ti !== null && Number(ti) >= 0) return true;
+    const role = n.getAttribute('role');
+    return !!role && INTERACTIVE_ROLES.has(role);
+  }
+
+  // hitsOnly: (x, y) em coordenadas da página principal acerta el (ou o label dele) sem passar por um
+  // filho interativo.
+  function hitsOnly(el, x, y) {
+    const off = frameOffset(el.ownerDocument);
+    const at = deepElementFromPoint(el.ownerDocument, x - off.x, y - off.y);
+    if (!at) return false;
+    if (at.tagName === 'LABEL' && at.control === el) return true;
+    if (!composedContains(el, at)) return false;
+    for (let n = at; n && n !== el; n = n.parentNode || n.host) {
+      if (isInteractive(n)) return false;
+    }
+    return true;
+  }
+
+  function cursorKind(el) {
+    if (editableInfo(el)) return 'text';
+    const c = getComputedStyle(el).cursor;
+    return c === 'text' || c === 'pointer' ? c : 'arrow';
+  }
+
+  // aim valida os candidatos sorteados pelo Go numa ida só e devolve o primeiro que vale. Se nenhum
+  // vale, devolve os retângulos dos filhos interativos para o Go achar a maior área livre. Também
+  // conta o que muda o plano: aba oculta e prefers-reduced-motion.
+  function aim(ref, cands) {
+    const el = find(ref);
+    if (!el) return { error: 'not_found' };
+    const index = (cands || []).findIndex((c) => hitsOnly(el, c[0], c[1]));
+    const obstacles = [];
+    if (index < 0) {
+      for (const n of el.querySelectorAll('*')) {
+        if (isInteractive(n) && isVisible(n)) obstacles.push(boxOf(n));
+        if (obstacles.length >= 64) break;
+      }
+    }
+    return { box: boxOf(el), kind: cursorKind(el), index, obstacles, ...env() };
+  }
+
+  // env é o que muda o plano do cursor: aba oculta, movimento reduzido e o tamanho da viewport.
+  function env() {
+    return {
+      hidden: document.visibilityState !== 'visible',
+      reduced: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+      viewport: [window.innerWidth, window.innerHeight],
+    };
+  }
+
+  function aimAt(ref, x, y) {
+    const el = find(ref);
+    return !!el && hitsOnly(el, x, y);
+  }
+
+  // revealSmooth começa uma rolagem suave até o alvo, se ele não estiver inteiro na tela (5.1).
+  function revealSmooth(ref) {
+    const el = find(ref);
+    if (!el) return { error: 'not_found' };
+    const r = el.getBoundingClientRect();
+    const win = el.ownerDocument.defaultView;
+    const off = r.top < 0 || r.left < 0 || r.bottom > win.innerHeight || r.right > win.innerWidth;
+    if (off) el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+    return { scrolling: off };
   }
 
   // Rola até o elemento se ele não estiver inteiro na tela e devolve a caixa (para o destaque).
@@ -474,7 +550,7 @@
     if (r.top < 0 || r.left < 0 || r.bottom > win.innerHeight || r.right > win.innerWidth) {
       el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
     }
-    return { box: boxOf(el) };
+    return { box: boxOf(el), kind: cursorKind(el) };
   }
 
   function editableInfo(el) {
@@ -647,6 +723,10 @@
     inspect,
     box: (ref) => { const el = find(ref); return el ? boxOf(el) : null; },
     reveal,
+    revealSmooth,
+    aim,
+    aimAt,
+    env,
     quietMs,
     roleOf,
     lastMutationAt: () => state.lastMutation,

@@ -53,6 +53,14 @@ type Config struct {
 	HighlightMs int  `yaml:"highlightMs"`
 	NoOverlay   bool `yaml:"noOverlay"`
 
+	// Cursor visual da IA (docs/CURSOR.md): on (só com janela visível), off ou force (liga mesmo
+	// sem janela visível, para testes e gravação de demos).
+	Cursor          string `yaml:"cursor"`
+	CursorSpeed     string `yaml:"cursorSpeed"`     // slow, normal, fast ou instant
+	FlowCursorSpeed string `yaml:"flowCursorSpeed"` // velocidade durante flow_run
+	CursorSeed      int64  `yaml:"cursorSeed"`      // 0 = aleatória por sessão
+	TypePacing      string `yaml:"typePacing"`      // on (só com janela visível) ou off
+
 	// Lang fixa o idioma do navegador (ex.: pt-BR); vazio = idioma do sistema.
 	Lang string `yaml:"lang"`
 	// DebugInfoFile recebe a URL do CDP e o PID do navegador lançado (testes e diagnóstico).
@@ -73,6 +81,10 @@ func Defaults(homeDir string) Config {
 		NetworkBuffer:    500,
 		ConsoleBuffer:    200,
 		HighlightMs:      -1,
+		Cursor:           "on",
+		CursorSpeed:      "normal",
+		FlowCursorSpeed:  "fast",
+		TypePacing:       "on",
 		FlowsDir:         filepath.Join("."+Name, "flows"),
 		LogLevel:         "info",
 	}
@@ -172,6 +184,11 @@ func parseFlags(cfg *Config, args []string) error {
 	fset.IntVar(&cfg.ConsoleBuffer, "console-buffer", cfg.ConsoleBuffer, "max console messages kept")
 	fset.IntVar(&cfg.HighlightMs, "highlight-ms", cfg.HighlightMs, "how long the target blinks before each action (0 disables; default 350, off in headless)")
 	fset.BoolVar(&cfg.NoOverlay, "no-overlay", cfg.NoOverlay, "hide the highlight and status badge (the pause button stays)")
+	fset.StringVar(&cfg.Cursor, "cursor", cfg.Cursor, "AI cursor: on (visible window only), off, or force (on even without a visible window: tests and demo recordings)")
+	fset.StringVar(&cfg.CursorSpeed, "cursor-speed", cfg.CursorSpeed, "AI cursor speed: slow, normal, fast or instant")
+	fset.StringVar(&cfg.FlowCursorSpeed, "flow-cursor-speed", cfg.FlowCursorSpeed, "AI cursor speed during flow_run")
+	fset.Int64Var(&cfg.CursorSeed, "cursor-seed", cfg.CursorSeed, "fixed seed for the AI cursor movement (0 = random per session)")
+	fset.StringVar(&cfg.TypePacing, "type-pacing", cfg.TypePacing, "type visibly key by key with a visible window: on or off")
 	fset.StringVar(&cfg.Lang, "lang", cfg.Lang, "browser language, e.g. pt-BR (default: system)")
 	fset.StringVar(&cfg.DebugInfoFile, "debug-info", cfg.DebugInfoFile, "write the browser CDP URL and PID to this file (tests and diagnostics)")
 	fset.StringVar(&cfg.FlowsDir, "flows-dir", cfg.FlowsDir, "directory for saved flows")
@@ -208,7 +225,40 @@ func validate(cfg Config) error {
 	if _, _, err := ParseWindowSize(cfg.WindowSize); err != nil {
 		return err
 	}
+	if !oneOf(cfg.Cursor, "on", "off", "force") {
+		return fmt.Errorf("--cursor must be on, off or force, got %q", cfg.Cursor)
+	}
+	for name, v := range map[string]string{"--cursor-speed": cfg.CursorSpeed, "--flow-cursor-speed": cfg.FlowCursorSpeed} {
+		if !oneOf(v, "slow", "normal", "fast", "instant") {
+			return fmt.Errorf("%s must be slow, normal, fast or instant, got %q", name, v)
+		}
+	}
+	if !oneOf(cfg.TypePacing, "on", "off") {
+		return fmt.Errorf("--type-pacing must be on or off, got %q", cfg.TypePacing)
+	}
 	return nil
+}
+
+func oneOf(v string, options ...string) bool {
+	for _, o := range options {
+		if v == o {
+			return true
+		}
+	}
+	return false
+}
+
+// CursorActive diz se o cursor visual aparece: com janela visível (ou force) e com o overlay.
+func (c Config) CursorActive() bool {
+	if c.NoOverlay || c.Cursor == "off" {
+		return false
+	}
+	return c.Cursor == "force" || !c.Headless
+}
+
+// TypePacingActive diz se a digitação sai tecla a tecla, para a pessoa ver o texto aparecendo.
+func (c Config) TypePacingActive() bool {
+	return c.TypePacing == "on" && (c.Cursor == "force" || !c.Headless)
 }
 
 // ParseWindowSize converte "W,H" (ou "WxH") em inteiros.

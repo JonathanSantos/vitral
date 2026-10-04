@@ -31,6 +31,7 @@ type State struct {
 	Reason    string     `json:"reason,omitempty"`
 	Collapsed bool       `json:"collapsed"`
 	Hold      *Highlight `json:"hold,omitempty"`
+	Note      string     `json:"note,omitempty"` // rótulo temporário enquanto trabalha ("Abrindo …")
 	busy      int        // ferramentas em execução (o servidor pode atender chamadas em paralelo)
 }
 
@@ -48,6 +49,8 @@ const (
 	WaitUser     EventKind = "wait_user"
 	Collapse     EventKind = "collapse"
 	Expand       EventKind = "expand"
+	NavStarted   EventKind = "nav_started" // Reason é o rótulo ("Abrindo exemplo.com", "Voltando")
+	NavEnded     EventKind = "nav_ended"
 )
 
 // Event é uma entrada da máquina de estados.
@@ -80,10 +83,21 @@ func Next(s State, e Event) State {
 		return s
 	case ToolFinished:
 		s.busy = max(s.busy-1, 0)
+		if s.busy == 0 {
+			s.Note = ""
+		}
 		if s.busy == 0 && (s.Mode == Working || s.Mode == Flow) {
 			s = clearFlow(s)
 			s.Mode = Idle
 		}
+		return s
+	case NavStarted:
+		if !s.Blocked() {
+			s.Note = e.Reason
+		}
+		return s
+	case NavEnded:
+		s.Note = ""
 		return s
 	case FlowStep:
 		if s.Blocked() {

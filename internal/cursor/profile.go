@@ -82,6 +82,16 @@ type Profile struct {
 	Frame       float64 // ms entre keyframes
 	FadeInstant float64 // ms do fade no destino com speed instant
 	FadeReduced float64 // ms do fade com prefers-reduced-motion
+
+	// Coreografia (seção 5), em ms e px.
+	AwayMin, AwayMax         float64 // afastar do campo depois do clique (5.2)
+	AwayDistMin, AwayDistMax float64
+	KeyMin, KeyMax           float64 // intervalo entre teclas no ritmo de digitação (5.2)
+	TypeCap                  float64 // teto do ritmo; o resto entra de uma vez
+	WheelStep                float64 // px por passo de roda (5.4)
+	WheelMin, WheelMax       float64 // ms entre passos
+	WheelCap                 float64
+	ScrollCap                float64 // rolagem suave até o alvo antes do clique (5.1)
 }
 
 // DefaultProfile é o ponto de partida da velocidade normal (seção 4).
@@ -98,5 +108,9 @@ func DefaultProfile() Profile {
 		TremorAmp: 0.4, TremorHzMin: 8, TremorHzMax: 12, TremorEdge: 0.10,
 		AimMin: 70, AimMax: 140, PressMin: 60, PressMax: 110,
 		ShapeLead: 80, Frame: 16, FadeInstant: 80, FadeReduced: 120,
+		AwayMin: 150, AwayMax: 250, AwayDistMin: 40, AwayDistMax: 80,
+		KeyMin: 25, KeyMax: 45, TypeCap: 1500,
+		WheelStep: 100, WheelMin: 60, WheelMax: 90, WheelCap: 800,
+		ScrollCap: 600,
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/browser"
 	"github.com/JonathanSantos/vitral/internal/config"
 	"github.com/JonathanSantos/vitral/internal/console"
+	"github.com/JonathanSantos/vitral/internal/cursor"
 	"github.com/JonathanSantos/vitral/internal/flow"
 	"github.com/JonathanSantos/vitral/internal/network"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
@@ -41,6 +42,18 @@ type Overlay interface {
 	FlowEnded()
 	Blocked() bool
 	State() ux.State
+
+	// Cursor visual (docs/CURSOR.md).
+	PlayCursor(ctx context.Context, plan cursor.Plan, ring string, appear bool) bool
+	CursorPosition() (cursor.Point, bool)
+	HideCursor(ctx context.Context) error
+	CursorNote(ctx context.Context, text string, d time.Duration) error
+	CursorFail(ctx context.Context, text string) error
+	Keycap(ctx context.Context, key string) error
+	NavStart(ctx context.Context, label string)
+	NavEnd(ctx context.Context)
+	ShowHighlight(ctx context.Context, ref string, box [4]int, d time.Duration)
+	HighlightDuration() time.Duration
 }
 
 // pausedResult interrompe a ação sem erro: a resposta é a mensagem para a IA (UX-3).
@@ -61,6 +74,7 @@ type Session struct {
 
 	rec       *flow.Recorder
 	replaying atomic.Bool
+	cur       *pointer
 
 	mu        sync.Mutex
 	last      *snapshot.Page
@@ -70,7 +84,7 @@ type Session struct {
 
 // New cria a sessão e registra o preparo de páginas novas no gerenciador.
 func New(cfg config.Config, logger *slog.Logger, b *browser.Manager, net *network.Tracker, con *console.Buffer, ui Overlay, w *world.Tracker) *Session {
-	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, ui: ui, world: w, format: snapshot.DefaultFormat(), rec: &flow.Recorder{}}
+	s := &Session{cfg: cfg, log: logger, browser: b, net: net, console: con, ui: ui, world: w, format: snapshot.DefaultFormat(), rec: &flow.Recorder{}, cur: newPointer(cfg)}
 	b.OnNewPage(s.preparePage)
 	return s
 }

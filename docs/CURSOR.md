@@ -231,6 +231,20 @@ planos com o mesmo `cursor.js` do overlay, inclusive uma sequência que sai de o
 10. **Um só ícone.** O `cursor.js` define o ícone pequeno (`VITRAL_ICON`) usado pelo selo e pela
     etiqueta "IA"; o overlay injeta o `cursor.js` no mesmo escopo, dentro do shadow root fechado.
 
+11. **`select` clica só no visual.** O cursor vai até o select e faz mira, press e anel, mas sem evento
+    real: com janela visível, um clique real abriria a lista nativa do sistema, que ficaria aberta por
+    cima da página. O valor continua sendo aplicado como antes.
+12. **`scroll` com `ref`.** A ferramenta rola *até* o elemento: a rolagem acontece com o cursor parado
+    e depois o cursor vai até o elemento, sem clicar. Sem `ref`, o cursor vai ao centro da viewport e
+    rola em passos de roda reais no ponto do cursor.
+13. **Mira e press num segundo plano.** O movimento é tocado sem clique; depois o Go confere se o alvo
+    andou mais de 4 px (4.5) e toca a mira e o press a partir de onde o cursor parou, com correção
+    se precisar. Assim a correção sempre acontece antes do press visual.
+14. **"Abrindo {host}" e "Voltando"** só aparecem com o cursor ativo: sem janela visível ninguém vê o
+    selo, e o comportamento em headless fica igual ao de antes.
+15. **Sem ponto livre e sem cobertura conhecida** (todo o alvo coberto por filhos interativos): a IA
+    recebe "element X has no free spot to click…", com a instrução de clicar no filho.
+
 ### Ajustes da etapa 1 (achados pelos testes)
 
 - O tremor é limitado a 2% da distância (num movimento de 3 px, 0,4 px de tremor seria maior que o

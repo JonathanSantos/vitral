@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
@@ -73,10 +74,17 @@ func (s *Session) Emulate(ctx context.Context, device, network string) (string, 
 		return "", err
 	}
 	if device != "" {
+		var before [2]float64
+		_ = s.evalInto(ctx, &before, `() => [window.innerWidth, window.innerHeight]`)
 		if err := applyDevice(p.Context(ctx), device); err != nil {
 			return "", err
 		}
+		// Só há o que esperar se a tela muda: um perfil novo, ou voltar de um perfil para desktop.
+		wasEmulated := s.emulation.Device != "" && s.emulation.Device != "desktop"
 		s.emulation.Device = device
+		if device != "desktop" || wasEmulated {
+			s.waitViewport(ctx, before, Devices[device])
+		}
 	}
 	if network != "" {
 		if err := applyNetwork(p.Context(ctx), network); err != nil {
@@ -90,6 +98,29 @@ func (s *Session) Emulate(ctx context.Context, device, network string) (string, 
 		return flow.Step{Emulate: &flow.EmulateStep{Device: device, Network: network}}
 	}}
 	return joinNonEmpty(describeEmulation(s.emulation), s.record(rec, nil, "")), nil
+}
+
+// waitViewport espera o renderer aplicar o novo tamanho: o CDP responde antes, e o snapshot logo em
+// seguida ainda veria a viewport antiga (acontecia com o Chrome for Testing ao voltar para desktop).
+func (s *Session) waitViewport(ctx context.Context, before [2]float64, d Device) {
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		var now [2]float64
+		if err := s.evalInto(ctx, &now, `() => [window.innerWidth, window.innerHeight]`); err != nil {
+			return
+		}
+		if d.Width > 0 && now[0] == float64(d.Width) && now[1] == float64(d.Height) {
+			return
+		}
+		if d.Width == 0 && now != before {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
 }
 
 func describeEmulation(e Emulation) string {

@@ -156,7 +156,7 @@
           arrive: () => send('cursor_done', c.id),
         });
         break;
-      case 'place': cur.place(c.x, c.y, c.visible !== false); break;
+      case 'place': cur.place(Math.min(Math.max(c.x, 0), innerWidth - 1), Math.min(Math.max(c.y, 0), innerHeight - 1), c.visible !== false); break;
       case 'nav': cur.nav(c.on); break;
       case 'hide': cur.hide(); break;
       case 'note': cur.note(c.text, c.ms); break;

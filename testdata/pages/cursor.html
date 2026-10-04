@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Cursor - Fixture</title>
+  <!-- Registra os eventos reais de mouse para os testes do cursor visual (docs/CURSOR.md, seção 9). -->
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #ffffff; }
+    main { padding: 24px; }
+    .card { position: relative; width: 300px; height: 120px; margin-top: 16px; padding: 12px; box-sizing: border-box;
+            border: 1px solid #ccc; border-radius: 10px; cursor: pointer; }
+    .card .trash { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; }
+    .split { position: relative; display: inline-block; width: 180px; height: 40px; margin-top: 16px;
+             border: 1px solid #555; border-radius: 6px; cursor: pointer; line-height: 40px; padding-left: 10px;
+             box-sizing: border-box; }
+    /* A seta ocupa a maior parte do botão, inclusive o centro: os candidatos quase sempre caem nela. */
+    .split .more { position: absolute; top: 0; right: 0; width: 64%; height: 100%; }
+    .far { margin-top: 1400px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p id="status" role="status">nada</p>
+    <div id="card" class="card" role="button" tabindex="0" aria-label="Pedido 42"
+         onclick="document.getElementById('status').textContent = 'card'">
+      Pedido 42
+      <button id="trash" class="trash" aria-label="Excluir"
+              onclick="event.stopPropagation(); document.getElementById('status').textContent = 'lixeira'">🗑</button>
+    </div>
+    <div id="split" class="split" role="button" tabindex="0" aria-label="Salvar"
+         onclick="document.getElementById('status').textContent = 'salvar'">
+      Salvar
+      <button id="more" class="more" aria-label="Mais opções"
+              onclick="event.stopPropagation(); document.getElementById('status').textContent = 'mais'">▾</button>
+    </div>
+    <p><label>Nome <input id="nome" aria-label="Nome"></label></p>
+    <p><label>País <select id="pais" aria-label="País"><option>Argentina</option><option>Brasil</option></select></label></p>
+    <p><button id="coberto" onclick="document.getElementById('status').textContent = 'coberto'">Coberto</button></p>
+    <div id="capa" style="position: absolute; left: 0; top: 0; width: 1px; height: 1px;"></div>
+    <p class="far"><button id="longe" onclick="document.getElementById('status').textContent = 'longe'">Lá embaixo</button></p>
+  </main>
+  <script>
+    window.__events = [];
+    for (const type of ['mousedown', 'mouseup', 'mousemove', 'click']) {
+      document.addEventListener(type, (e) => {
+        window.__events.push({ type, x: e.clientX, y: e.clientY, target: e.target.id || (e.target.closest('[id]') || {}).id || '' });
+      }, true);
+    }
+    // Cobre o botão "Coberto" com um diálogo, sob demanda.
+    window.cover = () => {
+      const b = document.getElementById('coberto').getBoundingClientRect();
+      Object.assign(document.getElementById('capa').style, {
+        left: (b.left - 4) + 'px', top: (b.top + window.scrollY - 4) + 'px', width: (b.width + 8) + 'px',
+        height: (b.height + 8) + 'px', background: 'rgba(0,0,0,.3)',
+      });
+      document.getElementById('capa').setAttribute('role', 'dialog');
+    };
+  </script>
+</body>
+</html>

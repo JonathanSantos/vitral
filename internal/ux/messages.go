@@ -36,6 +36,9 @@ const (
 func Label(s State) string {
 	switch s.Mode {
 	case Working:
+		if s.Note != "" {
+			return s.Note
+		}
 		return TextWorking
 	case Flow:
 		return fmt.Sprintf(TextFlow, s.FlowName, s.Step, s.Total)

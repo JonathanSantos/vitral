@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"net/url"
 	"strings"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/proto"
 
+	"github.com/JonathanSantos/vitral/internal/cursor"
 	"github.com/JonathanSantos/vitral/internal/flow"
 	"github.com/JonathanSantos/vitral/internal/overlay"
 	"github.com/JonathanSantos/vitral/internal/security"
@@ -36,6 +39,15 @@ func (s *Session) Open(ctx context.Context, rawURL string) (string, error) {
 	}
 	conMark, netMark := s.console.Mark(), s.net.Mark()
 	start := time.Now()
+	if s.cur.on {
+		// "Abrindo {host}" no selo e o cursor a 40% até a página carregar (5.6).
+		host := target
+		if u, err := url.Parse(target); err == nil && u.Host != "" {
+			host = u.Host
+		}
+		s.ui.NavStart(ctx, fmt.Sprintf(ux.TextOpening, host))
+		defer s.ui.NavEnd(ctx)
+	}
 	if err := s.navigate(ctx, p, target); err != nil {
 		return "", err
 	}
@@ -87,6 +99,10 @@ func waitDOMReady(ctx context.Context, p *rod.Page) error {
 // Back volta uma página no histórico.
 func (s *Session) Back(ctx context.Context) (string, error) {
 	rec := &recording{step: func(*flow.Selector) flow.Step { return flow.Step{Back: true} }}
+	if s.cur.on {
+		s.ui.NavStart(ctx, ux.TextGoingBack)
+		defer s.ui.NavEnd(ctx)
+	}
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		hist, err := proto.PageGetNavigationHistory{}.Call(p)
 		if err == nil && hist.CurrentIndex == 0 {
@@ -105,6 +121,7 @@ type hitInfo struct {
 	X         float64  `json:"x"`
 	Y         float64  `json:"y"`
 	Box       [4]int   `json:"box"`
+	Kind      string   `json:"kind"`
 	CoveredBy *covered `json:"coveredBy"`
 }
 
@@ -124,6 +141,9 @@ func (c covered) String() string {
 func (s *Session) Click(ctx context.Context, ref string) (string, error) {
 	rec := &recording{ref: ref, step: func(sel *flow.Selector) flow.Step { return flow.Step{Click: sel} }}
 	return s.action(ctx, rec, func(p *rod.Page) error {
+		if s.cur.on {
+			return s.clickWithCursor(ctx, p, ref)
+		}
 		hit, err := s.hit(ctx, p, ref)
 		if err != nil {
 			return err
@@ -141,6 +161,46 @@ func (s *Session) Click(ctx context.Context, ref string) (string, error) {
 			return clickAt(ctx, p, ref, hit)
 		})
 	})
+}
+
+// clickWithCursor é o clique com o cursor visual (5.1): rolagem suave, ponto validado, movimento,
+// mira e o evento real no mesmo ponto final que a pessoa viu.
+func (s *Session) clickWithCursor(ctx context.Context, p *rod.Page, ref string) error {
+	s.smoothReveal(ctx, ref)
+	var hit hitInfo
+	if err := s.evalInto(ctx, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
+		return err
+	}
+	if err := refError(ref, hit.Error); err != nil {
+		return err
+	}
+	kind := kindOf(hit.Kind)
+	if hit.Disabled {
+		s.failAt(ctx, hit.Box, kind, ux.TextDisabled)
+		return refError(ref, "disabled")
+	}
+	plan, ok, err := s.approach(ctx, ref, hit.Box, kind)
+	if err != nil {
+		return err
+	}
+	if ok {
+		return pressAt(ctx, p, plan)
+	}
+	if hit.coveredByOverlay() {
+		// Só o selo do Vitral cobre o alvo: esconde o selo durante o clique, como antes.
+		return s.ui.Hidden(ctx, p, func() error {
+			hit, err := s.hit(ctx, p, ref)
+			if err != nil {
+				return err
+			}
+			return clickAt(ctx, p, ref, hit)
+		})
+	}
+	s.failAt(ctx, hit.Box, kind, ux.TextCovered)
+	if hit.CoveredBy != nil {
+		return fmt.Errorf("element %s is covered by %s. Close it first.", ref, hit.CoveredBy)
+	}
+	return fmt.Errorf("element %s has no free spot to click: every point hits another interactive element inside it. Click that element instead, or call snapshot.", ref)
 }
 
 // hit rola até o elemento e confere se ele pode receber o clique.
@@ -203,16 +263,40 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 			return refError(ref, info.Error)
 		case info.Password:
 			// "Sua vez" (UX-3): pausa com o campo destacado até a pessoa digitar e clicar em Retomar.
+			if s.cur.on {
+				s.besideAndHide(ctx, info.Box)
+			}
 			s.ui.WaitForUser(ux.ReasonPassword, ref, info.Box)
 			return pausedResult(fmt.Sprintf(ux.PasswordMessage, ref))
 		case info.Disabled:
+			if s.cur.on {
+				s.failAt(ctx, info.Box, cursor.Text, ux.TextDisabled)
+			}
 			return refError(ref, "disabled")
 		case info.Readonly:
 			return fmt.Errorf("element %s is read-only.", ref)
 		case !info.Editable:
 			return fmt.Errorf("element %s (%s) is not a text field. Use click or select instead.", ref, info.Role)
 		}
-		s.ui.Highlight(ctx, p, ref, info.Box)
+		if s.cur.on {
+			// Vai até o campo e clica como uma pessoa (5.2). O clique move o cursor de texto: prepara de
+			// novo (foco e seleção para limpar) e tira a mão de cima do texto.
+			plan, ok, err := s.approach(ctx, ref, info.Box, cursor.Text)
+			if err != nil {
+				return err
+			}
+			if ok {
+				if err := pressAt(ctx, p, plan); err != nil {
+					return err
+				}
+				if err := s.evalInto(ctx, &info, `(r, c) => window.__vitral.prepareType(r, c)`, ref, clearFirst); err != nil {
+					return err
+				}
+				s.awayFrom(ctx, plan.End)
+			}
+		} else {
+			s.ui.Highlight(ctx, p, ref, info.Box)
+		}
 		pc := p.Context(ctx)
 		if clearFirst && info.HasContent {
 			if err := pc.Keyboard.Type(input.Backspace); err != nil {
@@ -220,11 +304,14 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 			}
 		}
 		if text != "" {
-			if err := pc.InsertText(text); err != nil {
+			if err := s.typeText(ctx, p, text); err != nil {
 				return fmt.Errorf("type text: %w", err)
 			}
 		}
 		if submit {
+			if s.cur.on {
+				_ = s.ui.Keycap(ctx, "Enter")
+			}
 			return pc.Keyboard.Type(input.Enter)
 		}
 		return nil
@@ -244,7 +331,16 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 		return flow.Step{Select: &flow.SelectStep{Selector: *sel, Option: option}}
 	}}
 	return s.action(ctx, rec, func(p *rod.Page) error {
-		if err := s.revealAndHighlight(ctx, p, ref); err != nil {
+		if s.cur.on {
+			// Vai até o select e clica só no visual: um clique real abriria a lista nativa (5.3).
+			box, kind, err := s.revealWithCursor(ctx, ref)
+			if err != nil {
+				return err
+			}
+			if _, _, err := s.approach(ctx, ref, box, kind); err != nil {
+				return err
+			}
+		} else if err := s.revealAndHighlight(ctx, p, ref); err != nil {
 			return err
 		}
 		var info selectInfo
@@ -253,6 +349,9 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 		}
 		switch info.Error {
 		case "":
+			if s.cur.on {
+				_ = s.ui.CursorNote(ctx, fmt.Sprintf(ux.TextSelected, info.Label), 800*time.Millisecond)
+			}
 			return nil
 		case "not_select":
 			return fmt.Errorf("element %s (%s) is not a <select>. Click it and pick the option instead.", ref, info.Role)
@@ -263,6 +362,20 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 		}
 		return refError(ref, info.Error)
 	})
+}
+
+// revealWithCursor rola suavemente até o alvo (cursor parado) e devolve a caixa e o tipo de cursor.
+func (s *Session) revealWithCursor(ctx context.Context, ref string) ([4]int, cursor.Kind, error) {
+	s.smoothReveal(ctx, ref)
+	var res struct {
+		Error string `json:"error"`
+		Box   [4]int `json:"box"`
+		Kind  string `json:"kind"`
+	}
+	if err := s.evalInto(ctx, &res, `(r) => window.__vitral.reveal(r)`, ref); err != nil {
+		return res.Box, cursor.Arrow, err
+	}
+	return res.Box, kindOf(res.Kind), refError(ref, res.Error)
 }
 
 // revealAndHighlight rola até o alvo (se preciso) e mostra o destaque antes da ação.
@@ -297,6 +410,9 @@ func (s *Session) Press(ctx context.Context, combo string) (string, error) {
 	}
 	rec := &recording{step: func(*flow.Selector) flow.Step { return flow.Step{Press: combo} }}
 	return s.action(ctx, rec, func(p *rod.Page) error {
+		if s.cur.on {
+			_ = s.ui.Keycap(ctx, keyLabel(combo))
+		}
 		return p.Context(ctx).KeyActions().Press(mods...).Type(key).Do()
 	})
 }
@@ -318,7 +434,23 @@ func (s *Session) Scroll(ctx context.Context, opts ScrollOptions) (string, error
 	}}
 	return s.action(ctx, rec, func(p *rod.Page) error {
 		if opts.Ref != "" {
-			return s.revealAndHighlight(ctx, p, opts.Ref)
+			if !s.cur.on {
+				return s.revealAndHighlight(ctx, p, opts.Ref)
+			}
+			// Rola até o alvo com o cursor parado e depois leva o cursor até ele (5.4).
+			box, kind, err := s.revealWithCursor(ctx, opts.Ref)
+			if err != nil {
+				return err
+			}
+			t, ok, err := s.aim(ctx, opts.Ref, box, kind)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				t.to = rectOf(box).Center()
+			}
+			s.travel(ctx, t)
+			return nil
 		}
 		var vp [2]float64
 		if err := s.evalInto(ctx, &vp, `() => [window.innerWidth, window.innerHeight]`); err != nil {
@@ -330,6 +462,12 @@ func (s *Session) Scroll(ctx context.Context, opts ScrollOptions) (string, error
 		}
 		if opts.Direction == "up" {
 			amount = -amount
+		}
+		if s.cur.on {
+			// O cursor vai ao centro da viewport e rola em passos de roda visíveis.
+			center := cursor.Point{X: math.Round(vp[0] / 2), Y: math.Round(vp[1] / 2)}
+			s.travelTo(ctx, center, [4]int{int(center.X) - 20, int(center.Y) - 20, 40, 40}, cursor.Arrow)
+			return s.wheel(ctx, p, center, amount)
 		}
 		mouse := p.Context(ctx).Mouse
 		if err := mouse.MoveTo(proto.Point{X: vp[0] / 2, Y: vp[1] / 2}); err != nil {

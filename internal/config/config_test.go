@@ -2,6 +2,7 @@ package config
 
 import (
 	"io/fs"
+	"strings"
 	"testing"
 	"time"
 )
@@ -118,5 +119,44 @@ func TestLoad(t *testing.T) {
 			}
 			tt.check(t, c)
 		})
+	}
+}
+
+func TestCursorConfig(t *testing.T) {
+	load := func(args ...string) (Config, error) {
+		return Load(args, "/home/u", func(string) ([]byte, error) { return nil, fs.ErrNotExist }, nil)
+	}
+	cfg, err := load()
+	if err != nil || cfg.Cursor != "on" || cfg.CursorSpeed != "normal" || cfg.FlowCursorSpeed != "fast" || cfg.TypePacing != "on" || cfg.CursorSeed != 0 {
+		t.Fatalf("defaults: %+v %v", cfg, err)
+	}
+	if !cfg.CursorActive() || !cfg.TypePacingActive() {
+		t.Fatal("visible window: cursor and pacing on")
+	}
+	tests := []struct {
+		args           []string
+		cursor, pacing bool
+	}{
+		{[]string{"--headless"}, false, false},
+		{[]string{"--headless", "--cursor", "force"}, true, true},
+		{[]string{"--cursor", "off"}, false, true},
+		{[]string{"--no-overlay"}, false, true},
+		{[]string{"--no-overlay", "--cursor", "force"}, false, true},
+		{[]string{"--type-pacing", "off"}, true, false},
+	}
+	for _, tt := range tests {
+		cfg, err := load(tt.args...)
+		if err != nil || cfg.CursorActive() != tt.cursor || cfg.TypePacingActive() != tt.pacing {
+			t.Errorf("%v: cursor=%v pacing=%v err=%v", tt.args, cfg.CursorActive(), cfg.TypePacingActive(), err)
+		}
+	}
+	cfg, err = load("--cursor-speed", "slow", "--flow-cursor-speed", "instant", "--cursor-seed", "42")
+	if err != nil || cfg.CursorSpeed != "slow" || cfg.FlowCursorSpeed != "instant" || cfg.CursorSeed != 42 {
+		t.Fatalf("flags: %+v %v", cfg, err)
+	}
+	for _, bad := range [][]string{{"--cursor", "maybe"}, {"--cursor-speed", "warp"}, {"--flow-cursor-speed", "x"}, {"--type-pacing", "yes"}} {
+		if _, err := load(bad...); err == nil || !strings.Contains(err.Error(), bad[0]) {
+			t.Errorf("%v should fail naming the flag: %v", bad, err)
+		}
 	}
 }

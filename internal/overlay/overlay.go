@@ -19,6 +19,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 
 	"github.com/JonathanSantos/vitral/internal/brand"
+	"github.com/JonathanSantos/vitral/internal/cursor"
 	"github.com/JonathanSantos/vitral/internal/ux"
 	"github.com/JonathanSantos/vitral/internal/world"
 )
@@ -63,9 +64,12 @@ type Manager struct {
 
 	renderMu sync.Mutex
 
-	// Cursor visual: quem espera o cursor_done de cada plano tocado.
-	cursorSeq uint64
-	waiters   map[string]chan struct{}
+	// Cursor visual: quem espera o cursor_done de cada plano tocado, e onde o cursor está na página
+	// atual (para reaparecer no mesmo lugar depois de navegar).
+	cursorSeq   uint64
+	waiters     map[string]chan struct{}
+	cursorAt    cursor.Point
+	cursorShown bool
 }
 
 // New cria o gerenciador. O token impede que scripts da página acionem a pausa pela binding.
@@ -107,6 +111,7 @@ func Script(token string, minimal bool) string {
 func (m *Manager) Attach(p *rod.Page) error {
 	m.mu.Lock()
 	m.page = p
+	m.cursorShown = false // aba nova: o cursor surge do selo de novo
 	m.mu.Unlock()
 	if err := (proto.RuntimeAddBinding{Name: bindingName, ExecutionContextName: world.Name}).Call(p); err != nil {
 		return fmt.Errorf("add overlay binding: %w", err)
@@ -140,6 +145,7 @@ func (m *Manager) onPageEvent(payload string) {
 		m.Apply(ux.Event{Kind: ux.EventKind(e.Type)})
 	case "ready":
 		m.render()
+		m.rehydrateCursor()
 	case "cursor_done":
 		m.cursorDone(e.ID)
 	}
