@@ -149,7 +149,7 @@ terminam com `step #N`.
 
 `open`, `snapshot`, `click`, `type`, `select`, `press`, `scroll`, `wait_for`, `back`, `screenshot`,
 `inspect`, `network_list`, `network_get`, `mock_add`, `mock_list`, `mock_clear`, `console_list`,
-`emulate`, `eval_js` (só com `--allow-eval`), `flow_save`, `flow_list`, `flow_run`, `flow_update`, `session_save`.
+`emulate`, `eval_js` (só com `--allow-eval`), `flow_save`, `flow_list`, `flow_run`, `flow_update`, `session_save`, `goto`, `map_find`.
 
 `wait_for` com `text` procura no texto visível real do DOM (innerText dos elementos visíveis,
 incluindo shadow roots abertos e iframes same-origin), não no snapshot, e devolve a ref do elemento

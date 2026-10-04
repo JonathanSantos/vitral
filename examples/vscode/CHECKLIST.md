@@ -129,6 +129,17 @@ Pontos que a documentação não garante e só dá para conferir à mão:
 6. Num login com 2FA por código: a IA não digita no campo do código; o selo mostra "Sua vez: digite o
    código".
 
+## Mapa de telas
+
+1. Use um sistema de verdade por alguns minutos (abrir telas pelos menus, abrir um registro, voltar). Depois
+   `vitral map show <site>`: as telas têm nomes reconhecíveis, os caminhos fazem sentido e não aparece
+   nenhum dado (nomes de pessoas, documentos, e-mails, valores digitados).
+2. Numa tela já visitada, o snapshot tem a linha `screen: "…" (known)` com as saídas mais usadas.
+3. Peça "vá para a tela X" (X conhecida): a IA usa `goto`, a janela mostra os passos e chega à tela.
+4. Peça "onde fica o botão Y?": a IA usa `map_find` e mostra o caminho.
+5. Um caminho com "Excluir", "Confirmar" ou "Pagar": o `goto` para e a IA pergunta antes.
+6. Rode com `--no-map`: as ferramentas `goto` e `map_find` somem e nada é gravado em `~/.vitral/maps`.
+
 ## Skill do Vitral
 
 1. Depois do `vitral setup`, confira `.github/skills/vitral/SKILL.md` e, no chat do Copilot, digite `/`:

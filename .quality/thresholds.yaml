@@ -64,6 +64,9 @@ tokens:
   - {match: "action/*/*-flow_run", max: 400}
   - {match: "action/*/*-wait_for", max: 330}
   - {match: "action/*/*-click", max: 280}
+  # goto devolve o relatório dos passos e a página ao chegar; map_find, até 5 achados com o caminho.
+  - {match: "action/*/*-goto", max: 260}
+  - {match: "action/*/*-map_find", max: 105}
   - {match: "action/*/*", max: 170}
 
 # Tempo do snapshot (mediana de 15 chamadas no e2e, binário real; docs/SNAPSHOT-V2.md). Primeiro padrão

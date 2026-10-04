@@ -354,3 +354,55 @@ func TestRouteOf(t *testing.T) {
 		}
 	}
 }
+
+func TestLineFindScreenAndNavigable(t *testing.T) {
+	m := New("p.test")
+	list := m.Visit(visit("/pedidos", "Lista de pedidos", listPrint...), t0)
+	form := m.Visit(visit("/novo", "Cadastro de pedido", formPrint...), t0)
+	detail := m.Visit(visit("/pedido/1", "Detalhe do pedido", Item{"heading", "Detalhe"}), t0)
+	if got := m.Line(list, 5); got != `screen: "Lista de pedidos" (known)` {
+		t.Fatal(got)
+	}
+	m.Transition(list, form, Action{Kind: "click", Target: sig("button", "Novo pedido")}, t0)
+	m.Transition(list, detail, Action{Kind: "press", Key: "Enter"}, t0)
+	m.Transition(list, detail, Action{Kind: "type", Target: sig("searchbox", "Busca"), Key: "Enter"}, t0)
+	m.Transition(form, list, Action{Kind: "back"}, t0)
+	got := m.Line(list, 2)
+	if !strings.HasPrefix(got, `screen: "Lista de pedidos" (known) · exits: `) || strings.Count(got, "→") != 2 || !strings.Contains(got, `"Novo pedido" → "Cadastro de pedido"`) {
+		t.Fatal(got)
+	}
+	if !strings.Contains(m.Line(form, 5), `"back" → "Lista de pedidos"`) || !strings.Contains(m.Line(list, 5), `"Enter" → "Detalhe do pedido"`) {
+		t.Fatal(m.Line(form, 5), m.Line(list, 5))
+	}
+	if (Action{Kind: "click", Target: sig("button", "")}).ExitLabel() != "click" {
+		t.Fatal("unnamed target")
+	}
+	// Só navegação: o caminho por "type" (que pede um valor) não serve ao goto.
+	for _, e := range m.Edges {
+		if e.Action.Kind == "press" {
+			e.Streak = SuspectAfter
+		}
+	}
+	if _, ok := m.PathWith(list.ID, detail.ID, t0, Navigable); ok {
+		t.Fatal("only a type edge is left")
+	}
+	if p, ok := m.Path(list.ID, detail.ID, t0); !ok || p[0].Action.Kind != "type" {
+		t.Fatal("without the filter the type edge is used")
+	}
+	if !Navigable(&Edge{Action: Action{Kind: "back"}}) || Navigable(&Edge{Action: Action{Kind: "select"}}) {
+		t.Fatal("Navigable")
+	}
+	// FindScreen: por nome; no empate, a mais visitada.
+	other := m.Visit(visit("/pedidos/arquivo", "Lista de pedidos", Item{"heading", "Arquivo"}), t0)
+	m.Visit(visit("/pedidos/arquivo", "Lista de pedidos", Item{"heading", "Arquivo"}), t0)
+	found := m.FindScreen("lista de pedidos")
+	if len(found) != 2 || found[0] != other || found[1] != list {
+		t.Fatalf("%+v", found)
+	}
+	if got := m.FindScreen("cadastro"); len(got) != 1 || got[0] != form {
+		t.Fatalf("%+v", got)
+	}
+	if len(m.FindScreen("financeiro")) != 0 {
+		t.Fatal("none")
+	}
+}

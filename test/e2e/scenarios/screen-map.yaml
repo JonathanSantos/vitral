@@ -1,0 +1,32 @@
+name: screen-map-goto-and-map-find
+steps:
+  - call: open
+    args: { url: "{{base}}/pages/mini/index.html" }
+  - call: click
+    args: { ref: "{{ref 'link' 'Pedidos'}}" }
+  - call: snapshot
+  - call: click
+    args: { ref: "{{ref 'link' 'Ver detalhes'}}" }
+  - call: snapshot
+  - call: click
+    args: { ref: "{{ref 'link' 'Voltar para pedidos'}}" }
+  - call: snapshot
+  - call: click
+    args: { ref: "{{ref 'link' 'Clientes'}}" }
+  - call: snapshot
+  - call: click
+    args: { ref: "{{ref 'link' 'Início'}}" }
+  - call: snapshot
+    expect: { contains: ['screen: "Painel" (known) · exits: "Pedidos" → "Lista de pedidos"'] }
+  - call: map_find
+    args: { text: "voltar para pedidos" }
+    expect: { contains: ['link "Voltar para pedidos" on screen "Pedido <num>": 2 step(s) from here'] }
+  - call: goto
+    args: { screen: "Clientes" }
+    expect: { contains: ['goto "Clientes" from "Painel": 2 steps', "done: 2/2 steps passed."] }
+  - call: goto
+    args: { screen: "Painel" }
+    expect: { contains: ['goto "Painel" from "Clientes": 1 steps', "done: 1/1 steps passed.", 'heading "Painel"'] }
+  - call: goto
+    args: { screen: "Financeiro" }
+    expect: { isError: true, contains: ['no screen named "Financeiro"'] }

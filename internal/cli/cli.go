@@ -49,6 +49,8 @@ func Main(args []string, e Env, loadConfig func([]string) (config.Config, error)
 			}
 		}
 		return true, report(e, err)
+	case "map":
+		return true, report(e, MapCommand(e, args[1:], loadConfig))
 	case "session":
 		return true, report(e, SessionCommand(e, args[1:], loadConfig))
 	case "status":

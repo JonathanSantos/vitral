@@ -29,6 +29,7 @@ func TestAXEngine(t *testing.T) {
 		snap := ax.ok(t, "open", map[string]any{"url": ax.url("/pages/form.html")})
 		got := strings.ReplaceAll(snap, ax.site.URL, "http://fixture")
 		got = regexp.MustCompile(`step #\d+`).ReplaceAllString(got, "step #N")
+		got = regexp.MustCompile(`(?m)^screen: .*\n`).ReplaceAllString(got, "")
 		want, err := os.ReadFile(filepath.Join("..", "..", "testdata", "golden", "form.txt"))
 		if err != nil {
 			t.Fatal(err)

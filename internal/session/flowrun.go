@@ -17,7 +17,10 @@ import (
 type MockAdder func(flow.MockStep) error
 
 // FlowError é a falha de um flow_run: relatório até o passo, motivo e snapshot atual.
-type FlowError struct{ Report string }
+type FlowError struct {
+	Report string
+	Step   int // passo que falhou (a partir de 1)
+}
 
 func (e *FlowError) Error() string { return e.Report }
 
@@ -133,7 +136,7 @@ func (s *Session) RunFlow(ctx context.Context, f flow.Flow, values map[string]st
 			}
 			lines = append(lines, fmt.Sprintf("%d. FAILED %s", i+1, step.Describe()), "reason: "+err.Error())
 			lines = append(lines, healedReport(f.Name, run.healed)...)
-			return "", &FlowError{Report: s.withSnapshot(ctx, lines, fmt.Sprintf("stopped at step %d of %d.", i+1, len(steps)))}
+			return "", &FlowError{Report: s.withSnapshot(ctx, lines, fmt.Sprintf("stopped at step %d of %d.", i+1, len(steps))), Step: i + 1}
 		}
 		// Um passo pode entregar o controle à pessoa (ex.: campo de senha): ele não foi feito.
 		if s.ui.State().Mode == ux.Waiting {

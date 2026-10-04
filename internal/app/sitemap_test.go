@@ -3,6 +3,7 @@
 package app_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -30,7 +31,7 @@ func TestScreenMapMiniSystem(t *testing.T) {
 	snap = hh.ok(t, "snapshot", nil)
 	hh.ok(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "Cliente"), "text": "Ana Prado"})
 	hh.ok(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "Valor"), "text": "350"})
-	click(snap, "button", "Salvar")
+	click(snap, "button", "Enviar pedido")
 	click(hh.ok(t, "snapshot", nil), "link", "Ver detalhes")
 	snap = hh.ok(t, "snapshot", nil)
 	click(snap, "button", "Exportar CSV")
@@ -89,10 +90,52 @@ func TestScreenMapMiniSystem(t *testing.T) {
 	if len(found) == 0 || found[0].Screen.Name != "Pedido <num>" || found[0].Element == nil {
 		t.Fatalf("find: %+v", found)
 	}
+	// A linha "screen:" (a tela atual é o Painel), o map_find e o goto.
+	mustContain(t, hh.ok(t, "snapshot", nil), `screen: "Painel" (known) · exits: "Pedidos" → "Lista de pedidos"`)
+	mustContain(t, hh.ok(t, "map_find", map[string]any{"text": "exportar csv"}),
+		`button "Exportar CSV" on screen "Pedido <num>": 2 step(s) from here: click link "Pedidos" → click link "Ver detalhes"`, "call goto")
+	mustContain(t, hh.ok(t, "map_find", map[string]any{"text": "relatório financeiro"}), "is not in the map of")
+	hh.fail(t, "goto", map[string]any{"screen": "Financeiro"}, `no screen named "Financeiro"`)
+	mustContain(t, hh.ok(t, "goto", map[string]any{"screen": "Painel"}), `already on screen "Painel"`)
+	hh.fail(t, "goto", map[string]any{"screen": "pedido"}, `"pedido" matches several screens: `)
+	goOut := hh.ok(t, "goto", map[string]any{"screen": "Pedido <num>"})
+	mustContain(t, goOut, `goto "Pedido <num>" from "Painel": 2 steps`, "done: 2/2 steps passed.", `heading "Pedido 10234"`)
+	if strings.Contains(goOut, "Warning") {
+		t.Fatalf("goto should arrive:\n%s", goOut)
+	}
+	// Ida e volta: do pedido até o Painel pelo caminho aprendido.
+	mustContain(t, hh.ok(t, "goto", map[string]any{"screen": "Painel"}), `goto "Painel" from "Pedido <num>": 3 steps`, "done: 3/3")
+	// Passo sensível: o caminho do cadastro para a lista passa por "Enviar pedido".
+	snap = hh.ok(t, "open", map[string]any{"url": hh.url("/pages/mini/novo-pedido.html")})
+	hh.ok(t, "type", map[string]any{"ref": ref(t, snap, "textbox", "Cliente"), "text": "Bia"})
+	mustContain(t, hh.ok(t, "goto", map[string]any{"screen": "Lista de pedidos"}),
+		`goes through a sensitive action (step 1: click button "Enviar pedido")`, "confirm=true")
+	if got := hh.mainWorld(t, `() => ({u: location.pathname})`)["u"]; got != "/pages/mini/novo-pedido.html" {
+		t.Fatalf("goto must not run before the user agrees: %v", got)
+	}
+	mustContain(t, hh.ok(t, "goto", map[string]any{"screen": "Lista de pedidos", "confirm": true}), "done: 1/1", `status "Pedido criado"`)
+
+	// Tokens para "ir até o detalhe de um pedido" saindo de Clientes: à mão (ler a tela e clicar) e com o mapa.
+	estimate := func(s string) int { return (len(s) + 3) / 4 }
+	snap = hh.ok(t, "open", map[string]any{"url": hh.url("/pages/mini/clientes.html")})
+	manual, manualCalls := estimate(snap), 1
+	snap = hh.ok(t, "click", map[string]any{"ref": ref(t, snap, "link", "Pedidos")})
+	manual += estimate(snap)
+	snap = hh.ok(t, "snapshot", nil)
+	manual += estimate(snap)
+	snap = hh.ok(t, "click", map[string]any{"ref": ref(t, snap, "link", "Ver detalhes")})
+	manual += estimate(snap)
+	manualCalls += 3
+	hh.ok(t, "open", map[string]any{"url": hh.url("/pages/mini/clientes.html")})
+	withMap := hh.ok(t, "goto", map[string]any{"screen": "Pedido <num>"})
+	mustContain(t, withMap, `heading "Pedido 10234"`)
+	tokenReport := fmt.Sprintf("Ir de Clientes até o detalhe de um pedido: à mão %d chamadas e ~%d tokens; com goto 1 chamada e ~%d tokens.", manualCalls, manual, estimate(withMap))
+	t.Log(tokenReport)
+
 	out := filepath.Join("..", "..", ".quality", "out", "sitemap")
 	_ = os.MkdirAll(out, 0o750)
 	report := "# Mapa do mini-sistema\n\n```mermaid\n" + m.Mermaid() + "```\n\n```\n" + m.Text() + "```\n\nCaminho Clientes → Pedido: " +
-		strings.Join(steps, " → ") + "\n"
+		strings.Join(steps, " → ") + "\n\n" + tokenReport + "\n"
 	_ = os.WriteFile(filepath.Join(out, "mini.md"), []byte(report), 0o600)
 	_ = os.WriteFile(filepath.Join(out, "mini.json"), data, 0o600)
 	t.Log("\n" + report)

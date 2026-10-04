@@ -39,6 +39,9 @@ func Register(s *mcp.Server, d Deps) {
 	}
 	registerFlows(s, d)
 	registerSessions(s, d)
+	if !d.Config.NoMap {
+		registerMaps(s, d)
+	}
 	if d.Config.AllowEval {
 		registerEval(s, d)
 	}

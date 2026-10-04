@@ -105,6 +105,12 @@ func TestToolListByFlags(t *testing.T) {
 	if !names(listContract(t, func(c *config.Config) { c.AllowEval = true }))["eval_js"] {
 		t.Fatal("eval_js must be listed with --allow-eval")
 	}
+	if all := names(listContract(t, nil)); !all["goto"] || !all["map_find"] {
+		t.Fatal("goto and map_find are listed by default")
+	}
+	if off := names(listContract(t, func(c *config.Config) { c.NoMap = true })); off["goto"] || off["map_find"] {
+		t.Fatal("goto and map_find must not be listed with --no-map")
+	}
 	for name := range names(listContract(t, func(c *config.Config) { c.DisableMock = true })) {
 		if len(name) > 5 && name[:5] == "mock_" {
 			t.Fatalf("%s must not be listed with --disable-mock", name)

@@ -19,6 +19,21 @@ func weight(e *Edge, now time.Time) float64 {
 // Path é o caminho mais confiável de from até to (Dijkstra com os pesos de weight), sem arestas
 // suspeitas. ok=false se não há caminho; from == to dá caminho vazio.
 func (m *Map) Path(from, to string, now time.Time) ([]*Edge, bool) {
+	return m.PathWith(from, to, now, nil)
+}
+
+// Navigable é o filtro do goto: só ações que navegam sem dados (clique, tecla, voltar). Digitar ou
+// escolher uma opção pede um valor que o mapa não guarda.
+func Navigable(e *Edge) bool {
+	switch e.Action.Kind {
+	case "click", "press", "back":
+		return true
+	}
+	return false
+}
+
+// PathWith é o Path só com as arestas que allow aceita (nil aceita todas).
+func (m *Map) PathWith(from, to string, now time.Time, allow func(*Edge) bool) ([]*Edge, bool) {
 	if from == to {
 		return nil, m.Screen(from) != nil
 	}
@@ -36,7 +51,7 @@ func (m *Map) Path(from, to string, now time.Time) ([]*Edge, bool) {
 			break
 		}
 		for _, e := range m.Edges {
-			if e.From != cur.id || e.Suspect() || e.To == e.From {
+			if e.From != cur.id || e.Suspect() || e.To == e.From || allow != nil && !allow(e) {
 				continue
 			}
 			d := cur.dist + weight(e, now)

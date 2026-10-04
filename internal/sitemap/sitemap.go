@@ -356,3 +356,56 @@ func routeOf(pattern string) string {
 	}
 	return path
 }
+
+// FindScreen acha as telas pelo nome (palavras, sem acento), da mais parecida para a menos; no
+// empate, a mais visitada.
+func (m *Map) FindScreen(name string) []*Screen {
+	type scored struct {
+		s     *Screen
+		score float64
+	}
+	var list []scored
+	for _, s := range m.Screens {
+		if sc := heal.Similarity(name, s.Name); sc >= 0.5 {
+			list = append(list, scored{s, sc})
+		}
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].score != list[j].score {
+			return list[i].score > list[j].score
+		}
+		return list[i].s.Visits > list[j].s.Visits
+	})
+	out := make([]*Screen, len(list))
+	for i, l := range list {
+		out[i] = l.s
+	}
+	return out
+}
+
+// ExitLabel é o nome curto de uma saída: o nome do alvo, a tecla ou a ação.
+func (a Action) ExitLabel() string {
+	switch {
+	case a.Target != nil && a.Target.Name != "":
+		return a.Target.Name
+	case a.Key != "":
+		return a.Key
+	}
+	return a.Kind
+}
+
+// Line é a linha "screen:" do snapshot (pedido 5.3): o nome da tela conhecida e até n saídas mais
+// usadas: screen: "Lista de pedidos" (known) · exits: "Novo pedido" → "Cadastro de pedido".
+func (m *Map) Line(s *Screen, n int) string {
+	line := fmt.Sprintf("screen: %q (known)", s.Name)
+	var exits []string
+	for _, e := range m.Exits(s.ID, n) {
+		if to := m.Screen(e.To); to != nil {
+			exits = append(exits, fmt.Sprintf("%q → %q", e.Action.ExitLabel(), to.Name))
+		}
+	}
+	if len(exits) > 0 {
+		line += " · exits: " + strings.Join(exits, ", ")
+	}
+	return line
+}

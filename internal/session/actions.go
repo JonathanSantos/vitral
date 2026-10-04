@@ -65,7 +65,7 @@ func (s *Session) Open(ctx context.Context, rawURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return joinNonEmpty(snapshot.Format(page, s.format), s.events(netMark, conMark), warning, recorded, verify), nil
+	return joinNonEmpty(withScreenLine(snapshot.Format(page, s.format), s.screenLine(ctx)), s.events(netMark, conMark), warning, recorded, verify), nil
 }
 
 func (s *Session) navigate(ctx context.Context, p *rod.Page, target string) error {

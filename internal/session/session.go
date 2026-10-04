@@ -354,8 +354,9 @@ func (s *Session) Snapshot(ctx context.Context, opts SnapshotOptions) (string, e
 	if format.ScopeRoot {
 		// Com scope, os textos vêm inteiros: é o jeito de ler o que o snapshot cortou com "…".
 		format.TextMax = snapshot.FullTextMax
+		return snapshot.Format(page, format), nil
 	}
-	return snapshot.Format(page, format), nil
+	return withScreenLine(snapshot.Format(page, format), s.screenLine(ctx)), nil
 }
 
 // TextOnPage diz se o texto está visível na página atual (como o wait_for procura) e se está no título.

@@ -94,6 +94,7 @@ de uso em [`docs/UX-TASKS.md`](docs/UX-TASKS.md) e roteiro de validação manual
 | Simulação | `mock_add`, `mock_list`, `mock_clear`, `emulate` |
 | Fluxos | `flow_save`, `flow_list`, `flow_run`, `flow_update` |
 | Sessões | `session_save` |
+| Mapa de telas | `goto`, `map_find` (desligados com `--no-map`) |
 | Opcional | `eval_js` (só com `--allow-eval`) |
 
 As ações devolvem só o que mudou na tela. Enquanto a pessoa pausa, as ferramentas que agem respondem
@@ -108,6 +109,7 @@ vitral status
 vitral disable [--workspace|--global]
 vitral enable [--workspace|--global]
 vitral session save <nome> [--profile p] | list | delete <nome>
+vitral map list | show <site> | export <site> --to arquivo.json | import arquivo.json | clear <site>
 vitral doctor
 vitral install-browser [--from chrome.zip]
 vitral version
@@ -197,6 +199,40 @@ Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
   na própria origem, com a requisição interceptada e sem rede, leva ~90 ms por origem) em
   `internal/browser/state.go`.
 
+### Autocura dos fluxos
+
+Cada passo gravado guarda, além do seletor (papel + nome), uma assinatura do elemento: label,
+placeholder, `data-testid`, `id` (só se não parecer gerado), `name`, caminho do `href`, tipo do campo e o
+contexto (região, dialog, título acima, cabeçalhos da tabela, posição entre iguais e na página). Quando o
+seletor não acha exatamente o elemento, o `flow_run` pontua os candidatos (`internal/heal`, puro) e só
+aceita com nota ≥ 0,75, margem ≥ 0,15 sobre o segundo e papel compatível (botão ↔ link; o tipo do campo
+nunca troca). O relatório lista os passos curados, e `flow_update` com `applyHealing=true` regrava o
+fluxo, com a versão anterior em `.vitral/flows/.history/`.
+
+**Quando pede confirmação:** num passo sensível (o nome antigo ou o novo tem uma palavra do léxico em
+`internal/heal/sensitive.txt`, como confirmar, pagar, excluir ou enviar, ou é o último clique do fluxo) a
+autocura nunca é automática: o `flow_run` para e pede para perguntar à pessoa; para seguir,
+`resumeFrom=N` e `acceptHealing=true`. Por fluxo, `heal: ask` pergunta sempre e `heal: off` desliga.
+
+### Mapa de telas
+
+O Vitral aprende a estrutura de cada site com as ações que de fato aconteceram (nada de crawler, sem
+LLM): telas (padrão de URL + impressão estrutural, Jaccard ≥ 0,7), transições (com sucessos, falhas e
+último uso) e os elementos usados em cada tela. O snapshot de uma tela conhecida ganha a linha
+`screen: "Lista de pedidos" (known) · exits: "Novo pedido" → "Cadastro de pedido"`; `goto` vai até uma
+tela pelo caminho mais confiável (executado como fluxo, com autocura, sem atravessar passo sensível sem
+pedir), e `map_find` procura telas e elementos já vistos. O mapa nunca substitui a leitura da página.
+
+- **Guarda só:** papéis, nomes de controles, títulos, regiões, cabeçalhos de tabela e padrões de URL
+  (segmentos de ID viram `:id`; da query, só as chaves). Sequências de 4 ou mais dígitos, e-mails, CPF,
+  CNPJ e telefones viram marcadores (`<num>`, `<email>`…).
+- **Nunca guarda:** valores de campos, conteúdo de células, parágrafos, nem valores de query.
+- **Onde:** `~/.vitral/maps/<site>.json` (0600, por usuário). Arestas que falham 3 vezes seguidas saem
+  das sugestões; telas e arestas não vistas há 90 dias somem. `vitral map export/import` compartilha com
+  a equipe; `--no-map` desliga.
+- **Ganho medido** no mini-sistema de teste (`TestScreenMapMiniSystem`): ir de Clientes até o detalhe de
+  um pedido leva 4 chamadas e ~663 tokens à mão (ler a tela e clicar) e 1 chamada e ~149 tokens com `goto`.
+
 ### Verificação humana: CAPTCHA e 2FA
 
 O Vitral não resolve nem contorna verificações. Com a janela visível, ele pausa e mostra "Sua vez":
@@ -221,6 +257,8 @@ internal/ux         máquina de estados do selo (pura)
 internal/screenshot marcações desenhadas em Go
 internal/heal       autocura dos fluxos: assinatura, nota e decisão (pura)
 internal/storagestate sessões salvas (cookies e localStorage, arquivos 0600)
+internal/sitemap    mapa de telas: grafo, caminho e privacidade (puro)
+internal/mapstore   gravação dos mapas (atômica, com debounce)
 internal/network, console, mock, flow, browser, security, brand, config, ring
 tools/brandgen      gera os PNGs da marca (não entra no binário)
 tools/cursorlab     laboratório do movimento do cursor (make cursorlab)

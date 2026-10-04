@@ -181,6 +181,27 @@
     }
   },
   {
+    "name": "goto",
+    "description": "Go to a known screen of this site by the most reliable path learned from earlier actions (runs it like a flow). Asks first if the path has a sensitive step.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "description": "true only after the user agreed to the sensitive steps goto listed",
+          "type": "boolean"
+        },
+        "screen": {
+          "description": "name of a known screen (from the screen: line or map_find)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "screen"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "inspect",
     "description": "Show the computed styles of an element (color, background, font, border, size), its states and aria attributes.",
     "inputSchema": {
@@ -203,6 +224,23 @@
       },
       "required": [
         "ref"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "map_find",
+    "description": "Search the screens and elements learned for this site (e.g. a button seen before) and show the path from the current screen.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "description": "what to look for, e.g. Exportar CSV",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
       ],
       "type": "object"
     }

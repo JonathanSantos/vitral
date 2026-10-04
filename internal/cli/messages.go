@@ -18,6 +18,9 @@ Comandos:
                            salva o login do perfil (cookies e localStorage) para rodar sem janela
   vitral session list      lista as sessões salvas (sem mostrar o conteúdo)
   vitral session delete <nome>
+  vitral map list          lista os mapas de telas (um por site)
+  vitral map show <site>   mostra o mapa de um site (telas e caminhos, nunca dados)
+  vitral map export <site> --to arquivo.json | import arquivo.json | clear <site>
   vitral doctor            confere se está tudo pronto
   vitral install-browser   baixa agora o navegador do Vitral
   vitral install-browser --from arquivo.zip
@@ -85,6 +88,16 @@ const (
 	msgStatusSkillNone    = "  não instalada (o Vitral funciona sem ela; rode vitral setup para instalar)\n"
 	msgStatusBrowser      = "\nNavegador: %s\nPerfil: %s (%s)\n"
 	msgStatusSessions     = "Sessões salvas: %d em %s (vitral session list)\n"
+
+	msgMapUsage    = "use: vitral map list | show <site> | export <site> --to arquivo.json | import arquivo.json | clear <site>"
+	msgMapNone     = "Nenhum mapa de telas em %s.\n"
+	msgMapBroken   = "  %s: arquivo ilegível (%v)\n"
+	msgMapItem     = "  %s: %d telas, %d transições\n"
+	msgMapNotFound = "não há mapa de %s em %s"
+	msgMapMermaid  = "\nGrafo (Mermaid):\n%s"
+	msgMapExported = "✓ mapa de %s exportado para %s (só estrutura: papéis, nomes de controles, títulos e padrões de URL)\n"
+	msgMapImported = "✓ mapa de %s importado: %d telas, em %s\n"
+	msgMapCleared  = "✓ mapa de %s apagado\n"
 
 	msgSessionUsage       = "use: vitral session save <nome> | vitral session list | vitral session delete <nome>"
 	msgSessionBadName     = "nome de sessão inválido %q: use letras minúsculas, números, - e _"
