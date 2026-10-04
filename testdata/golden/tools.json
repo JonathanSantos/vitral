@@ -94,7 +94,7 @@
   },
   {
     "name": "flow_save",
-    "description": "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow. Use params to turn typed values into placeholders.",
+    "description": "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow; fromStep/toStep pick a range. Use params to turn typed values into placeholders. End the flow with a wait_for step so flow_run checks the result.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -116,6 +116,10 @@
           },
           "description": "turn typed values into parameters: {name: value used in this session}, e.g. {numero: 1023}",
           "type": "object"
+        },
+        "toStep": {
+          "description": "last step number to save (default: the last step)",
+          "type": "integer"
         }
       },
       "required": [
@@ -380,7 +384,7 @@
   },
   {
     "name": "snapshot",
-    "description": "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=\u003cref\u003e to read them in full.",
+    "description": "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=\u003cref\u003e to read them in full. Paragraph text is not listed: use text=true to read it: links come as text[ref], headings as ## Title[ref]; scope=\u003cheading or table-of-contents link ref\u003e reads that section.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -395,6 +399,14 @@
         "scope": {
           "description": "ref of an element to show only its subtree, with all its items and full texts",
           "type": "string"
+        },
+        "text": {
+          "description": "return the visible text (paragraphs included) of scope, or of the main content, instead of the element list",
+          "type": "boolean"
+        },
+        "textFrom": {
+          "description": "with text=true: continue reading from this character (the cut message says where)",
+          "type": "integer"
         }
       },
       "type": "object"

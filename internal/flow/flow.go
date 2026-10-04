@@ -195,7 +195,11 @@ func (s Step) Describe() string {
 	case "click":
 		return "click " + s.Click.Describe()
 	case "type":
-		return fmt.Sprintf("type %s = %q", s.Type.Describe(), s.Type.Text)
+		line := fmt.Sprintf("type %s = %q", s.Type.Describe(), s.Type.Text)
+		if s.Type.Submit {
+			line += " + Enter"
+		}
+		return line
 	case "select":
 		return fmt.Sprintf("select %s = %q", s.Select.Describe(), s.Select.Option)
 	case "press":

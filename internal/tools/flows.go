@@ -19,6 +19,7 @@ type flowSaveInput struct {
 	Description string            `json:"description,omitempty" jsonschema:"what the flow does, in one sentence"`
 	Params      map[string]string `json:"params,omitempty" jsonschema:"turn typed values into parameters: {name: value used in this session}, e.g. {numero: 1023}"`
 	FromStep    int               `json:"fromStep,omitempty" jsonschema:"first step number to save (default: everything since the last flow_save)"`
+	ToStep      int               `json:"toStep,omitempty" jsonschema:"last step number to save (default: the last step)"`
 }
 
 type flowRunInput struct {
@@ -29,7 +30,7 @@ type flowRunInput struct {
 func registerFlows(s *mcp.Server, d Deps) {
 	addTool(s, d, &mcp.Tool{
 		Name:        "flow_save",
-		Description: "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow. Use params to turn typed values into placeholders.",
+		Description: "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow; fromStep/toStep pick a range. Use params to turn typed values into placeholders. End the flow with a wait_for step so flow_run checks the result.",
 	}, flowSaveTool(d))
 
 	addTool(s, d, &mcp.Tool{
@@ -49,7 +50,7 @@ func flowSaveTool(d Deps) mcp.ToolHandlerFor[flowSaveInput, any] {
 			return "", err
 		}
 		rec := d.Session.Recorder()
-		steps, from, to, err := rec.Range(in.FromStep)
+		steps, from, to, err := rec.Range(in.FromStep, in.ToStep)
 		if err != nil {
 			return "", err
 		}

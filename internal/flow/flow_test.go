@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -247,30 +248,30 @@ func TestStepDescribe(t *testing.T) {
 
 func TestRecorderRange(t *testing.T) {
 	var r Recorder
-	if _, _, _, err := r.Range(0); err == nil || !strings.Contains(err.Error(), "no steps recorded") {
+	if _, _, _, err := r.Range(0, 0); err == nil || !strings.Contains(err.Error(), "no steps recorded") {
 		t.Fatalf("empty recorder: %v", err)
 	}
 	for i := 0; i < 4; i++ {
 		r.Add(Step{Press: "Tab"})
 	}
-	steps, from, to, err := r.Range(0)
+	steps, from, to, err := r.Range(0, 0)
 	if err != nil || len(steps) != 4 || from != 1 || to != 4 {
 		t.Fatalf("range all: %d %d %d %v", len(steps), from, to, err)
 	}
 	r.MarkSaved(4)
-	if _, _, _, err := r.Range(0); err == nil || !strings.Contains(err.Error(), "no new steps") {
+	if _, _, _, err := r.Range(0, 0); err == nil || !strings.Contains(err.Error(), "no new steps") {
 		t.Fatalf("after save: %v", err)
 	}
 	if n := r.Add(Step{Back: true}); n != 5 {
 		t.Fatalf("step number = %d", n)
 	}
-	if steps, from, _, _ := r.Range(0); len(steps) != 1 || from != 5 {
+	if steps, from, _, _ := r.Range(0, 0); len(steps) != 1 || from != 5 {
 		t.Fatalf("since save: %d from %d", len(steps), from)
 	}
-	if steps, _, _, _ := r.Range(2); len(steps) != 4 {
+	if steps, _, _, _ := r.Range(2, 0); len(steps) != 4 {
 		t.Fatalf("fromStep 2: %d", len(steps))
 	}
-	if _, _, _, err := r.Range(9); err == nil {
+	if _, _, _, err := r.Range(9, 0); err == nil {
 		t.Fatal("out of range should fail")
 	}
 }
@@ -297,5 +298,36 @@ func TestStore(t *testing.T) {
 	}
 	if list, _ := s.List(); len(list) != 1 || list[0].Name != "login" {
 		t.Fatalf("list: %+v", list)
+	}
+}
+
+func TestRecorderRangeTo(t *testing.T) {
+	r := &Recorder{}
+	for i := 0; i < 5; i++ {
+		r.Add(Step{Press: "K" + strconv.Itoa(i)})
+	}
+	steps, from, to, err := r.Range(1, 2)
+	if err != nil || len(steps) != 2 || from != 1 || to != 2 || steps[1].Press != "K1" {
+		t.Fatalf("range 1-2: %v %d %d %v", steps, from, to, err)
+	}
+	r.MarkSaved(to)
+	// Os passos depois do toStep continuam "novos" para o próximo flow_save.
+	if steps, from, to, _ := r.Range(0, 0); len(steps) != 3 || from != 3 || to != 5 {
+		t.Fatalf("after saving 1-2: %d steps from %d to %d", len(steps), from, to)
+	}
+	for _, bad := range [][2]int{{3, 2}, {1, 6}} {
+		if _, _, _, err := r.Range(bad[0], bad[1]); err == nil || !strings.Contains(err.Error(), "toStep must be between") {
+			t.Fatalf("range %v: %v", bad, err)
+		}
+	}
+}
+
+func TestDescribeTypeSubmit(t *testing.T) {
+	sel := Selector{Role: "searchbox", Name: "Pesquisar"}
+	if got := (Step{Type: &TypeStep{Selector: sel, Text: "x", Submit: true}}).Describe(); got != `type searchbox "Pesquisar" = "x" + Enter` {
+		t.Fatalf("got %s", got)
+	}
+	if got := (Step{Type: &TypeStep{Selector: sel, Text: "x"}}).Describe(); strings.Contains(got, "Enter") {
+		t.Fatalf("no submit, no Enter: %s", got)
 	}
 }

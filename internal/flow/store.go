@@ -117,8 +117,9 @@ func (r *Recorder) Add(s Step) int {
 	return len(r.steps)
 }
 
-// Range devolve os passos a partir de from (1-based); from 0 usa "desde o último flow_save".
-func (r *Recorder) Range(from int) ([]Step, int, int, error) {
+// Range devolve os passos de from até to (1-based, inclusive); from 0 usa "desde o último
+// flow_save" e to 0 vai até o último passo.
+func (r *Recorder) Range(from, to int) ([]Step, int, int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	total := len(r.steps)
@@ -134,7 +135,13 @@ func (r *Recorder) Range(from int) ([]Step, int, int, error) {
 		}
 		return nil, 0, 0, fmt.Errorf("fromStep must be between 1 and %d", total)
 	}
-	return slices.Clone(r.steps[from-1:]), from, total, nil
+	if to == 0 {
+		to = total
+	}
+	if to < from || to > total {
+		return nil, 0, 0, fmt.Errorf("toStep must be between %d (fromStep) and %d", from, total)
+	}
+	return slices.Clone(r.steps[from-1 : to]), from, to, nil
 }
 
 // MarkSaved registra até onde o último flow_save foi.

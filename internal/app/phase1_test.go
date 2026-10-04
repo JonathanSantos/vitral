@@ -150,3 +150,113 @@ func TestScopeMarksTextCutAtTheLimit(t *testing.T) {
 		t.Fatalf("text over 300 chars must end with …:\n%s", line)
 	}
 }
+
+// text=true lê parágrafos (que o snapshot não lista), do conteúdo principal ou de um scope, sem o
+// texto do selo do Vitral e com aviso quando corta.
+func TestSnapshotText(t *testing.T) {
+	snap := h.ok(t, "open", map[string]any{"url": h.url("/pages/dialog.html")})
+	h.mainWorld(t, `() => { const p = document.createElement('p'); p.id = 'paragrafo';
+		p.textContent = 'Um parágrafo que o snapshot não lista, mas que a IA precisa ler.'; document.body.append(p); return {}; }`)
+	if strings.Contains(h.ok(t, "snapshot", nil), "Um parágrafo") {
+		t.Fatal("plain paragraphs are not in the element list")
+	}
+	text := h.ok(t, "snapshot", map[string]any{"text": true})
+	mustContain(t, text, "text of main content:", "Um parágrafo que o snapshot não lista, mas que a IA precisa ler.")
+	for _, own := range []string{"Vitral está usando", "Pausar IA"} {
+		if strings.Contains(text, own) {
+			t.Fatalf("badge text leaked into the page text:\n%s", text)
+		}
+	}
+	_ = snap
+	h.mainWorld(t, `() => { const d = document.createElement('section'); d.setAttribute('aria-label', 'Longo');
+		d.textContent = 'palavra '.repeat(900); document.body.append(d); return {}; }`)
+	long := h.ok(t, "snapshot", nil)
+	m := regexp.MustCompile(`\[(e\d+)\] region "Longo"`).FindStringSubmatch(long)
+	if m == nil {
+		t.Fatalf("no region in:\n%s", long)
+	}
+	scoped := h.ok(t, "snapshot", map[string]any{"text": true, "scope": m[1]})
+	mustContain(t, scoped, "text of ["+m[1]+"] region:", "… showing chars 0-4000 of 7199: call again with textFrom=4000")
+	rest := h.ok(t, "snapshot", map[string]any{"text": true, "scope": m[1], "textFrom": 4000})
+	mustContain(t, rest, "text of ["+m[1]+"] region, from char 4000:")
+	if strings.Contains(rest, "showing chars") {
+		t.Fatalf("the second page reaches the end:\n%s", rest[len(rest)-200:])
+	}
+	mustContain(t, h.ok(t, "snapshot", map[string]any{"text": true, "scope": m[1], "textFrom": 9000}), "nothing after char 9000 (it has 7199 chars)")
+	h.fail(t, "snapshot", map[string]any{"text": true, "scope": "e9999"}, "e9999")
+}
+
+// text=true num título lê a seção (até o próximo título do mesmo nível), inclusive com o título num
+// invólucro como o da Wikipédia, e deixa de fora as linhas que são só menu ou botão.
+func TestSnapshotTextSection(t *testing.T) {
+	h.ok(t, "open", map[string]any{"url": h.url("/pages/dialog.html")})
+	h.mainWorld(t, `() => { const a = document.createElement('article');
+		a.innerHTML = '<nav><a href="#x">Ler</a> <a href="#y">Editar</a></nav>' +
+			'<p>Introdução do artigo.</p>' +
+			'<div class="mw-heading"><h2>História</h2><span><a href="#e">editar</a></span></div>' +
+			'<p>Parágrafo um da história.</p><h3>Idade Média</h3><p>Parágrafo da subseção.</p>' +
+			'<div class="mw-heading"><h2>Técnica</h2></div><p>Parágrafo da técnica.</p>';
+		document.body.append(a); return {}; }`)
+	full := h.ok(t, "snapshot", map[string]any{"full": true})
+	m := regexp.MustCompile(`\[(e\d+)\] heading "História"`).FindStringSubmatch(full)
+	if m == nil {
+		t.Fatalf("no heading in:\n%s", full)
+	}
+	sec := h.ok(t, "snapshot", map[string]any{"text": true, "scope": m[1]})
+	mustContain(t, sec, "text of section ["+m[1]+"] heading:", "Parágrafo um da história.", "Parágrafo da subseção.")
+	for _, out := range []string{"Introdução", "Parágrafo da técnica", "Técnica"} {
+		if strings.Contains(sec, out) {
+			t.Fatalf("section should stop at the next h2 (%q leaked):\n%s", out, sec)
+		}
+	}
+	page := h.ok(t, "snapshot", map[string]any{"text": true})
+	if regexp.MustCompile(`(?m)^(Ler|Editar)$`).MatchString(page) {
+		t.Fatalf("menu-only lines should be dropped:\n%s", page)
+	}
+	mustContain(t, page, "Introdução do artigo.", "Parágrafo da técnica.")
+}
+
+// Os links do texto lido vêm com a ref ("texto[eN]") e a ref serve para clicar.
+func TestSnapshotTextLinksHaveRefs(t *testing.T) {
+	h.ok(t, "open", map[string]any{"url": h.url("/pages/styles.html")})
+	h.mainWorld(t, `() => { const p = document.createElement('p');
+		p.innerHTML = 'Vitrais famosos estão na <a href="#chartres" onclick="this.textContent=\'visitada\'; return false;">Catedral de Chartres</a> e em <a href="#paris">Notre-Dame</a>.';
+		(document.querySelector('main') || document.body).prepend(p); return {}; }`)
+	text := h.ok(t, "snapshot", map[string]any{"text": true})
+	m := regexp.MustCompile(`Vitrais famosos estão na Catedral de Chartres\[(e\d+)\] e em Notre-Dame\[e\d+\]\.`).FindStringSubmatch(text)
+	if m == nil {
+		t.Fatalf("links should be marked with their refs:\n%s", text)
+	}
+	h.ok(t, "click", map[string]any{"ref": m[1]})
+	mustContain(t, h.ok(t, "snapshot", map[string]any{"text": true}), "visitada[")
+}
+
+// Títulos vêm marcados no texto lido, e um link de índice (#âncora) como scope lê a seção de destino.
+func TestSnapshotTextHeadingsAndTOC(t *testing.T) {
+	h.ok(t, "open", map[string]any{"url": h.url("/pages/styles.html")})
+	h.mainWorld(t, `() => { const a = document.createElement('article');
+		a.innerHTML = '<nav><a href="#Historia">História</a></nav><p>Intro.</p>' +
+			'<div class="mw-heading"><h2 id="Historia">História</h2></div><p>Texto da história.</p>' +
+			'<h2 id="Tecnica">Técnica</h2><p>Texto da técnica.</p>';
+		(document.querySelector('main') || document.body).prepend(a); return {}; }`)
+	text := h.ok(t, "snapshot", map[string]any{"text": true})
+	m := regexp.MustCompile(`(?m)^## Técnica\[(e\d+)\]$`).FindStringSubmatch(text)
+	if m == nil {
+		t.Fatalf("headings should be marked with level and ref:\n%s", text)
+	}
+	mustContain(t, h.ok(t, "snapshot", map[string]any{"text": true, "scope": m[1]}), "Texto da técnica.")
+	mustContain(t, text, "Intro.", "Texto da história.")
+	if !regexp.MustCompile(`(?m)^## História\[e\d+\]$`).MatchString(text) {
+		t.Fatalf("a heading with the same text as a menu item must stay:\n%s", text)
+	}
+	// O índice fica no nav (fora do texto lido); a IA pega a ref dele no snapshot normal.
+	toc := regexp.MustCompile(`\[(e\d+)\] link "História"`).FindStringSubmatch(h.ok(t, "snapshot", nil))
+	if toc == nil {
+		t.Fatal("table-of-contents link not in the snapshot")
+	}
+	sec := h.ok(t, "snapshot", map[string]any{"text": true, "scope": toc[1]})
+	mustContain(t, sec, "Texto da história.")
+	if strings.Contains(sec, "Texto da técnica") {
+		t.Fatalf("toc link should read only its section:\n%s", sec)
+	}
+}

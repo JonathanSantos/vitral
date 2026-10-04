@@ -340,3 +340,59 @@ func refError(ref, code string) error {
 	}
 	return errors.New(code)
 }
+
+// ReadTextMax é quanto texto o snapshot com text=true devolve de uma vez (≈1000 tokens).
+const ReadTextMax = 4000
+
+// ReadText devolve o texto visível de um elemento (ou do conteúdo principal da página): é como a IA
+// lê parágrafos, que o snapshot não lista.
+func (s *Session) ReadText(ctx context.Context, scope string, from int) (string, error) {
+	from = max(from, 0)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, err := s.page(); err != nil {
+		return "", err
+	}
+	var res struct {
+		Error   string `json:"error"`
+		Role    string `json:"role"`
+		Ref     string `json:"ref"`
+		Section bool   `json:"section"`
+		Text    string `json:"text"`
+		Total   int    `json:"total"`
+	}
+	if err := s.evalInto(ctx, &res, `(r, m, f) => window.__vitral.readText(r, m, f)`, scope, ReadTextMax, from); err != nil {
+		return "", err
+	}
+	if err := refError(scope, res.Error); err != nil {
+		return "", err
+	}
+	var head struct {
+		Title string `json:"title"`
+		URL   string `json:"url"`
+	}
+	_ = s.evalInto(ctx, &head, `() => ({title: document.title, url: location.href})`)
+	what := "main content"
+	if res.Ref != "" {
+		what = fmt.Sprintf("[%s] %s", res.Ref, res.Role)
+	}
+	if res.Section {
+		what = "section " + what
+	}
+	lines := []string{fmt.Sprintf("page: %q (%s)", head.Title, head.URL)}
+	if res.Text == "" {
+		if from > 0 && res.Total > 0 {
+			return strings.Join(append(lines, fmt.Sprintf("text of %s: nothing after char %d (it has %d chars).", what, from, res.Total)), "\n"), nil
+		}
+		return strings.Join(append(lines, fmt.Sprintf("text of %s: (no visible text)", what)), "\n"), nil
+	}
+	header := fmt.Sprintf("text of %s:", what)
+	if from > 0 {
+		header = fmt.Sprintf("text of %s, from char %d:", what, from)
+	}
+	lines = append(lines, header, res.Text)
+	if end := from + len([]rune(res.Text)); end < res.Total {
+		lines = append(lines, fmt.Sprintf("… showing chars %d-%d of %d: call again with textFrom=%d for more, or read one section with scope=<heading ref> (headings are marked like ## Title[eN]).", from, end, res.Total, end))
+	}
+	return strings.Join(lines, "\n"), nil
+}

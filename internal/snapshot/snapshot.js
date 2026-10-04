@@ -472,6 +472,132 @@
     return info;
   }
 
+  // readText devolve o texto visível de um elemento (ou do conteúdo principal), linha a linha, sem
+  // o texto do selo do Vitral. O snapshot lista elementos; parágrafos só aparecem por aqui.
+  // Num título, lê a seção: do título até o próximo título do mesmo nível ou acima.
+  const CHROME_SEL = 'nav,[role=navigation],[role=menu],[role=menubar],[role=toolbar],button,select,option,label,[role=button],[role=tab],[role=menuitem]';
+
+  function headingLevel(el) {
+    const m = /^H([1-6])$/.exec(el.tagName);
+    if (m) return Number(m[1]);
+    if (el.getAttribute && el.getAttribute('role') === 'heading') return Number(el.getAttribute('aria-level')) || 2;
+    return 0;
+  }
+
+  // levelOf é o nível de um título, ou de um invólucro cujo primeiro filho é um título (como o
+  // div.mw-heading da Wikipédia, que guarda o h2 e o link "editar").
+  function levelOf(n) {
+    return headingLevel(n) || (n.firstElementChild ? headingLevel(n.firstElementChild) : 0);
+  }
+
+  // sectionParts: a seção de um título. Se o título abre um <section>/<article>, é ele; senão, o
+  // título (ou o invólucro) e os irmãos seguintes até o próximo título de nível igual ou maior.
+  function sectionParts(h) {
+    const level = headingLevel(h);
+    let start = h;
+    const parent = h.parentElement;
+    if (parent && parent.firstElementChild === h && !parent.querySelector('p')) start = parent; // invólucro
+    const box = start.parentElement;
+    if (box && box.firstElementChild === start && /^(SECTION|ARTICLE)$/.test(box.tagName)) return [box];
+    const parts = [start];
+    for (let n = start.nextElementSibling; n; n = n.nextElementSibling) {
+      const lv = levelOf(n);
+      if (lv && lv <= level) break;
+      parts.push(n);
+    }
+    return parts;
+  }
+
+  function readText(ref, max, from) {
+    from = Math.max(0, from || 0);
+    let parts;
+    let root = null;
+    if (ref) {
+      let el = find(ref);
+      if (!el) return { error: 'not_found' };
+      // Link de índice ("#História"): lê a seção para onde ele aponta.
+      const hash = el.tagName === 'A' && (el.getAttribute('href') || '').startsWith('#') ? el.getAttribute('href').slice(1) : '';
+      if (hash) {
+        let target = null;
+        try { target = document.getElementById(decodeURIComponent(hash)); } catch (_) { target = document.getElementById(hash); }
+        if (target) el = headingLevel(target) ? target : (target.querySelector('h1,h2,h3,h4,h5,h6,[role=heading]') || target);
+      }
+      root = el;
+      parts = headingLevel(el) ? sectionParts(el) : [el];
+    } else {
+      parts = [document.querySelector('main, [role=main], article') || document.body];
+    }
+    if (!root) root = parts[0];
+    // Linhas curtas que são só menu, navegação, botão ou rótulo saem; parágrafos ficam sempre. A
+    // remoção anda em ordem: cada item visível de menu tira a sua ocorrência no texto, e um título
+    // com o mesmo texto (que vem depois) fica.
+    const inChrome = (n, part) => {
+      const c = n.parentElement && n.parentElement.closest(CHROME_SEL);
+      return !!c && (part.contains ? part.contains(c) : false);
+    };
+    const lines = [];
+    for (const part of parts) {
+      const chrome = [];
+      for (const c of part.querySelectorAll ? part.querySelectorAll(CHROME_SEL) : []) {
+        if (inChrome(c, part) || !isVisible(c)) continue;
+        for (const l of (c.innerText || '').split('\n')) {
+          const t = l.replace(/\s+/g, ' ').trim();
+          if (t && t.length < 60) chrome.push(t);
+        }
+      }
+      let next = 0;
+      for (const raw of (part.innerText || '').split('\n')) {
+        const l = raw.replace(/\s+/g, ' ').trim();
+        if (!l) continue;
+        if (next < chrome.length && l === chrome[next]) {
+          next++;
+          continue;
+        }
+        lines.push(l);
+      }
+    }
+    // O selo do Vitral fica pendurado no <html>, fora do <body>: o texto dele nunca entra aqui.
+    // Títulos marcados com o nível e a ref ("## História[e12]"): dá para ler uma seção direto.
+    let marked = 0;
+    for (const part of parts) {
+      const heads = [...(headingLevel(part) ? [part] : []), ...(part.querySelectorAll ? part.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading]') : [])];
+      for (const h of heads) {
+        const label = (h.innerText || '').replace(/\s+/g, ' ').trim();
+        if (!label || !isVisible(h)) continue;
+        for (let i = marked; i < lines.length; i++) {
+          if (lines[i] === label) {
+            lines[i] = '#'.repeat(headingLevel(h)) + ' ' + label + '[' + refFor(h) + ']';
+            marked = i + 1;
+            break;
+          }
+        }
+      }
+    }
+    // Links com a ref logo depois do texto, como "Catedral de Chartres[e12]": dá para clicar direto
+    // no que foi lido. A busca anda só para frente no texto (ordem do documento).
+    let text = lines.join('\n');
+    let at = 0;
+    for (const part of parts) {
+      for (const a of part.querySelectorAll ? part.querySelectorAll('a[href]') : []) {
+        if (a.closest(CHROME_SEL)) continue;
+        const label = (a.innerText || '').replace(/\s+/g, ' ').trim();
+        if (label.length < 2 || !isVisible(a)) continue;
+        const i = text.indexOf(label, at);
+        if (i < 0) continue;
+        const tag = '[' + refFor(a) + ']';
+        const end = i + label.length;
+        text = text.slice(0, end) + tag + text.slice(end);
+        at = end + tag.length;
+      }
+    }
+    const chars = Array.from(text);
+    return {
+      role: root ? (roleOf(root) || root.tagName.toLowerCase()) : '', ref: (root && root.getAttribute(REF_ATTR)) || '',
+      section: !!(ref && headingLevel(root)),
+      text: chars.slice(from, from + max).join(''), total: chars.length,
+    };
+  }
+
   // Cursor visual (docs/CURSOR.md, 12.2). Um ponto só vale se acertar o alvo ou um descendente NÃO
   // interativo: num card clicável com uma lixeira dentro, um ponto na lixeira não é clique no card.
   function isInteractive(n) {
@@ -730,6 +856,7 @@
     box: (ref) => { const el = find(ref); return el ? boxOf(el) : null; },
     reveal,
     revealSmooth,
+    readText,
     aim,
     aimAt,
     env,

@@ -17,6 +17,8 @@ type snapshotInput struct {
 	Scope    string `json:"scope,omitempty" jsonschema:"ref of an element to show only its subtree, with all its items and full texts"`
 	Full     bool   `json:"full,omitempty" jsonschema:"include elements outside the visible area"`
 	MaxLines int    `json:"maxLines,omitempty" jsonschema:"max lines in the output (default 300)"`
+	Text     bool   `json:"text,omitempty" jsonschema:"return the visible text (paragraphs included) of scope, or of the main content, instead of the element list"`
+	TextFrom int    `json:"textFrom,omitempty" jsonschema:"with text=true: continue reading from this character (the cut message says where)"`
 }
 
 type waitForInput struct {
@@ -36,7 +38,7 @@ func registerNavigation(s *mcp.Server, d Deps) {
 
 	addTool(s, d, &mcp.Tool{
 		Name:        "snapshot",
-		Description: "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=<ref> to read them in full.",
+		Description: "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=<ref> to read them in full. Paragraph text is not listed: use text=true to read it: links come as text[ref], headings as ## Title[ref]; scope=<heading or table-of-contents link ref> reads that section.",
 	}, snapshotTool(d.Session))
 
 	addTool(s, d, &mcp.Tool{
@@ -58,6 +60,9 @@ func openTool(sess *session.Session) mcp.ToolHandlerFor[openInput, any] {
 
 func snapshotTool(sess *session.Session) mcp.ToolHandlerFor[snapshotInput, any] {
 	return textHandler(func(ctx context.Context, in snapshotInput) (string, error) {
+		if in.Text {
+			return sess.ReadText(ctx, in.Scope, in.TextFrom)
+		}
 		return sess.Snapshot(ctx, session.SnapshotOptions{Scope: in.Scope, Full: in.Full, MaxLines: in.MaxLines})
 	})
 }
