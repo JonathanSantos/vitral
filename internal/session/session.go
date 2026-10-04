@@ -76,8 +76,12 @@ type Session struct {
 	rec       *flow.Recorder
 	replaying atomic.Bool
 	cur       *pointer
-	ax        *axRefs // motor ax (protótipo): refs do documento atual
+	ax        *axRefs // motor ax: refs do documento atual
 	axStats   AXStats
+
+	// AXFullTree faz o snapshot da área visível usar a árvore de acessibilidade inteira: só para os
+	// testes compararem com a busca parcial (a referência).
+	AXFullTree bool
 
 	mu        sync.Mutex
 	last      *snapshot.Page
@@ -152,24 +156,33 @@ func (s *Session) ensureScript(ctx context.Context) error {
 	return s.world.Eval(ctx, snapshot.Script)
 }
 
-func (s *Session) evalInto(ctx context.Context, out any, js string, args ...any) error {
-	data, err := s.evalJSON(ctx, js, args...)
+// callRefJSON chama fn(el, ...args) com o elemento da ref: pelo backendNodeId que o Go guarda
+// (DOM.resolveNode no mundo isolado, alcança shadow root fechado) ou, para refs criadas pelo próprio
+// script, pelo registro dele. A ref fica registrada no script para as buscas reversas (texto, cobertura).
+// Elemento que não existe mais chega como null. Ref vazia: el é null.
+func (s *Session) callRefJSON(ctx context.Context, ref, fn string, args ...any) ([]byte, error) {
+	var el any
+	if ref != "" {
+		el = s.elem(ref)
+	}
+	js := `function (el, ref, ...a) { if (el) window.__vitral.bind([ref], [el]); return (` + fn + `)(el, ...a); }`
+	return s.evalJSON(ctx, js, append([]any{el, ref}, args...)...)
+}
+
+func (s *Session) callRef(ctx context.Context, out any, ref, fn string, args ...any) error {
+	data, err := s.callRefJSON(ctx, ref, fn, args...)
 	if err != nil {
 		return err
 	}
 	return json.Unmarshal(data, out)
 }
 
-// capture tira um snapshot estruturado.
-func (s *Session) capture(ctx context.Context, opts snapshot.Options) (*snapshot.Page, error) {
-	if s.cfg.SnapshotEngine == "ax" {
-		return s.captureAX(ctx, opts)
-	}
-	data, err := s.evalJSON(ctx, `(o) => window.__vitral.snapshot(o)`, opts)
+func (s *Session) evalInto(ctx context.Context, out any, js string, args ...any) error {
+	data, err := s.evalJSON(ctx, js, args...)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return snapshot.Parse(data)
+	return json.Unmarshal(data, out)
 }
 
 func knownRefs(p *snapshot.Page) []string {
@@ -373,8 +386,8 @@ func (s *Session) ReadText(ctx context.Context, scope string, from int, find str
 			Text string `json:"text"`
 		} `json:"hits"`
 	}
-	js := `(r, m, f, q) => window.__vitral.readText(r, m, f, q)`
-	if err := s.evalInto(ctx, &res, js, scope, ReadTextMax, from, strings.TrimSpace(find)); err != nil {
+	js := `(el, r, m, f, q) => window.__vitral.readText(el, r !== '', m, f, q)`
+	if err := s.callRef(ctx, &res, scope, js, scope, ReadTextMax, from, strings.TrimSpace(find)); err != nil {
 		return "", err
 	}
 	if err := refError(scope, res.Error); err != nil {

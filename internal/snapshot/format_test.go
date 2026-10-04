@@ -106,12 +106,8 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-func TestParseErrors(t *testing.T) {
-	if _, err := Parse([]byte(`{"error":"ref_not_found","ref":"e9"}`)); err == nil ||
-		err.Error() != "ref e9 not found: page changed since last snapshot. Call snapshot." {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, err := Parse([]byte(`nope`)); err == nil {
-		t.Fatal("expected decode error")
+func TestRefNotFoundMessage(t *testing.T) {
+	if got := (ErrRefNotFound{Ref: "e9"}).Error(); got != "ref e9 not found: page changed since last snapshot. Call snapshot." {
+		t.Fatalf("unexpected error: %q", got)
 	}
 }

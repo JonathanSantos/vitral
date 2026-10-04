@@ -133,7 +133,7 @@ gate-fast:
 	$(QUALITYGATE) -unit $(OUT)/unit.out
 
 gate:
-	$(QUALITYGATE) -unit $(OUT)/unit.out -combined $(OUT)/integration.out,$(OUT)/e2e.out -tokens $(OUT)/tokens.json -mutation $(OUT)/mutation
+	$(QUALITYGATE) -unit $(OUT)/unit.out -combined $(OUT)/integration.out,$(OUT)/e2e.out -tokens $(OUT)/tokens.json -timing $(OUT)/timing.json -mutation $(OUT)/mutation
 
 # Atualiza a base de tokens com a última medição do e2e (o diff aparece no PR).
 tokens-baseline:

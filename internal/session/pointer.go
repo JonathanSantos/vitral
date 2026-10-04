@@ -101,7 +101,7 @@ func (s *Session) aim(ctx context.Context, ref string, box [4]int, kind cursor.K
 		pts[i] = [2]float64{c.X, c.Y}
 	}
 	var info aimInfo
-	if err := s.evalInto(ctx, &info, `(r, c) => window.__vitral.aim(r, c)`, ref, pts); err != nil {
+	if err := s.callRef(ctx, &info, ref, `(el, c) => window.__vitral.aim(el, c)`, pts); err != nil {
 		return target{}, false, err
 	}
 	if err := refError(ref, info.Error); err != nil {
@@ -124,7 +124,7 @@ func (s *Session) aim(ctx context.Context, ref string, box [4]int, kind cursor.K
 	c := free.Center()
 	c = cursor.Point{X: math.Round(c.X*10) / 10, Y: math.Round(c.Y*10) / 10}
 	var hits bool
-	if err := s.evalInto(ctx, &hits, `(r, x, y) => window.__vitral.aimAt(r, x, y)`, ref, c.X, c.Y); err != nil {
+	if err := s.callRef(ctx, &hits, ref, `(el, x, y) => window.__vitral.aimAt(el, x, y)`, c.X, c.Y); err != nil {
 		return t, false, err
 	}
 	t.to = c
@@ -226,7 +226,7 @@ func (s *Session) approach(ctx context.Context, ref string, box [4]int, kind cur
 
 	// Alvo que se mexeu no caminho: recalcula o ponto com a mesma regra e corrige.
 	var now [4]int
-	if err := s.evalInto(ctx, &now, `(r) => window.__vitral.box(r) || [0, 0, 0, 0]`, ref); err == nil && now[2] > 0 && movedBox(box, now) {
+	if err := s.callRef(ctx, &now, ref, `(el) => window.__vitral.box(el) || [0, 0, 0, 0]`); err == nil && now[2] > 0 && movedBox(box, now) {
 		nt, ok, err := s.aim(ctx, ref, now, kind)
 		if err != nil || !ok {
 			return cursor.Plan{}, ok, err

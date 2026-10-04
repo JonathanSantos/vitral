@@ -194,20 +194,17 @@ func TestHighlightBeforeAction(t *testing.T) {
 	snap := hl.ok(t, "open", map[string]any{"url": hl.url("/pages/form.html")})
 	checkbox := ref(t, snap, "checkbox", "Aceito os termos")
 
+	// Com o anel na tela, o snapshot (o mesmo caminho das ações) não enxerga nada do overlay.
+	hl.app.Overlay.ShowHighlight(context.Background(), checkbox, [4]int{10, 10, 120, 30}, 3*time.Second)
+	waitFor(t, func() bool { return hasRing(t, hl) })
+	full := hl.ok(t, "snapshot", map[string]any{"full": true})
+	if _, rest, _ := strings.Cut(full, "\n"); strings.Contains(strings.ToLower(rest), "vitral") || strings.Contains(rest, "Pausar") {
+		t.Fatalf("snapshot during highlight sees the overlay: %s", full)
+	}
+
 	done := make(chan string, 1)
 	start := time.Now()
 	go func() { done <- hl.ok(t, "click", map[string]any{"ref": checkbox}) }()
-
-	// Durante o destaque: o anel existe no overlay e um snapshot direto não enxerga nada dele.
-	waitFor(t, func() bool { return hasRing(t, hl) })
-	raw, err := hl.app.World.Call(context.Background(), `() => JSON.stringify(window.__vitral.snapshot({full: true}))`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s := string(raw); strings.Contains(strings.ToLower(s), "vitral") || strings.Contains(s, "Pausar") {
-		t.Fatalf("snapshot during highlight sees the overlay: %s", s)
-	}
-
 	out := <-done
 	if elapsed := time.Since(start); elapsed < 400*time.Millisecond {
 		t.Fatalf("click should wait for the highlight, took %v", elapsed)

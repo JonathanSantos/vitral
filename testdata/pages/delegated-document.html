@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Clique delegado no document - Fixture</title>
+<style>.card { border: 1px solid #ccc; padding: 12px; margin: 8px; width: 220px; cursor: pointer; }</style></head>
+<body>
+  <!-- Regressão do motor ax: um listener de clique no document (delegação) não pode transformar a
+       página inteira num "clickable"; os cards (cursor pointer) aparecem um a um. -->
+  <h1>Entregas</h1>
+  <p>Escolha o tipo de entrega.</p>
+  <div class="card" data-tipo="normal">Entrega normal</div>
+  <div class="card" data-tipo="expressa">Entrega expressa</div>
+  <p id="status" role="status">nenhuma</p>
+  <script>
+    document.addEventListener('click', (e) => {
+      const card = e.target.closest('.card');
+      if (card) document.getElementById('status').textContent = 'entrega ' + card.dataset.tipo;
+    });
+  </script>
+</body>
+</html>

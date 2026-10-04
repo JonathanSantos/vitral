@@ -1,13 +1,13 @@
-// Package snapshot transforma a árvore coletada pelo JS embutido em texto compacto para a IA.
+// Package snapshot monta a página a partir da árvore de acessibilidade (ax.go) e a transforma em
+// texto compacto para a IA.
 package snapshot
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 )
 
-// Script é injetado em todo documento novo e expõe window.__vitral.
+// Script é injetado em todo documento novo (mundo isolado) e expõe window.__vitral.
 //
 //go:embed snapshot.js
 var Script string
@@ -28,7 +28,7 @@ type Node struct {
 	Children       []*Node `json:"children,omitempty"`
 }
 
-// Page é o resultado de window.__vitral.snapshot.
+// Page é um snapshot da página.
 type Page struct {
 	DocID     string   `json:"docId"`
 	URL       string   `json:"url"`
@@ -38,11 +38,10 @@ type Page struct {
 	DPR       float64  `json:"dpr"`
 	Nodes     []*Node  `json:"nodes"`
 	Offscreen []string `json:"offscreen"`
-	Error     string   `json:"error"`
-	Ref       string   `json:"ref"`
 }
 
-// Options controla o que o JS coleta.
+// Options controla o que o snapshot inclui (Known: refs do snapshot anterior, para as que saíram da
+// área visível).
 type Options struct {
 	Full  bool     `json:"full,omitempty"`
 	Scope string   `json:"scope,omitempty"`
@@ -54,21 +53,6 @@ type ErrRefNotFound struct{ Ref string }
 
 func (e ErrRefNotFound) Error() string {
 	return fmt.Sprintf("ref %s not found: page changed since last snapshot. Call snapshot.", e.Ref)
-}
-
-// Parse decodifica o JSON devolvido pelo JS.
-func Parse(data []byte) (*Page, error) {
-	var p Page
-	if err := json.Unmarshal(data, &p); err != nil {
-		return nil, fmt.Errorf("decode snapshot: %w", err)
-	}
-	if p.Error == "ref_not_found" {
-		return nil, ErrRefNotFound{Ref: p.Ref}
-	}
-	if p.Error != "" {
-		return nil, fmt.Errorf("snapshot failed: %s", p.Error)
-	}
-	return &p, nil
 }
 
 // Walk visita todos os nós em pré-ordem, com o pai de cada um.

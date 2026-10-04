@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Leitura - Fixture</title></head>
+<body>
+  <!-- Refs no texto lido (snapshot text=true): o mesmo link tem a mesma ref no snapshot e no texto, e
+       a ref de um link que só apareceu na leitura vale para ações e continua no próximo snapshot. -->
+  <main>
+    <h1>Leitura</h1>
+    <p id="status" role="status">nada</p>
+    <p>Um parágrafo com o <a href="#p" onclick="say('primeiro'); return false">Primeiro link</a> no meio do texto.</p>
+    <div style="height: 2400px"></div>
+    <h2>Mais abaixo</h2>
+    <p>Outro parágrafo, com o <a href="#d" onclick="say('distante'); return false">Link distante</a> lá no fim.</p>
+  </main>
+  <script>function say(t) { document.getElementById('status').textContent = t; }</script>
+</body>
+</html>

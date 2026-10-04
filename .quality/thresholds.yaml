@@ -62,6 +62,15 @@ tokens:
   - {match: "action/*/*-click", max: 280}
   - {match: "action/*/*", max: 170}
 
+# Tempo do snapshot (mediana de 15 chamadas no e2e, binário real; docs/SNAPSHOT-V2.md). Primeiro padrão
+# que casar define o teto. Um teto só muda depois de mostrar o valor medido.
+timing:
+  # Snapshot da área visível (o do diff depois de cada ação).
+  - {match: "snapshot/large.html", maxMs: 120}
+  - {match: "snapshot/*", maxMs: 30}
+  # Snapshot completo.
+  - {match: "snapshot-full/large.html", maxMs: 400}
+
 # Mutação (Gremlins). No PR, só os pacotes do escopo alterados em relação à base; no noturno, todos.
 # Nota = mortos / (mortos + vivos); timeout, não coberto e inviável ficam fora da conta.
 mutation:

@@ -26,6 +26,7 @@ type Thresholds struct {
 	Module   string                      `yaml:"module"`
 	Coverage map[string]PackageThreshold `yaml:"coverage"`
 	Tokens   []TokenRule                 `yaml:"tokens"`
+	Timing   []TimingRule                `yaml:"timing"`
 	Mutation MutationConfig              `yaml:"mutation"`
 }
 
@@ -54,6 +55,11 @@ func ParseThresholds(data []byte) (Thresholds, error) {
 	for _, r := range t.Tokens {
 		if r.Match == "" || r.Max <= 0 {
 			return t, fmt.Errorf("thresholds: token rule %q needs match and max > 0", r.Match)
+		}
+	}
+	for _, r := range t.Timing {
+		if r.Match == "" || r.MaxMs <= 0 {
+			return t, fmt.Errorf("thresholds: timing rule %q needs match and maxMs > 0", r.Match)
 		}
 	}
 	return t, nil

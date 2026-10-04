@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Listener no body - Fixture</title>
+<style>.card { border: 1px solid #ccc; padding: 12px; margin: 8px; width: 220px; }</style></head>
+<body>
+  <!-- Regressão do motor ax: um listener de clique no <body> (ex.: analytics) não pode esconder os
+       filhos que têm o próprio listener (a regra "o pai já é clicável" não vale para o body). -->
+  <h1>Cupons</h1>
+  <div class="card" id="dez">Cupom 10%</div>
+  <div class="card" id="frete">Frete grátis</div>
+  <p id="status" role="status">nenhum</p>
+  <script>
+    let cliques = 0;
+    document.body.addEventListener('click', () => { cliques++; });
+    for (const id of ['dez', 'frete']) {
+      document.getElementById(id).addEventListener('click', () => {
+        document.getElementById('status').textContent = 'cupom ' + id;
+      });
+    }
+  </script>
+</body>
+</html>

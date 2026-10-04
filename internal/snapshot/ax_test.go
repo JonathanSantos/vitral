@@ -164,7 +164,7 @@ func TestBuildAXNamesStatesAndCounts(t *testing.T) {
 	f := newAXFixture()
 	dlg := f.add(1, "alertdialog", "", "DIV", map[string]string{"aria-modal": "true"})
 	f.add(dlg.Backend, "heading", "Confirmar", "H2", nil)
-	nav := f.add(1, "navigation", "Menu", "NAV", nil) // nome sem aria-label: o motor dom não dava
+	nav := f.add(1, "navigation", "Menu", "NAV", nil) // nome sem aria-label: o snapshot antigo não dava
 	_ = nav
 	named := f.add(1, "navigation", "Principal", "NAV", map[string]string{"aria-label": "Principal"})
 	_ = named
@@ -175,6 +175,11 @@ func TestBuildAXNamesStatesAndCounts(t *testing.T) {
 		f.add(row.Backend, "LayoutTableCell", "#"+strconv.Itoa(i), "TD", nil)
 		f.add(row.Backend, "LayoutTableCell", "Ana", "TD", nil)
 	}
+	// Tabela de layout: o Chrome a nomeia com o texto das células; só title, caption ou aria dão nome.
+	f.add(1, "LayoutTable", "Produto Preço Caneta", "TABLE", nil)
+	f.add(1, "LayoutTable", "Preços", "TABLE", map[string]string{"title": "Preços"})
+	capt := f.add(1, "LayoutTable", "Estoque", "TABLE", nil)
+	f.add(capt.Backend, "caption", "Estoque", "CAPTION", nil)
 	grid := f.add(1, "grid", "", "DIV", map[string]string{"aria-rowcount": "40"})
 	_ = grid
 	tree := f.add(1, "tree", "", "DIV", nil)
@@ -210,6 +215,9 @@ func TestBuildAXNamesStatesAndCounts(t *testing.T) {
 	}
 	if strings.Contains(out, `navigation "Menu"`) {
 		t.Error("container names only come from aria-label/labelledby")
+	}
+	if strings.Contains(out, `table "Produto`) || !strings.Contains(out, `table "Preços"`) || !strings.Contains(out, `table "Estoque"`) {
+		t.Errorf("layout table names:\n%s", out)
 	}
 }
 

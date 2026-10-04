@@ -1,21 +1,21 @@
 package snapshot
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
 
-// FuzzParseAndFormat: o JSON vem do JS da página; nada pode derrubar o parse nem a formatação,
-// e a saída respeita o limite de linhas.
-func FuzzParseAndFormat(f *testing.F) {
+// FuzzFormat: qualquer página (nomes, contagens e estados vêm da página) passa pela formatação e
+// pelo resumo sem derrubar nada, e a saída respeita o limite de linhas.
+func FuzzFormat(f *testing.F) {
 	f.Add(`{"docId":"d","url":"http://x","title":"T","viewport":[1,1],"scroll":[0,0],"nodes":[{"ref":"e1","role":"button","name":"Ok","box":[0,0,1,1]}]}`)
 	f.Add(`{"nodes":[{"ref":"e1","role":"table","count":3,"children":[{"ref":"e2","role":"row","name":"a"},{"ref":"e3","role":"row"}]}]}`)
-	f.Add(`{"error":"ref_not_found","ref":"e9"}`)
 	f.Add(`{"nodes":[{"ref":"e1","role":"list","count":-1,"value":"x","states":["invalid"],"invalidMessage":"m"}]}`)
 	f.Add(`nope`)
 	f.Fuzz(func(t *testing.T, data string) {
-		p, err := Parse([]byte(data))
-		if err != nil {
+		p := &Page{}
+		if err := json.Unmarshal([]byte(data), p); err != nil {
 			return
 		}
 		opts := FormatOptions{MaxLines: 5, TextMax: 20, ListMax: 2}

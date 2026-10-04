@@ -54,7 +54,7 @@ type AXInput struct {
 
 var axRoleMap = map[string]string{
 	"alertdialog": "dialog", "LabelText": "label", "MenuListOption": "option",
-	// O Chrome chama de "tabela de layout" uma <table> sem cabeçalhos; o motor dom trata toda <table>
+	// O Chrome chama de "tabela de layout" uma <table> sem cabeçalhos; o snapshot antigo trata toda <table>
 	// como tabela.
 	"LayoutTable": "table", "LayoutTableRow": "row", "LayoutTableCell": "cell",
 }
@@ -72,7 +72,7 @@ var axStructure = map[string]bool{
 	"form": true, "region": true, "search": true, "group": true, "label": true, "error": true,
 }
 
-// Papéis de contêiner: o nome só vale se vier de aria-label/aria-labelledby (como no motor dom).
+// Papéis de contêiner: o nome só vale se vier de aria-label/aria-labelledby (como no snapshot antigo).
 var axUnnamedContainers = map[string]bool{
 	"list": true, "navigation": true, "main": true, "banner": true, "contentinfo": true, "complementary": true,
 	"form": true, "region": true, "search": true, "menu": true, "menubar": true, "tablist": true, "tree": true,
@@ -87,7 +87,7 @@ var axSpaces = regexp.MustCompile(`\s+`)
 
 func axNorm(s string) string { return strings.TrimSpace(axSpaces.ReplaceAllString(s, " ")) }
 
-// axCut é o mesmo corte do motor dom: 300 caracteres, com "…" quando corta.
+// axCut é o mesmo corte do snapshot antigo (motor dom): 300 caracteres, com "…" quando corta.
 func axCut(s string) string {
 	r := []rune(s)
 	if len(r) <= 300 {
@@ -108,7 +108,7 @@ type axBuilder struct {
 }
 
 // BuildAX monta os nós a partir da árvore de acessibilidade. scope (backend) restringe à subárvore
-// desse elemento, inteira (como o scope do motor dom).
+// desse elemento, inteira (como o scope do snapshot antigo).
 func BuildAX(in AXInput, full bool, scope int) []*Node {
 	b := &axBuilder{in: in, full: full}
 	root := in.Root
@@ -137,7 +137,7 @@ func (b *axBuilder) dom(n *AXNode) *DOMNode {
 	return b.in.DOM[n.Backend]
 }
 
-// visible repete o checkVisibility do motor dom: com layout, display/visibility e opacidade da cadeia.
+// visible repete o checkVisibility do snapshot antigo (motor dom): com layout, display/visibility e opacidade da cadeia.
 func (b *axBuilder) visible(d *DOMNode) bool {
 	if d == nil || !d.HasLayout || d.Display == "none" || d.Visibility == "hidden" || d.Visibility == "collapse" {
 		return false
@@ -210,7 +210,7 @@ func (b *axBuilder) role(n *AXNode, d *DOMNode) string {
 	if axInteractive[role] || axStructure[role] {
 		return role
 	}
-	// Papéis que o Chrome não dá a um genérico, mas o motor dom dava.
+	// Papéis que o Chrome não dá a um genérico, mas o snapshot antigo dava.
 	if cls := d.Attrs["class"]; cls != "" && axErrorClass.MatchString(cls) && !b.hasControl(d) {
 		if t := b.text(n); t != "" && len([]rune(t)) < 300 {
 			return "error"
@@ -331,11 +331,15 @@ func (b *axBuilder) name(n *AXNode, d *DOMNode, role string) string {
 		}
 	case role == "dialog" && axNorm(n.Name) == "":
 		return axCut(b.firstHeading(n))
+	case n.Role == "LayoutTable" && !l1 && !l2 && d.Attrs["title"] == "" && !b.hasTag(d, "CAPTION"):
+		// O Chrome dá à tabela de layout o texto de todas as células como nome; o nome de uma tabela
+		// vem só de aria-label, aria-labelledby, caption ou title.
+		return ""
 	case axUnnamedContainers[role] && !l1 && !l2:
 		return ""
 	}
 	// O Chrome não calcula nome pelo conteúdo para alguns papéis (listitem, genéricos clicáveis): o
-	// motor dom usava o texto.
+	// snapshot antigo usava o texto.
 	if name := axNorm(n.Name); name != "" {
 		return axCut(name)
 	}
@@ -440,7 +444,7 @@ func (b *axBuilder) states(n *AXNode, d *DOMNode, role string) []string {
 			s = append(s, "checked")
 		}
 	}
-	// Expandido/recolhido só pelo atributo (ou <summary>), como no motor dom: o Chrome marca todo
+	// Expandido/recolhido só pelo atributo (ou <summary>), como no snapshot antigo: o Chrome marca todo
 	// select fechado como "não expandido", o que seria ruído.
 	switch {
 	case d.Tag == "SUMMARY":
@@ -577,7 +581,7 @@ func (b *axBuilder) optionLabel(o *DOMNode) string {
 	return axNorm(strings.Join(parts, " "))
 }
 
-// options repete o optionNode do motor dom: opções de select fechado entram sem caixa.
+// options repete o optionNode do snapshot antigo (motor dom): opções de select fechado entram sem caixa.
 func (b *axBuilder) options(d *DOMNode) []*Node {
 	var out []*Node
 	for _, o := range b.optionNodes(d) {
@@ -593,10 +597,10 @@ func (b *axBuilder) options(d *DOMNode) []*Node {
 	return out
 }
 
-// stateOrder é a ordem dos estados no motor dom (a saída precisa ser igual).
+// stateOrder é a ordem dos estados no snapshot antigo (a saída precisa ser igual).
 var stateOrder = []string{"open", "modal", "disabled", "checked", "checked=mixed", "expanded", "collapsed", "selected", "pressed", "current", "required", "readonly", "invalid", "focused"}
 
-// InsertState põe o estado na posição da ordem do motor dom.
+// InsertState põe o estado na posição da ordem do snapshot antigo (motor dom).
 func InsertState(states []string, state string) []string {
 	rank := func(s string) int {
 		for i, o := range stateOrder {
@@ -615,3 +619,110 @@ func InsertState(states []string, state string) []string {
 }
 
 func isPageRoot(tag string) bool { return tag == "#document" || tag == "HTML" || tag == "BODY" }
+
+// AXFetch é o que buscar da árvore de acessibilidade para o snapshot sem trazer a árvore inteira:
+// Subtrees inteiras por queryAXTree (uma chamada traz a subárvore toda) e, por getPartialAXTree (o nó e
+// os ancestrais, não os irmãos nem os filhos), as raízes dessas subárvores (para os ancestrais) e as
+// folhas soltas. Subárvores irmãs têm os mesmos ancestrais: só a primeira de cada pai vai no Partial.
+type AXFetch struct {
+	Subtrees []int
+	Partial  []int
+}
+
+// PlanAXFetch planeja a busca. Snapshot da área visível: desce só onde a subárvore inteira chega perto
+// da viewport (a mesma margem do snapshot; um filho absoluto ou fixo fora da caixa do pai também conta);
+// uma subárvore toda dentro da margem vem numa chamada; as folhas do DOM (texto, elementos sem filhos,
+// ou um nó com caixa sem nenhum candidato embaixo, como um <select>, cujas opções não têm layout) vêm
+// uma a uma. Com scope, a subárvore do scope numa chamada.
+func PlanAXFetch(dom map[int]*DOMNode, vp [2]float64, scope int, skip map[int]bool) AXFetch {
+	if scope != 0 {
+		return AXFetch{Subtrees: []int{scope}}
+	}
+	b := &axBuilder{in: AXInput{DOM: dom, Viewport: vp}}
+	mx, my := vp[0]*0.25, vp[1]*0.25
+	inside := func(u [4]float64) bool {
+		return u[0] >= -mx && u[1] >= -my && u[0]+u[2] <= vp[0]+mx && u[1]+u[3] <= vp[1]+my
+	}
+	union := map[int][4]float64{}
+	var bounds func(d *DOMNode) [4]float64
+	bounds = func(d *DOMNode) [4]float64 {
+		if u, ok := union[d.Backend]; ok {
+			return u
+		}
+		u := [4]float64{}
+		if d.HasLayout && d.Box[2] > 0 && d.Box[3] > 0 {
+			u = d.Box
+		}
+		for _, c := range d.Children {
+			if cd := dom[c]; cd != nil {
+				u = unionBox(u, bounds(cd))
+			}
+		}
+		union[d.Backend] = u
+		return u
+	}
+	var plan AXFetch
+	parents := map[int]bool{}
+	var walk func(d *DOMNode) bool
+	walk = func(d *DOMNode) bool {
+		if skip[d.Backend] || d.Tag == "#comment" {
+			return false
+		}
+		u := bounds(d)
+		if u[2] <= 0 || u[3] <= 0 || !b.near(u) {
+			return false
+		}
+		if len(d.Children) > 0 && !strings.HasPrefix(d.Tag, "#") && inside(u) && !b.hasSkipped(d, skip) {
+			plan.Subtrees = append(plan.Subtrees, d.Backend)
+			if !parents[d.Parent] {
+				parents[d.Parent] = true
+				plan.Partial = append(plan.Partial, d.Backend)
+			}
+			return true
+		}
+		found := false
+		for _, c := range d.Children {
+			if cd := dom[c]; cd != nil && walk(cd) {
+				found = true
+			}
+		}
+		if !found {
+			plan.Partial = append(plan.Partial, d.Backend)
+		}
+		return true
+	}
+	for _, d := range dom {
+		if d.Parent == 0 && d.Tag == "#document" {
+			walk(d)
+		}
+	}
+	return plan
+}
+
+// hasSkipped diz se a subárvore tem um nó pulado (o overlay do Vitral): ela não vem inteira.
+func (b *axBuilder) hasSkipped(d *DOMNode, skip map[int]bool) bool {
+	if len(skip) == 0 {
+		return false
+	}
+	for _, c := range d.Children {
+		if skip[c] {
+			return true
+		}
+		if cd := b.in.DOM[c]; cd != nil && b.hasSkipped(cd, skip) {
+			return true
+		}
+	}
+	return false
+}
+
+func unionBox(a, b [4]float64) [4]float64 {
+	if b[2] <= 0 || b[3] <= 0 {
+		return a
+	}
+	if a[2] <= 0 || a[3] <= 0 {
+		return b
+	}
+	x0, y0 := math.Min(a[0], b[0]), math.Min(a[1], b[1])
+	x1, y1 := math.Max(a[0]+a[2], b[0]+b[2]), math.Max(a[1]+a[3], b[1]+b[3])
+	return [4]float64{x0, y0, x1 - x0, y1 - y0}
+}

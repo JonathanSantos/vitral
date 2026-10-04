@@ -170,11 +170,11 @@ func (s *Session) clickWithCursor(ctx context.Context, p *rod.Page, ref string) 
 		return err
 	}
 	var hit hitInfo
-	if err := s.evalInto(ctx, &hit, `(r) => window.__vitral.hit(r, true)`, ref); err != nil {
+	if err := s.callRef(ctx, &hit, ref, `(el) => window.__vitral.hit(el, true)`); err != nil {
 		return err
 	}
 	if hit.Error == "offscreen" { // a pessoa rolou para longe no meio: traz de volta sem animar
-		if err := s.evalInto(ctx, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
+		if err := s.callRef(ctx, &hit, ref, `(el) => window.__vitral.hit(el)`); err != nil {
 			return err
 		}
 	}
@@ -213,7 +213,7 @@ func (s *Session) clickWithCursor(ctx context.Context, p *rod.Page, ref string) 
 // hit rola até o elemento e confere se ele pode receber o clique.
 func (s *Session) hit(ctx context.Context, p *rod.Page, ref string) (hitInfo, error) {
 	var hit hitInfo
-	if err := s.evalInto(ctx, &hit, `(r) => window.__vitral.hit(r)`, ref); err != nil {
+	if err := s.callRef(ctx, &hit, ref, `(el) => window.__vitral.hit(el)`); err != nil {
 		return hit, err
 	}
 	if err := refError(ref, hit.Error); err != nil {
@@ -267,7 +267,7 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 			}
 		}
 		var info typeInfo
-		if err := s.evalInto(ctx, &info, `(r, c, n) => window.__vitral.prepareType(r, c, n)`, ref, clearFirst, s.cur.on); err != nil {
+		if err := s.callRef(ctx, &info, ref, `(el, c, n) => window.__vitral.prepareType(el, c, n)`, clearFirst, s.cur.on); err != nil {
 			return err
 		}
 		switch {
@@ -301,7 +301,7 @@ func (s *Session) Type(ctx context.Context, ref, text string, clearFirst, submit
 				if err := pressAt(ctx, p, plan); err != nil {
 					return err
 				}
-				if err := s.evalInto(ctx, &info, `(r, c) => window.__vitral.prepareType(r, c, true)`, ref, clearFirst); err != nil {
+				if err := s.callRef(ctx, &info, ref, `(el, c) => window.__vitral.prepareType(el, c, true)`, clearFirst); err != nil {
 					return err
 				}
 				s.awayFrom(ctx, plan.End)
@@ -356,7 +356,7 @@ func (s *Session) Select(ctx context.Context, ref, option string) (string, error
 			return err
 		}
 		var info selectInfo
-		if err := s.evalInto(ctx, &info, `(r, o) => window.__vitral.selectOption(r, o)`, ref, option); err != nil {
+		if err := s.callRef(ctx, &info, ref, `(el, o) => window.__vitral.selectOption(el, o)`, option); err != nil {
 			return err
 		}
 		switch info.Error {
@@ -386,7 +386,7 @@ func (s *Session) revealWithCursor(ctx context.Context, p *rod.Page, ref string)
 		Box   [4]int `json:"box"`
 		Kind  string `json:"kind"`
 	}
-	if err := s.evalInto(ctx, &res, `(r) => window.__vitral.reveal(r)`, ref); err != nil {
+	if err := s.callRef(ctx, &res, ref, `(el) => window.__vitral.reveal(el)`); err != nil {
 		return res.Box, cursor.Arrow, err
 	}
 	return res.Box, kindOf(res.Kind), refError(ref, res.Error)
@@ -398,7 +398,7 @@ func (s *Session) revealAndHighlight(ctx context.Context, p *rod.Page, ref strin
 		Error string `json:"error"`
 		Box   [4]int `json:"box"`
 	}
-	if err := s.evalInto(ctx, &res, `(r) => window.__vitral.reveal(r)`, ref); err != nil {
+	if err := s.callRef(ctx, &res, ref, `(el) => window.__vitral.reveal(el)`); err != nil {
 		return err
 	}
 	if err := refError(ref, res.Error); err != nil {
@@ -554,11 +554,11 @@ func (s *Session) probe(ctx context.Context, p *rod.Page, opts WaitOptions) (tex
 		err := s.evalInto(ctx, &m, `(t) => window.__vitral.findText(t)`, opts.Text)
 		return m, err
 	}
-	js := `(r) => { const el = window.__vitral.find(r); if (!el) return {found: false};
+	js := `(el, r) => { if (!el || !el.isConnected) return {found: false};
 		const r2 = el.getBoundingClientRect();
 		const vis = el.checkVisibility ? el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true}) : true;
 		return {found: vis && r2.width > 0 && r2.height > 0, ref: r}; }`
-	err := s.evalInto(ctx, &m, js, opts.Ref)
+	err := s.callRef(ctx, &m, opts.Ref, js, opts.Ref)
 	return m, err
 }
 

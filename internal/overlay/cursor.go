@@ -149,7 +149,7 @@ const (
 	ScrollNoOverlay = "no-overlay"
 )
 
-// PlayScroll toca a rolagem no container ("page" ou a ref do container) e espera o scroll_done, com
+// PlayScroll toca a rolagem no container ("page" ou a chave do scrollChain) e espera o scroll_done, com
 // timeout = duração + 300 ms: a ação nunca fica presa na animação.
 func (m *Manager) PlayScroll(ctx context.Context, container string, plan cursor.ScrollPlan) string {
 	if m.opts.Minimal {

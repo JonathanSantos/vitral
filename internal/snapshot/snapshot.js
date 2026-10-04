@@ -1,18 +1,23 @@
-// Injetado em todo documento novo. Expõe window.__vitral (e window.__vitralSnapshot).
-// Só coleta dados: formatação, compactação e diff acontecem em Go.
+// Injetado em todo documento novo (no mundo isolado). Expõe window.__vitral: as ações, a leitura de
+// texto e o registro de refs. O snapshot vem da árvore de acessibilidade, em Go (internal/snapshot/ax.go).
 (() => {
   if (window.__vitral) return;
 
-  const REF_ATTR = 'data-vitral-ref';
   const NAME_MAX = 300;
+  // As refs ficam só aqui, no mundo isolado (a página não as vê nem forja): ref → elemento e
+  // elemento → ref. O Go guarda o backendNodeId de cada uma e é por ele que as ações acham o
+  // elemento; fresh são as refs criadas aqui (links do texto, findText) que o Go ainda não conhece.
   const state = {
     counter: 0,
     refs: new Map(),
+    refOf: new WeakMap(),
+    fresh: [],
+    handles: new Map(),
     docId: Math.random().toString(36).slice(2, 10),
     lastMutation: performance.now(),
   };
 
-  // Observa mutações para saber quando o DOM "assentou". Ignora as do próprio data-vitral-ref.
+  // Observa mutações para saber quando o DOM "assentou".
   // Mudanças do overlay do Vitral (selo, destaque) não contam como a página "se mexendo".
   const OVERLAY_TAG = 'VITRAL-OVERLAY';
   const isOverlay = (n) => n && n.nodeName === OVERLAY_TAG;
@@ -27,7 +32,6 @@
     try {
       new MutationObserver((records) => {
         for (const r of records) {
-          if (r.type === 'attributes' && r.attributeName === REF_ATTR) continue;
           if (isOverlayRecord(r)) continue;
           state.lastMutation = performance.now();
           return;
@@ -41,13 +45,6 @@
     'button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'menuitem', 'menuitemcheckbox',
     'menuitemradio', 'option', 'combobox', 'textbox', 'searchbox', 'slider', 'spinbutton', 'treeitem',
   ]);
-  const STRUCTURE_ROLES = new Set([
-    'dialog', 'alertdialog', 'alert', 'status', 'heading', 'table', 'grid', 'row', 'list', 'listbox',
-    'listitem', 'menu', 'menubar', 'tablist', 'tabpanel', 'tree', 'navigation', 'main', 'banner',
-    'contentinfo', 'complementary', 'form', 'region', 'search', 'group', 'label', 'error',
-  ]);
-  const COUNTED = { table: 'row', grid: 'row', list: 'listitem', listbox: 'option', menu: 'menuitem', tree: 'treeitem', combobox: 'option' };
-  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'META', 'LINK', 'svg', 'SVG', 'VITRAL-OVERLAY']);
   const TEXT_INPUTS = new Set(['', 'text', 'email', 'tel', 'url', 'password', 'date', 'datetime-local', 'month', 'time', 'week']);
   const ERROR_CLASS = /(^|[\s_-])(error|errors|invalid|danger)([\s_-]|$)/i;
 
@@ -60,19 +57,48 @@
     return chars.length > NAME_MAX ? chars.slice(0, NAME_MAX - 1).join('') + '…' : s;
   };
 
+  // known devolve a ref que o elemento já tem (ou '').
+  function known(el) {
+    const ref = el && state.refOf.get(el);
+    return ref && state.refs.get(ref)?.deref() === el ? ref : '';
+  }
+
   function refFor(el) {
-    const existing = el.getAttribute(REF_ATTR);
-    if (existing && state.refs.get(existing)?.deref() === el) return existing;
+    const existing = known(el);
+    if (existing) return existing;
     const ref = 'e' + (++state.counter);
-    el.setAttribute(REF_ATTR, ref);
+    state.refOf.set(el, ref);
     state.refs.set(ref, new WeakRef(el));
+    state.fresh.push(ref);
     return ref;
+  }
+
+  // bind registra refs que o Go deu (pelo backendNodeId) aos elementos.
+  function bind(refs, els) {
+    for (let i = 0; i < refs.length; i++) {
+      const el = els[i];
+      if (!el) continue;
+      state.refs.set(refs[i], new WeakRef(el));
+      state.refOf.set(el, refs[i]);
+      const n = Number(refs[i].slice(1));
+      if (n > state.counter) state.counter = n;
+    }
   }
 
   function find(ref) {
     const el = state.refs.get(ref)?.deref();
     if (el && el.isConnected) return el;
     return null;
+  }
+
+  // Elemento recebido do Go: some se saiu do documento.
+  const live = (el) => (el && el.isConnected ? el : null);
+
+  // handle dá uma chave temporária a um contêiner de rolagem (para o overlay achá-lo).
+  function handle(el) {
+    const key = 'h' + (state.handles.size + 1);
+    state.handles.set(key, new WeakRef(el));
+    return key;
   }
 
   function implicitRole(el) {
@@ -134,14 +160,6 @@
     if (el.querySelector('input,select,textarea,button,a[href]')) return false;
     const text = norm(el.innerText);
     return text.length > 0 && text.length < 300;
-  }
-
-  // Elementos com cursor:pointer cujo pai não tem pointer costumam ser clicáveis via addEventListener.
-  function isPointerClickable(el, style) {
-    if (style.cursor !== 'pointer') return false;
-    const parent = el.parentElement;
-    if (parent && getComputedStyle(parent).cursor === 'pointer') return false;
-    return norm(el.innerText).length > 0 || el.querySelector('img,svg') !== null;
   }
 
   function textOf(el) {
@@ -206,18 +224,6 @@
     return cells.map((c) => norm(c.innerText)).join(' | ');
   }
 
-  function valueOf(el, role) {
-    if (role === 'combobox' && el.tagName === 'SELECT') return [...el.selectedOptions].map((o) => norm(o.label)).join(', ');
-    if (!['textbox', 'searchbox', 'spinbutton', 'slider', 'combobox'].includes(role)) return undefined;
-    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-      if (el.type === 'password') return el.value ? '••••' : '';
-      return el.value;
-    }
-    if (el.isContentEditable) return norm(el.innerText);
-    const v = el.getAttribute('aria-valuetext') ?? el.getAttribute('aria-valuenow');
-    return v ?? undefined;
-  }
-
   function statesOf(el, role) {
     const s = [];
     const aria = (n) => el.getAttribute('aria-' + n);
@@ -245,17 +251,6 @@
     if (invalid) s.push('invalid');
     if (doc.activeElement === el && el !== doc.body) s.push('focused');
     return s;
-  }
-
-  function countOf(el, role) {
-    const child = COUNTED[role];
-    if (!child) return undefined;
-    if (el.tagName === 'SELECT') return el.options.length;
-    if (el.tagName === 'TABLE') return [...el.tBodies].reduce((n, b) => n + b.rows.length, 0) || el.rows.length;
-    if (el.tagName === 'UL' || el.tagName === 'OL') return [...el.children].filter((c) => c.tagName === 'LI').length;
-    const ariaCount = Number(el.getAttribute(role === 'table' || role === 'grid' ? 'aria-rowcount' : 'aria-setsize'));
-    if (ariaCount > 0) return ariaCount;
-    return el.querySelectorAll(`[role=${child}]`).length;
   }
 
   function isVisible(el) {
@@ -289,130 +284,6 @@
     return [Math.round(r.left + off.x), Math.round(r.top + off.y), Math.round(r.width), Math.round(r.height)];
   }
 
-  function nearViewport(box) {
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const mx = vw * 0.25, my = vh * 0.25;
-    return box[0] + box[2] >= -mx && box[0] <= vw + mx && box[1] + box[3] >= -my && box[1] <= vh + my;
-  }
-
-  // Filhos na árvore "achatada": shadow roots no lugar do host, slots resolvidos, iframes same-origin.
-  function childrenOf(el) {
-    if (el.shadowRoot) return [...el.shadowRoot.children];
-    if (el.tagName === 'SLOT') {
-      const assigned = el.assignedElements({ flatten: true });
-      return assigned.length ? assigned : [...el.children];
-    }
-    if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') {
-      try {
-        const body = el.contentDocument?.body;
-        return body ? [body] : [];
-      } catch (_) { return []; }
-    }
-    return [...el.children];
-  }
-
-  function shouldInclude(el, role, style) {
-    if (INTERACTIVE_ROLES.has(role) || role === 'clickable') return true;
-    if (role === 'label') return !el.control || !isVisible(el.control);
-    if (role === 'group') return el.tagName === 'FIELDSET' || el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby');
-    if (STRUCTURE_ROLES.has(role)) return true;
-    return isPointerClickable(el, style);
-  }
-
-  function makeNode(el, role) {
-    const node = { ref: refFor(el), role, name: nameOf(el, role) };
-    const value = valueOf(el, role);
-    if (value !== undefined) node.value = cut(value);
-    const states = statesOf(el, role);
-    if (states.length) node.states = states;
-    if (states.includes('invalid') && el.validationMessage) node.invalidMessage = cut(norm(el.validationMessage));
-    if (role === 'heading') {
-      node.level = Number(el.getAttribute('aria-level')) || Number(el.tagName.slice(1)) || 2;
-    }
-    if (el.tagName === 'INPUT' && !['', 'text', 'checkbox', 'radio', 'button', 'submit', 'reset'].includes(el.type)) node.type = el.type;
-    const count = countOf(el, role);
-    if (count !== undefined) node.count = count;
-    node.box = boxOf(el);
-    return node;
-  }
-
-  function walk(el, out, opts) {
-    if (SKIP_TAGS.has(el.tagName) || !isRendered(el)) return;
-    const style = getComputedStyle(el);
-    let role = roleOf(el);
-    if (!role && style.cursor === 'pointer' && isPointerClickable(el, style)) role = 'clickable';
-    const visible = isVisible(el);
-    let target = out;
-
-    if (role && visible && shouldInclude(el, role, style)) {
-      const box = boxOf(el);
-      const sized = box[2] > 0 && box[3] > 0;
-      if (sized && (opts.full || nearViewport(box))) {
-        const node = makeNode(el, role);
-        out.push(node);
-        if (el.tagName === 'SELECT') {
-          node.children = [...el.options].map((o) => optionNode(o));
-          return;
-        }
-        target = node.children = [];
-      }
-    }
-    for (const child of childrenOf(el)) walk(child, target, opts);
-    if (target !== out && target.length === 0) {
-      const node = out[out.length - 1];
-      delete node.children;
-    }
-  }
-
-  // Options de <select> fechado não têm caixa, então entram sem checagem de visibilidade.
-  function optionNode(o) {
-    const node = { ref: refFor(o), role: 'option', name: cut(norm(o.label)), box: [0, 0, 0, 0] };
-    const states = [];
-    if (o.selected) states.push('selected');
-    if (o.disabled) states.push('disabled');
-    if (states.length) node.states = states;
-    return node;
-  }
-
-  function isOffscreen(el) {
-    // <option> de select fechado não tem caixa: vale o estado do select.
-    const target = el.tagName === 'OPTION' ? el.closest('select') || el : el;
-    return isVisible(target) && !nearViewport(boxOf(target));
-  }
-
-  function snapshot(opts) {
-    opts = opts || {};
-    let roots = [document.body || document.documentElement];
-    let full = !!opts.full;
-    if (opts.scope) {
-      const scoped = find(opts.scope);
-      if (!scoped) return { error: 'ref_not_found', ref: opts.scope };
-      roots = [scoped];
-      full = true;
-    }
-    const nodes = [];
-    for (const r of roots) if (r) walk(r, nodes, { full });
-
-    // Refs que sumiram do snapshot mas continuam visíveis fora da viewport (para o resumo do diff).
-    const offscreen = [];
-    for (const ref of opts.known || []) {
-      const el = find(ref);
-      if (el && isOffscreen(el)) offscreen.push(ref);
-    }
-
-    const se = document.scrollingElement || document.documentElement;
-    return {
-      docId: state.docId,
-      url: location.href,
-      title: document.title,
-      viewport: [window.innerWidth, window.innerHeight],
-      scroll: [Math.round(se.scrollTop), Math.max(0, se.scrollHeight - window.innerHeight)],
-      dpr: window.devicePixelRatio || 1,
-      nodes,
-      offscreen,
-    };
-  }
-
   function deepElementFromPoint(root, x, y) {
     let el = root.elementFromPoint(x, y);
     while (el && el.shadowRoot) {
@@ -430,24 +301,33 @@
     return false;
   }
 
+  // insideClosed: el está dentro do shadow root fechado de host (o elementFromPoint para no host).
+  function insideClosed(el, host) {
+    if (host.shadowRoot) return false;
+    for (let r = el.getRootNode(); r && r.host; r = r.host.getRootNode()) {
+      if (r.host === host) return true;
+    }
+    return false;
+  }
+
   // Diz o que está por cima de um elemento. Um backdrop sem papel costuma conter o dialog: reporta o dialog.
   function describe(el) {
     const dialogSel = 'dialog,[role=dialog],[role=alertdialog],[aria-modal=true]';
     for (const cand of [el.closest?.(dialogSel), el.querySelector?.(dialogSel)]) {
-      const ref = cand?.getAttribute(REF_ATTR);
-      if (ref && find(ref) === cand) return { ref, role: roleOf(cand) };
+      const ref = known(cand);
+      if (ref) return { ref, role: roleOf(cand) };
     }
     for (let n = el; n; n = n.parentElement || n.getRootNode()?.host) {
-      const ref = n.getAttribute?.(REF_ATTR);
-      if (ref && find(ref) === n) return { ref, role: roleOf(n) || n.tagName.toLowerCase() };
+      const ref = known(n);
+      if (ref) return { ref, role: roleOf(n) || n.tagName.toLowerCase() };
     }
     const cls = typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/)[0] : '';
     return { role: el.tagName.toLowerCase() + cls };
   }
 
   // Prepara o clique: rola até o elemento e devolve o ponto (coordenadas da página principal).
-  function hit(ref, noScroll) {
-    const el = find(ref);
+  function hit(el, noScroll) {
+    el = live(el);
     if (!el) return { error: 'not_found' };
     const role = roleOf(el);
     const info = { role, tag: el.tagName.toLowerCase(), password: el.tagName === 'INPUT' && el.type === 'password' };
@@ -462,7 +342,7 @@
     if (right <= left || bottom <= top) return { ...info, error: 'offscreen' };
     const cx = (left + right) / 2, cy = (top + bottom) / 2;
     const at = deepElementFromPoint(el.ownerDocument, cx, cy);
-    const own = at && (composedContains(el, at) || (at.tagName === 'LABEL' && at.control === el));
+    const own = at && (composedContains(el, at) || insideClosed(el, at) || (at.tagName === 'LABEL' && at.control === el));
     if (at && !own) info.coveredBy = describe(at);
     const off = frameOffset(el.ownerDocument);
     info.x = cx + off.x;
@@ -510,11 +390,11 @@
 
   // pageText monta o texto lido: conteúdo principal, scope, seção de um título ou de um link de
   // índice; sem menus; com legendas, títulos e links marcados.
-  function pageText(ref) {
+  function pageText(scoped) {
     let parts;
     let root = null;
-    if (ref) {
-      let el = find(ref);
+    if (scoped !== undefined) {
+      let el = live(scoped);
       if (!el) return { error: 'not_found', chars: [] };
       // Link de índice ("#História"): lê a seção para onde ele aponta.
       const hash = el.tagName === 'A' && (el.getAttribute('href') || '').startsWith('#') ? el.getAttribute('href').slice(1) : '';
@@ -617,8 +497,8 @@
       }
     }
     return {
-      role: root ? (roleOf(root) || root.tagName.toLowerCase()) : '', ref: (root && root.getAttribute(REF_ATTR)) || '',
-      section: !!(ref && headingLevel(root)), chars: Array.from(text),
+      role: root ? (roleOf(root) || root.tagName.toLowerCase()) : '', ref: scoped !== undefined ? refFor(root) : known(root),
+      section: !!(scoped !== undefined && headingLevel(root)), chars: Array.from(text),
     };
   }
 
@@ -628,8 +508,8 @@
 
   // readText devolve uma página do texto (from, max) ou, com query, só os trechos que a contêm, com
   // around caracteres de contexto e a posição de cada trecho (para continuar com textFrom).
-  function readText(ref, max, from, query) {
-    const page = pageText(ref);
+  function readText(el, scoped, max, from, query) {
+    const page = pageText(scoped ? el : undefined);
     if (page.error) return { error: page.error };
     const { chars } = page;
     const base = { role: page.role, ref: page.ref, section: page.section, total: chars.length };
@@ -692,6 +572,7 @@
     const at = deepElementFromPoint(el.ownerDocument, x - off.x, y - off.y);
     if (!at) return false;
     if (at.tagName === 'LABEL' && at.control === el) return true;
+    if (insideClosed(el, at)) return true;
     if (!composedContains(el, at)) return false;
     for (let n = at; n && n !== el; n = n.parentNode || n.host) {
       if (isInteractive(n)) return false;
@@ -708,8 +589,8 @@
   // aim valida os candidatos sorteados pelo Go numa ida só e devolve o primeiro que vale. Se nenhum
   // vale, devolve os retângulos dos filhos interativos para o Go achar a maior área livre. Também
   // conta o que muda o plano: aba oculta e prefers-reduced-motion.
-  function aim(ref, cands) {
-    const el = find(ref);
+  function aim(el, cands) {
+    el = live(el);
     if (!el) return { error: 'not_found' };
     const index = (cands || []).findIndex((c) => hitsOnly(el, c[0], c[1]));
     const obstacles = [];
@@ -731,8 +612,8 @@
     };
   }
 
-  function aimAt(ref, x, y) {
-    const el = find(ref);
+  function aimAt(el, x, y) {
+    el = live(el);
     return !!el && hitsOnly(el, x, y);
   }
 
@@ -759,12 +640,16 @@
     return covered;
   }
 
-  function scrollChain(ref) {
-    const el = find(ref);
+  // Pai na árvore composta: atravessa shadow roots (inclusive fechados, para alvos resolvidos pelo Go).
+  const up = (n) => n.parentElement || n.getRootNode()?.host || null;
+
+  function scrollChain(el) {
+    el = live(el);
     if (!el) return { error: 'not_found' };
+    state.handles.clear();
     const page = document.scrollingElement || document.documentElement;
     const inner = [];
-    for (let n = el.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    for (let n = up(el); n && n !== document.body && n !== document.documentElement; n = up(n)) {
       if (scrollableY(n)) inner.unshift(n);
     }
     // Alvo cortado por um ancestral que não rola por scrollTop (overflow clip, conteúdo movido por
@@ -772,7 +657,7 @@
     // escondido dentro dele.
     let clipEl = null;
     const tr = el.getBoundingClientRect();
-    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+    for (let n = up(el); n && n !== document.body; n = up(n)) {
       if (scrollableY(n) || !/(clip|hidden)/.test(getComputedStyle(n).overflowY)) continue;
       const r = n.getBoundingClientRect();
       if (tr.top < r.top || tr.bottom > r.bottom) {
@@ -786,7 +671,7 @@
       const next = list[i + 1] || clipEl || el;
       const cr = isPage ? { top: 0 } : c.getBoundingClientRect();
       return {
-        key: isPage ? 'page' : refFor(c), top: next.getBoundingClientRect().top - cr.top,
+        key: isPage ? 'page' : handle(c), top: next.getBoundingClientRect().top - cr.top,
         height: isPage ? innerHeight : c.clientHeight, scrollTop: c.scrollTop,
         max: c.scrollHeight - c.clientHeight, covered: coveredTop(c, isPage),
         rect: isPage ? [0, 0, innerWidth, innerHeight] : boxOf(c),
@@ -795,14 +680,14 @@
     let clip = null;
     if (clipEl) {
       const r = clipEl.getBoundingClientRect();
-      clip = { key: refFor(clipEl), rect: boxOf(clipEl), top: tr.top - r.top, height: r.height };
+      clip = { key: handle(clipEl), rect: boxOf(clipEl), top: tr.top - r.top, height: r.height };
     }
     return { chain, clip, ...env() };
   }
 
   // revealSmooth começa uma rolagem suave até o alvo, se ele não estiver inteiro na tela (5.1).
-  function revealSmooth(ref) {
-    const el = find(ref);
+  function revealSmooth(el) {
+    el = live(el);
     if (!el) return { error: 'not_found' };
     const r = el.getBoundingClientRect();
     const win = el.ownerDocument.defaultView;
@@ -812,8 +697,8 @@
   }
 
   // Rola até o elemento se ele não estiver inteiro na tela e devolve a caixa (para o destaque).
-  function reveal(ref) {
-    const el = find(ref);
+  function reveal(el) {
+    el = live(el);
     if (!el) return { error: 'not_found' };
     const r = el.getBoundingClientRect();
     const win = el.ownerDocument.defaultView;
@@ -830,8 +715,8 @@
   }
 
   // Foca e (opcionalmente) seleciona todo o conteúdo para que o Backspace real o apague.
-  function prepareType(ref, clear, noScroll) {
-    const el = find(ref);
+  function prepareType(el, clear, noScroll) {
+    el = live(el);
     if (!el) return { error: 'not_found' };
     const info = { role: roleOf(el), password: el.tagName === 'INPUT' && el.type === 'password' };
     try { info.disabled = el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'; } catch (_) {}
@@ -863,8 +748,8 @@
     return info;
   }
 
-  function selectOption(ref, option) {
-    const el = find(ref);
+  function selectOption(el, option) {
+    el = live(el);
     if (!el) return { error: 'not_found' };
     if (el.tagName !== 'SELECT') return { error: 'not_select', role: roleOf(el) };
     if (el.disabled) return { error: 'disabled' };
@@ -953,16 +838,15 @@
     for (let n = el; n && n.nodeType === Node.ELEMENT_NODE; n = n.parentElement || n.getRootNode()?.host) {
       const bg = getComputedStyle(n).backgroundColor;
       if (bg && bg !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(bg)) {
-        const ref = n.getAttribute(REF_ATTR);
-        return { color: bg, source: ref && find(ref) === n ? ref : n.tagName.toLowerCase() };
+        return { color: bg, source: known(n) || n.tagName.toLowerCase() };
       }
     }
     return { color: 'rgb(255, 255, 255)', source: 'default' };
   }
 
   // Estilos computados e atributos para a ferramenta inspect.
-  function inspect(ref, props) {
-    const el = find(ref);
+  function inspect(el, props) {
+    el = live(el);
     if (!el) return { error: 'not_found' };
     const st = getComputedStyle(el);
     const styles = {};
@@ -977,21 +861,20 @@
     }
     const role = roleOf(el) || el.tagName.toLowerCase();
     return {
-      ref, role, name: nameOf(el, role), tag: el.tagName.toLowerCase(), box: boxOf(el),
+      ref: known(el), role, name: nameOf(el, role), tag: el.tagName.toLowerCase(), box: boxOf(el),
       styles, extra, aria, attrs, states: statesOf(el, role), background: effectiveBackground(el),
       text: cut(norm(el.innerText || '')).slice(0, 120),
     };
   }
 
   window.__vitral = {
-    snapshot,
     find,
     hit,
     prepareType,
     selectOption,
     findText,
     inspect,
-    box: (ref) => { const el = find(ref); return el ? boxOf(el) : null; },
+    box: (el) => (live(el) ? boxOf(el) : null),
     reveal,
     revealSmooth,
     scrollChain,
@@ -1003,23 +886,23 @@
     roleOf,
     lastMutationAt: () => state.lastMutation,
     docId: () => state.docId,
-    // Motor "ax" (protótipo): o Go grava as refs no DOM pelo CDP; adopt as registra aqui para as ações
-    // atuais (find) funcionarem. Shadow roots fechados ficam de fora (o querySelector não alcança).
+    // Registro de refs (motor ax): o Go dá as refs pelo backendNodeId e as registra aqui (bind);
+    // as criadas aqui voltam para o Go (fresh, takeFresh). handle é a chave dos contêineres de rolagem.
     counter: () => state.counter,
-    adopt: () => {
-      let adopted = 0;
-      for (const root of searchRoots()) {
-        for (const el of root.querySelectorAll ? root.querySelectorAll('[' + REF_ATTR + ']') : []) {
-          const ref = el.getAttribute(REF_ATTR);
-          if (state.refs.get(ref)?.deref() === el) continue;
-          state.refs.set(ref, new WeakRef(el));
-          const n = Number(ref.slice(1));
-          if (n > state.counter) state.counter = n;
-          adopted++;
-        }
+    fresh: () => state.fresh.slice(),
+    takeFresh: () => { const els = state.fresh.map((r) => state.refs.get(r)?.deref() || null); state.fresh = []; return els; },
+    bind,
+    handle: (key) => live(state.handles.get(key)?.deref()),
+    invalid: () => {
+      const out = {};
+      for (const [ref, w] of state.refs) {
+        const el = w.deref();
+        if (!el || !el.isConnected) continue;
+        let bad = false;
+        try { bad = el.matches(':user-invalid'); } catch (_) {}
+        if (bad) out[ref] = norm(el.validationMessage || '');
       }
-      return { adopted, counter: state.counter };
+      return out;
     },
   };
-  window.__vitralSnapshot = snapshot;
 })();

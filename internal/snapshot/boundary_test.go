@@ -83,16 +83,6 @@ func TestDiffBoundaries(t *testing.T) {
 	}
 }
 
-func TestParseValidPage(t *testing.T) {
-	p, err := Parse([]byte(`{"docId":"d","url":"http://x","nodes":[{"ref":"e1","role":"button"}]}`))
-	if err != nil || p.DocID != "d" || len(p.Nodes) != 1 {
-		t.Fatalf("%+v %v", p, err)
-	}
-	if _, err := Parse([]byte(`{"error":"boom"}`)); err == nil || !strings.Contains(err.Error(), "boom") {
-		t.Fatalf("generic error: %v", err)
-	}
-}
-
 func TestFormatInspectionOptionalLines(t *testing.T) {
 	base := func() *Inspection {
 		return &Inspection{Ref: "e1", Role: "button", Name: "Ok", Tag: "button", Styles: map[string]string{

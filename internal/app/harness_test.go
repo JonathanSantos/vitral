@@ -73,10 +73,6 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	cfg.FlowsDir = filepath.Join(profile, "flows")
 	// Testes usam um navegador explícito para o CI padrão não baixar o Chrome for Testing.
 	cfg.BrowserPath = testBrowserPath()
-	// Comparação de motores do snapshot (protótipo ax): roda a suíte inteira com o motor pedido.
-	if e := os.Getenv("VITRAL_TEST_SNAPSHOT_ENGINE"); e != "" {
-		cfg.SnapshotEngine = e
-	}
 	if tweak != nil {
 		tweak(&cfg)
 	}

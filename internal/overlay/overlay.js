@@ -137,12 +137,12 @@
     if (cur) cur.paused(s.blocked);
   }
 
-  // Rolagem humana: toca o plano do Go no container ('page' ou a ref do container) e avisa
+  // Rolagem humana: toca o plano do Go no container ('page' ou a chave dada pelo scrollChain) e avisa
   // scroll_done. Se a pessoa rolar por conta própria (roda, trackpad, toque ou teclado de verdade),
   // para na hora com a posição final do plano: quem interrompe a IA é a pausa.
   function scroll(c) {
     const el = c.container === 'page' ? document.scrollingElement
-      : (window.__vitral && window.__vitral.find ? window.__vitral.find(c.container) : null);
+      : (window.__vitral && window.__vitral.handle ? window.__vitral.handle(c.container) : null);
     if (!el) return send('scroll_done', c.id, 'missing');
     let ctl = null;
     const keys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);

@@ -28,12 +28,13 @@ func main() {
 	unit := flag.String("unit", "", "comma separated coverprofiles from unit tests")
 	combined := flag.String("combined", "", "comma separated coverprofiles for combined coverage (unit + integration + e2e)")
 	tokensFile := flag.String("tokens", "", "token report from the e2e (JSON key -> tokens)")
+	timingFile := flag.String("timing", "", "timing report from the e2e (JSON key -> median ms)")
 	tokenBase := flag.String("token-baseline", ".quality/token-baseline.json", "versioned token baseline")
 	mutationDir := flag.String("mutation", "", "folder with gremlins reports from qualitygate mutate")
 	exclusions := flag.String("mutation-exclusions", ".quality/mutation-exclusions.yaml", "versioned mutation exclusions")
 	flag.Parse()
 
-	opts := runOptions{tokensFile: *tokensFile, tokenBase: *tokenBase, mutationDir: *mutationDir, exclusions: *exclusions}
+	opts := runOptions{tokensFile: *tokensFile, timingFile: *timingFile, tokenBase: *tokenBase, mutationDir: *mutationDir, exclusions: *exclusions}
 	if err := run(*thresholds, split(*unit), split(*combined), opts); err != nil {
 		fmt.Fprintln(os.Stderr, "qualitygate:", err)
 		os.Exit(1)
@@ -52,6 +53,7 @@ func split(s string) []string {
 
 type runOptions struct {
 	tokensFile, tokenBase   string
+	timingFile              string
 	mutationDir, exclusions string
 }
 
@@ -85,6 +87,15 @@ func run(thresholdsPath string, unitFiles, combinedFiles []string, o runOptions)
 		}
 		if in.TokenBase, err = readTokens(tokenBase, false); err != nil {
 			return err
+		}
+	}
+	if o.timingFile != "" {
+		raw, err := os.ReadFile(o.timingFile)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(raw, &in.TimingNow); err != nil {
+			return fmt.Errorf("%s: %w", o.timingFile, err)
 		}
 	}
 	if o.mutationDir != "" {

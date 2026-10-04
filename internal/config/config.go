@@ -61,10 +61,6 @@ type Config struct {
 	CursorSeed      int64  `yaml:"cursorSeed"`      // 0 = aleatória por sessão
 	TypePacing      string `yaml:"typePacing"`      // on (só com janela visível) ou off
 
-	// SnapshotEngine escolhe o motor do snapshot: dom (padrão) ou ax (protótipo, árvore de
-	// acessibilidade via CDP). Flag interna, para a comparação.
-	SnapshotEngine string `yaml:"snapshotEngine"`
-
 	// Lang fixa o idioma do navegador (ex.: pt-BR); vazio = idioma do sistema.
 	Lang string `yaml:"lang"`
 	// DebugInfoFile recebe a URL do CDP e o PID do navegador lançado (testes e diagnóstico).
@@ -89,7 +85,6 @@ func Defaults(homeDir string) Config {
 		CursorSpeed:      "normal",
 		FlowCursorSpeed:  "fast",
 		TypePacing:       "on",
-		SnapshotEngine:   "dom",
 		FlowsDir:         filepath.Join("."+Name, "flows"),
 		LogLevel:         "info",
 	}
@@ -194,7 +189,6 @@ func parseFlags(cfg *Config, args []string) error {
 	fset.StringVar(&cfg.FlowCursorSpeed, "flow-cursor-speed", cfg.FlowCursorSpeed, "AI cursor speed during flow_run")
 	fset.Int64Var(&cfg.CursorSeed, "cursor-seed", cfg.CursorSeed, "fixed seed for the AI cursor movement (0 = random per session)")
 	fset.StringVar(&cfg.TypePacing, "type-pacing", cfg.TypePacing, "type visibly key by key with a visible window: on or off")
-	fset.StringVar(&cfg.SnapshotEngine, "snapshot-engine", cfg.SnapshotEngine, "internal: snapshot engine, dom or ax (experiment)")
 	fset.StringVar(&cfg.Lang, "lang", cfg.Lang, "browser language, e.g. pt-BR (default: system)")
 	fset.StringVar(&cfg.DebugInfoFile, "debug-info", cfg.DebugInfoFile, "write the browser CDP URL and PID to this file (tests and diagnostics)")
 	fset.StringVar(&cfg.FlowsDir, "flows-dir", cfg.FlowsDir, "directory for saved flows")
@@ -238,9 +232,6 @@ func validate(cfg Config) error {
 		if !oneOf(v, "slow", "normal", "fast", "instant") {
 			return fmt.Errorf("%s must be slow, normal, fast or instant, got %q", name, v)
 		}
-	}
-	if !oneOf(cfg.SnapshotEngine, "dom", "ax") {
-		return fmt.Errorf("--snapshot-engine must be dom or ax, got %q", cfg.SnapshotEngine)
 	}
 	if !oneOf(cfg.TypePacing, "on", "off") {
 		return fmt.Errorf("--type-pacing must be on or off, got %q", cfg.TypePacing)

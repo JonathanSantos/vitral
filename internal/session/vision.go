@@ -67,7 +67,7 @@ func (s *Session) Screenshot(ctx context.Context, opts ShotOptions) (Shot, error
 	}
 	if opts.Ref != "" {
 		var box *[4]int
-		if err := s.evalInto(ctx, &box, `(r) => window.__vitral.box(r)`, opts.Ref); err != nil {
+		if err := s.callRef(ctx, &box, opts.Ref, `(el) => window.__vitral.box(el)`); err != nil {
 			return Shot{}, err
 		}
 		if box == nil {
@@ -86,9 +86,9 @@ func (s *Session) Screenshot(ctx context.Context, opts ShotOptions) (Shot, error
 
 func (s *Session) scrollIntoView(ctx context.Context, ref string) error {
 	var code string
-	js := `(r) => { const el = window.__vitral.find(r); if (!el) return 'not_found';
+	js := `(el) => { if (!el || !el.isConnected) return 'not_found';
 		el.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'}); return ''; }`
-	if err := s.evalInto(ctx, &code, js, ref); err != nil {
+	if err := s.callRef(ctx, &code, ref, js); err != nil {
 		return err
 	}
 	return refError(ref, code)
@@ -141,7 +141,7 @@ func (s *Session) Inspect(ctx context.Context, ref string, props []string) (stri
 	if props == nil {
 		props = []string{}
 	}
-	data, err := s.evalJSON(ctx, `(r, props) => window.__vitral.inspect(r, props)`, ref, props)
+	data, err := s.callRefJSON(ctx, ref, `(el, props) => window.__vitral.inspect(el, props)`, props)
 	if err != nil {
 		return "", err
 	}

@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -125,36 +127,193 @@ func (t *Tracker) forget(id proto.RuntimeExecutionContextID) {
 	}
 }
 
+// Elem é um elemento do DOM como argumento de Call: chega à função JS como o próprio elemento. Com
+// Backend, vem do DOM.resolveNode no mundo isolado (alcança até shadow root fechado); sem Backend,
+// da ref no registro do script (refs que o próprio script criou, como as dos links no texto).
+// Elemento que não existe mais chega como null.
+type Elem struct {
+	Backend int
+	Ref     string
+}
+
+var groups atomic.Int64
+
+// resolveWorkers limita as resoluções de nó em paralelo (o primeiro snapshot de uma página grande
+// resolve centenas de uma vez).
+const resolveWorkers = 16
+
 // Call chama uma função JS no mundo isolado e devolve o resultado em JSON.
 func (t *Tracker) Call(ctx context.Context, fn string, args ...any) ([]byte, error) {
-	callArgs := make([]*proto.RuntimeCallArgument, len(args))
-	for i, a := range args {
-		callArgs[i] = &proto.RuntimeCallArgument{Value: gson.New(a)}
-	}
 	for {
 		p, id, err := t.contextID(ctx)
 		if err != nil {
 			return nil, err
 		}
-		res, err := proto.RuntimeCallFunctionOn{
-			FunctionDeclaration: fn,
-			Arguments:           callArgs,
-			ExecutionContextID:  id,
-			ReturnByValue:       true,
-			AwaitPromise:        true,
-		}.Call(p.Context(ctx))
+		pc := p.Context(ctx)
+		group := ""
+		callArgs, err := t.callArgs(pc, id, &group, args)
+		if err == nil {
+			var res *proto.RuntimeCallFunctionOnResult
+			res, err = proto.RuntimeCallFunctionOn{
+				FunctionDeclaration: fn,
+				Arguments:           callArgs,
+				ExecutionContextID:  id,
+				ReturnByValue:       true,
+				AwaitPromise:        true,
+			}.Call(pc)
+			if err == nil && res.ExceptionDetails != nil {
+				err = fmt.Errorf("evaluate in page: %s", exceptionText(res.ExceptionDetails))
+			}
+			if err == nil {
+				release(pc, group)
+				return []byte(res.Result.Value.JSON("", "")), nil
+			}
+		}
+		release(pc, group)
 		if staleContext(err) {
 			t.forget(id)
 			continue
 		}
+		return nil, err
+	}
+}
+
+func release(p *rod.Page, group string) {
+	if group != "" {
+		_ = proto.RuntimeReleaseObjectGroup{ObjectGroup: group}.Call(p)
+	}
+}
+
+// callArgs converte os argumentos; os Elem viram objetos do mundo isolado (resolvidos em paralelo,
+// num grupo de objetos liberado depois da chamada).
+func (t *Tracker) callArgs(p *rod.Page, id proto.RuntimeExecutionContextID, group *string, args []any) ([]*proto.RuntimeCallArgument, error) {
+	out := make([]*proto.RuntimeCallArgument, len(args))
+	var elems []int
+	for i, a := range args {
+		if _, ok := a.(Elem); ok {
+			elems = append(elems, i)
+			continue
+		}
+		out[i] = &proto.RuntimeCallArgument{Value: gson.New(a)}
+	}
+	if len(elems) == 0 {
+		return out, nil
+	}
+	*group = fmt.Sprintf("vitral-%d", groups.Add(1))
+	errs := make([]error, len(args))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, resolveWorkers)
+	for _, i := range elems {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			obj, err := resolve(p, id, *group, args[i].(Elem))
+			if obj == "" {
+				out[i] = &proto.RuntimeCallArgument{Value: gson.New(nil)}
+			} else {
+				out[i] = &proto.RuntimeCallArgument{ObjectID: obj}
+			}
+			errs[i] = err
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if staleContext(err) {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// resolve devolve o objeto do elemento no mundo isolado ("" se o nó não existe mais).
+func resolve(p *rod.Page, id proto.RuntimeExecutionContextID, group string, e Elem) (proto.RuntimeRemoteObjectID, error) {
+	if e.Backend != 0 {
+		res, err := proto.DOMResolveNode{BackendNodeID: proto.DOMBackendNodeID(e.Backend), ObjectGroup: group, ExecutionContextID: id}.Call(p)
+		if err != nil || res.Object == nil {
+			return "", err
+		}
+		return res.Object.ObjectID, nil
+	}
+	res, err := proto.RuntimeCallFunctionOn{
+		FunctionDeclaration: `(r) => window.__vitral ? window.__vitral.find(r) : null`,
+		Arguments:           []*proto.RuntimeCallArgument{{Value: gson.New(e.Ref)}},
+		ExecutionContextID:  id, ObjectGroup: group,
+	}.Call(p)
+	if err != nil || res.ExceptionDetails != nil || res.Result.Subtype != proto.RuntimeRemoteObjectSubtypeNode {
+		return "", err
+	}
+	return res.Result.ObjectID, nil
+}
+
+// Nodes chama uma função JS que devolve uma lista de elementos e devolve o backendNodeId de cada
+// um (0 para o que não for elemento). É o caminho de volta das refs criadas pelo próprio script.
+func (t *Tracker) Nodes(ctx context.Context, fn string) ([]int, error) {
+	for {
+		p, id, err := t.contextID(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if res.ExceptionDetails != nil {
-			return nil, fmt.Errorf("evaluate in page: %s", exceptionText(res.ExceptionDetails))
+		pc := p.Context(ctx)
+		group := fmt.Sprintf("vitral-%d", groups.Add(1))
+		out, err := nodes(pc, id, group, fn)
+		release(pc, group)
+		if staleContext(err) {
+			t.forget(id)
+			continue
 		}
-		return []byte(res.Result.Value.JSON("", "")), nil
+		return out, err
 	}
+}
+
+func nodes(p *rod.Page, id proto.RuntimeExecutionContextID, group, fn string) ([]int, error) {
+	res, err := proto.RuntimeCallFunctionOn{FunctionDeclaration: fn, ExecutionContextID: id, ObjectGroup: group}.Call(p)
+	if err != nil {
+		return nil, err
+	}
+	if res.ExceptionDetails != nil {
+		return nil, fmt.Errorf("evaluate in page: %s", exceptionText(res.ExceptionDetails))
+	}
+	if res.Result.ObjectID == "" {
+		return nil, nil
+	}
+	props, err := proto.RuntimeGetProperties{ObjectID: res.Result.ObjectID, OwnProperties: true}.Call(p)
+	if err != nil {
+		return nil, err
+	}
+	var objs []proto.RuntimeRemoteObjectID
+	for _, pr := range props.Result {
+		i, err := strconv.Atoi(pr.Name)
+		if err != nil || pr.Value == nil {
+			continue
+		}
+		for len(objs) <= i {
+			objs = append(objs, "")
+		}
+		if pr.Value.Subtype == proto.RuntimeRemoteObjectSubtypeNode {
+			objs[i] = pr.Value.ObjectID
+		}
+	}
+	out := make([]int, len(objs))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, resolveWorkers)
+	for i, obj := range objs {
+		if obj == "" {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if d, err := (proto.DOMDescribeNode{ObjectID: obj}).Call(p); err == nil && d.Node != nil {
+				out[i] = int(d.Node.BackendNodeID)
+			}
+		}()
+	}
+	wg.Wait()
+	return out, nil
 }
 
 // Eval avalia uma expressão no mundo isolado, ignorando o resultado.

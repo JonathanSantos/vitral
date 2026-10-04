@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Tabela de layout - Fixture</title></head>
+<body>
+  <!-- Regressão do motor ax: uma <table> sem cabeçalhos é "tabela de layout" para o Chrome
+       (LayoutTable, LayoutTableRow, LayoutTableCell); o snapshot a mostra como tabela, com as linhas. -->
+  <h1>Preços</h1>
+  <table>
+    <tr><td>Produto</td><td>Preço</td></tr>
+    <tr><td>Caneta</td><td>R$ 3</td></tr>
+    <tr><td>Caderno</td><td>R$ 12</td></tr>
+  </table>
+</body>
+</html>

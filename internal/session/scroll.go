@@ -63,7 +63,7 @@ func (s *Session) scrollIntoBand(ctx context.Context, p *rod.Page, ref string) e
 	var info scrollChain
 	for iter := 0; iter < 8; iter++ {
 		info = scrollChain{}
-		if err := s.evalInto(ctx, &info, `(r) => window.__vitral.scrollChain(r)`, ref); err != nil {
+		if err := s.callRef(ctx, &info, ref, `(el) => window.__vitral.scrollChain(el)`); err != nil {
 			return err
 		}
 		if err := refError(ref, info.Error); err != nil {

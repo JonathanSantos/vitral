@@ -122,6 +122,12 @@ type Session struct {
 // start sobe um Vitral isolado (HOME, perfil e fluxos temporários) e conecta o cliente MCP.
 func start(t *testing.T, extraArgs ...string) *Session {
 	t.Helper()
+	return startBin(t, binPath, extraArgs...)
+}
+
+// startBin é o start com outro binário (o de medição de tempo, sem -race).
+func startBin(t *testing.T, bin string, extraArgs ...string) *Session {
+	t.Helper()
 	home := t.TempDir()
 	s := &Session{t: t, home: home, debugInfo: filepath.Join(home, "debug.json"), stderr: &bytes.Buffer{}}
 	args := append([]string{
@@ -129,14 +135,11 @@ func start(t *testing.T, extraArgs ...string) *Session {
 		"--lang", "pt-BR", "--window-size", "1280,800", "--debug-info", s.debugInfo,
 	}, browserArgs...)
 	args = append(args, extraArgs...)
-	if e := os.Getenv("VITRAL_TEST_SNAPSHOT_ENGINE"); e != "" {
-		args = append(args, "--snapshot-engine", e)
-	}
 	// make demo-cursor: janela visível para uma pessoa acompanhar (e gravar o GIF).
 	if os.Getenv("VITRAL_E2E_VISIBLE") != "" {
 		args = args[1:]
 	}
-	s.cmd = exec.Command(binPath, args...)
+	s.cmd = exec.Command(bin, args...)
 	s.cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home, "TZ=UTC", "GOCOVERDIR="+coverDir,
 		"PUPPETEER_CACHE_DIR="+filepath.Join(home, "none"), "PLAYWRIGHT_BROWSERS_PATH="+filepath.Join(home, "none"))
 	s.cmd.Stderr = s.stderr

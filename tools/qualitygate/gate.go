@@ -21,6 +21,7 @@ type Row struct {
 type Report struct {
 	Rows        []Row
 	Tokens      []TokenRow
+	Timing      []TimingRow
 	Mutation    []MutationResult
 	mutationMin float64
 	Quarantines []Quarantine
@@ -40,7 +41,8 @@ type Input struct {
 	Now        time.Time
 	TokenNow   map[string]int // nil quando não medido
 	TokenBase  map[string]int
-	Mutation   []MutationResult // nil quando não medida
+	TimingNow  map[string]float64 // nil quando não medido
+	Mutation   []MutationResult   // nil quando não medida
 }
 
 func pct(m map[string]Coverage, pkg string) *float64 {
@@ -96,6 +98,11 @@ func Evaluate(in Input) Report {
 		r.Tokens, failures = EvaluateTokens(in.Thresholds.Tokens, in.TokenNow, in.TokenBase)
 		r.Failures = append(r.Failures, failures...)
 	}
+	if in.TimingNow != nil {
+		var failures []string
+		r.Timing, failures = EvaluateTiming(in.Thresholds.Timing, in.TimingNow)
+		r.Failures = append(r.Failures, failures...)
+	}
 	r.Mutation, r.mutationMin = in.Mutation, in.Thresholds.Mutation.Min
 	r.Failures = append(r.Failures, EvaluateMutation(in.Mutation, in.Thresholds.Mutation.Min)...)
 	slices.Sort(r.Failures)
@@ -132,6 +139,7 @@ func Format(r Report) string {
 		fmt.Fprintf(&b, "%-26s %9s %10s  %-9s %6s %6s  %s\n", row.Package, show(row.Unit), show(row.Combined), crit, minimum, target, status)
 	}
 	b.WriteString(FormatTokens(r.Tokens))
+	b.WriteString(FormatTiming(r.Timing))
 	b.WriteString(FormatMutation(r.Mutation, r.mutationMin))
 	if len(r.Quarantines) > 0 {
 		b.WriteString("\nquarentena:\n")

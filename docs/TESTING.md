@@ -76,6 +76,11 @@ Princípios:
 - Tokens estimados por `ceil(len(texto)/4)`, numa função única. Tetos por fixture e por ação dos
   cenários e2e no `thresholds.yaml`; o relatório mostra o valor e a diferença para a base versionada.
 - Fixture grande obrigatória: `testdata/pages/large.html`.
+- Tempo do snapshot: o e2e (`TestSnapshotTiming`) mede a mediana de 15 chamadas num binário compilado
+  como o de release (sem `-race`, que deixa a decodificação do CDP 5 a 7 vezes mais lenta) e grava
+  `.quality/out/timing.json`; os tetos ficam na seção `timing` do `thresholds.yaml` (área visível:
+  `large.html` ≤ 120 ms, demais ≤ 30 ms; completo: `large.html` ≤ 400 ms). Um teto só muda depois de
+  mostrar o valor medido.
 
 ## 7. E2E com IA fake
 
