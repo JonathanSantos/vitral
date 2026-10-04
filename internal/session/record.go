@@ -29,7 +29,7 @@ func (s *Session) selectorFor(ctx context.Context, p *rod.Page, rec *recording) 
 	return &sel, ""
 }
 
-// record grava o passo e devolve a linha "step #N" (ou o motivo de não ter gravado).
+// record grava o passo e devolve a linha "flow step #N" (ou o motivo de não ter gravado).
 func (s *Session) record(rec *recording, sel *flow.Selector, note string) string {
 	if rec == nil || s.replaying.Load() {
 		return ""
@@ -37,7 +37,7 @@ func (s *Session) record(rec *recording, sel *flow.Selector, note string) string
 	if rec.ref != "" && sel == nil {
 		return fmt.Sprintf("(not recorded for flows: %s)", note)
 	}
-	return fmt.Sprintf("step #%d", s.rec.Add(rec.step(sel)))
+	return fmt.Sprintf("flow step #%d", s.rec.Add(rec.step(sel)))
 }
 
 // Record grava um passo vindo de fora da sessão (ex.: mock_add). Devolve vazio durante flow_run.

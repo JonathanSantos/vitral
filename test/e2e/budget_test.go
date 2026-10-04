@@ -58,9 +58,9 @@ func TestSnapshotBudget(t *testing.T) {
 	}
 }
 
-// stripStep tira o "step #N" do fim (depende da ordem dos testes, não da página).
+// stripStep tira o "flow step #N" do fim (depende da ordem dos testes, não da página).
 func stripStep(text string) string {
-	if i := lastLineIndex(text, "step #"); i >= 0 {
+	if i := lastLineIndex(text, "flow step #"); i >= 0 {
 		return text[:i]
 	}
 	return text

@@ -186,7 +186,7 @@ func (s *Session) waitStable(ctx context.Context, p *rod.Page, start time.Time) 
 			return ""
 		}
 		if time.Now().After(deadline) {
-			return fmt.Sprintf("warning: page did not settle within %s (%d requests pending); result may be incomplete.",
+			return fmt.Sprintf("warning: page did not settle within %s (%d requests pending); result may be incomplete. If something you expect is missing, call wait_for with its text.",
 				s.cfg.StabilityTimeout, pending)
 		}
 		select {
@@ -257,14 +257,15 @@ func (s *Session) events(netMark, conMark int) string {
 		}
 	}
 	if len(errs) > 0 {
-		lines = append(lines, fmt.Sprintf("console: %d new error(s), last: %s", len(errs), console.Line(errs[len(errs)-1])))
+		lines = append(lines, fmt.Sprintf("console: %d new error(s), last: %s (details: console_list)", len(errs), console.Brief(errs[len(errs)-1])))
 	}
-	var bad []string
+	var problems []network.Entry
 	for _, e := range s.net.Entries() {
 		if e.ID > netMark && network.IsProblem(e) {
-			bad = append(bad, network.Line(e))
+			problems = append(problems, e)
 		}
 	}
+	bad := network.BriefGroups(problems)
 	for _, e := range s.net.Entries() {
 		if e.ID > netMark && strings.EqualFold(e.Type, "document") && strings.Contains(e.Failed, "ERR_BLOCKED_BY_CLIENT") && len(s.cfg.AllowedHosts) > 0 {
 			lines = append(lines, fmt.Sprintf("blocked: navigation to %s is outside --allowed-hosts (%s). Tell the user or stay on the allowed hosts.", e.URL, strings.Join(s.cfg.AllowedHosts, ", ")))
@@ -275,7 +276,7 @@ func (s *Session) events(netMark, conMark int) string {
 		if len(shown) > 3 {
 			shown = shown[len(shown)-3:]
 		}
-		lines = append(lines, fmt.Sprintf("network: %d failed request(s): %s", len(bad), strings.Join(shown, "; ")))
+		lines = append(lines, fmt.Sprintf("network: %d failed request(s): %s (details: network_list)", len(problems), strings.Join(shown, "; ")))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -316,6 +317,10 @@ func (s *Session) Snapshot(ctx context.Context, opts SnapshotOptions) (string, e
 		format.MaxLines = opts.MaxLines
 	}
 	format.ScopeRoot = opts.Scope != ""
+	if format.ScopeRoot {
+		// Com scope, os textos vêm inteiros: é o jeito de ler o que o snapshot cortou com "…".
+		format.TextMax = snapshot.FullTextMax
+	}
 	return snapshot.Format(page, format), nil
 }
 

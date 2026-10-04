@@ -157,6 +157,27 @@ func Line(m Message) string {
 	return line
 }
 
+// Brief é a linha curta usada no resumo de uma ação: texto até 120 caracteres e a origem sem query
+// (a mensagem completa está no console_list).
+func Brief(m Message) string {
+	text := m.Text
+	if len([]rune(text)) > 120 {
+		text = string([]rune(text)[:119]) + "…"
+	}
+	line := fmt.Sprintf("[%s] %s", m.Level, text)
+	if src := m.Source; src != "" {
+		base, query, hasQuery := strings.Cut(src, "?")
+		if hasQuery && query != "" {
+			base += "?…"
+		}
+		if r := []rune(base); len(r) > 80 {
+			base = string(r[:79]) + "…"
+		}
+		line += " (" + base + ")"
+	}
+	return line
+}
+
 // RemoteObjectText transforma um argumento de console em texto legível.
 func RemoteObjectText(o *proto.RuntimeRemoteObject) string {
 	if o == nil {

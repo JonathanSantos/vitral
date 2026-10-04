@@ -1,6 +1,7 @@
 package console
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/go-rod/rod/lib/proto"
@@ -83,5 +84,26 @@ func TestRemoteObjectText(t *testing.T) {
 		if got := RemoteObjectText(tt.obj); got != tt.want {
 			t.Errorf("RemoteObjectText(%+v)=%q want %q", tt.obj, got, tt.want)
 		}
+	}
+}
+
+func TestBriefIsShort(t *testing.T) {
+	m := Message{
+		Level: "error", Text: "Failed to load resource: " + strings.Repeat("y", 300),
+		Source: "https://rr3.googlevideo.com/videoplayback?expire=1&sig=" + strings.Repeat("z", 500),
+	}
+	got := Brief(m)
+	if !strings.HasPrefix(got, "[error] Failed to load resource: ") || !strings.HasSuffix(got, "(https://rr3.googlevideo.com/videoplayback?…)") {
+		t.Fatalf("got %q", got)
+	}
+	if n := len([]rune(got)); n > 200 {
+		t.Fatalf("brief line has %d chars", n)
+	}
+	long := Message{Level: "warning", Text: "ok", Source: "https://example.com/" + strings.Repeat("p", 120)}
+	if got := Brief(long); !strings.HasSuffix(got, "…)") {
+		t.Fatalf("long source should be cut: %q", got)
+	}
+	if got := Brief(Message{Level: "log", Text: "hi"}); got != "[log] hi" {
+		t.Fatalf("no source: %q", got)
 	}
 }

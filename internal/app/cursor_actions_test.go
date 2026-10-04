@@ -4,7 +4,7 @@ package app_test
 
 import (
 	"math"
-	"strings"
+	"regexp"
 	"testing"
 
 	"github.com/JonathanSantos/vitral/internal/config"
@@ -140,7 +140,7 @@ func TestCursorActions(t *testing.T) {
 	t.Run("open again keeps the cursor", func(t *testing.T) {
 		before, _ := ch.app.Overlay.CursorPosition()
 		out := ch.ok(t, "open", map[string]any{"url": ch.url("/pages/cursor.html")})
-		if strings.Contains(out, "IA") {
+		if regexp.MustCompile(`\bIA\b`).MatchString(out) {
 			t.Fatalf("cursor label leaked into the snapshot:\n%s", out)
 		}
 		if after, shown := ch.app.Overlay.CursorPosition(); !shown || after != before {

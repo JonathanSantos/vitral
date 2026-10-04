@@ -29,7 +29,7 @@ type flowRunInput struct {
 func registerFlows(s *mcp.Server, d Deps) {
 	addTool(s, d, &mcp.Tool{
 		Name:        "flow_save",
-		Description: "Save the actions done so far (each action shows 'step #N') as a reusable flow. Use params to turn typed values into placeholders.",
+		Description: "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow. Use params to turn typed values into placeholders.",
 	}, flowSaveTool(d))
 
 	addTool(s, d, &mcp.Tool{

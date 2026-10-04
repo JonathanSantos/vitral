@@ -3,6 +3,7 @@
 package app_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -111,4 +112,41 @@ func TestWaitForTimeoutAndGone(t *testing.T) {
 	h.fail(t, "wait_for", map[string]any{"text": "não existe", "timeoutMs": 500}, "timeout after 500ms")
 	out := h.ok(t, "wait_for", map[string]any{"text": "não existe", "gone": true})
 	mustContain(t, out, "is gone")
+}
+
+// Textos longos vêm cortados no snapshot normal e inteiros com scope (o jeito de ler o que foi cortado).
+func TestScopeShowsFullText(t *testing.T) {
+	snap := h.ok(t, "open", map[string]any{"url": h.url("/pages/cursor.html")})
+	full := "Nunca te ensinaram Claude Code assim (GUIA COMPLETO DO ZERO) 219 mil visualizações há 2 meses · 3 horas e 20 minutos"
+	if strings.Contains(snap, full) || !strings.Contains(snap, `link "Nunca te ensinaram Claude Code assim`) || !strings.Contains(snap, "…\"") {
+		t.Fatalf("default snapshot should cut the long link at 80 chars:\n%s", snap)
+	}
+	m := regexp.MustCompile(`\[(e\d+)\] link "Nunca te ensinaram`).FindStringSubmatch(snap)
+	if m == nil {
+		t.Fatalf("no long link in:\n%s", snap)
+	}
+	link := m[1]
+	mustContain(t, h.ok(t, "snapshot", map[string]any{"scope": link}), `"`+full+`"`)
+}
+
+// Um texto maior que o limite do script (300) chega cortado com "…" mesmo no snapshot com scope:
+// sem a marca, pareceria completo.
+func TestScopeMarksTextCutAtTheLimit(t *testing.T) {
+	h.ok(t, "open", map[string]any{"url": h.url("/pages/form.html")})
+	h.mainWorld(t, `() => { const b = document.createElement('button'); b.id = 'enorme';
+		b.textContent = 'capítulo '.repeat(60); document.body.prepend(b); return {}; }`)
+	snap := h.ok(t, "snapshot", nil)
+	m := regexp.MustCompile(`\[(e\d+)\] button "capítulo`).FindStringSubmatch(snap)
+	if m == nil {
+		t.Fatalf("no long button in:\n%s", snap)
+	}
+	scoped := h.ok(t, "snapshot", map[string]any{"scope": m[1]})
+	_, line, found := strings.Cut(scoped, "["+m[1]+"]")
+	if !found {
+		t.Fatalf("scope output without %s:\n%s", m[1], scoped)
+	}
+	line, _, _ = strings.Cut(line, "\n")
+	if !strings.HasSuffix(line, `…"`) || len([]rune(line)) > 340 {
+		t.Fatalf("text over 300 chars must end with …:\n%s", line)
+	}
 }

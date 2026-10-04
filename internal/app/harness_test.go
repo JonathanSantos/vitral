@@ -211,7 +211,7 @@ func golden(t *testing.T, name, got string) {
 	t.Helper()
 	got = strings.ReplaceAll(got, h.site.URL, "http://fixture")
 	// O número do passo gravado depende da ordem dos testes.
-	got = regexp.MustCompile(`step #\d+`).ReplaceAllString(got, "step #N")
+	got = regexp.MustCompile(`step #\d+`).ReplaceAllString(got, "step #N") // "flow step #N"
 	path := filepath.Join("..", "..", "testdata", "golden", name)
 	if *update {
 		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {

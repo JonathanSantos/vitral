@@ -104,6 +104,66 @@ func Line(e Entry) string {
 	return line
 }
 
+// briefURL tira a query e encurta: nos resumos depois de uma ação, a URL só precisa ser reconhecível
+// (a completa está no network_list). Assinaturas e tokens de query também não vão para o resumo.
+func briefURL(raw string) string {
+	base, query, hasQuery := strings.Cut(raw, "?")
+	if hasQuery && query != "" {
+		base += "?…"
+	}
+	return shorten(base, 80)
+}
+
+// Brief é a linha curta usada no resumo de uma ação: id METHOD STATUS URL-curta (motivo).
+func Brief(e Entry) string {
+	status := strconv.Itoa(e.Status)
+	switch {
+	case e.Failed != "":
+		status = "failed"
+	case !e.Done && e.Status == 0:
+		status = "pending"
+	}
+	line := fmt.Sprintf("%d %s %s %s", e.ID, e.Method, status, briefURL(e.URL))
+	var extra []string
+	if e.Failed != "" {
+		extra = append(extra, e.Failed)
+	}
+	if e.Mocked {
+		extra = append(extra, "mocked")
+	}
+	if len(extra) > 0 {
+		line += " (" + strings.Join(extra, ", ") + ")"
+	}
+	return line
+}
+
+// BriefGroups junta as linhas curtas iguais (mesmo método, status, URL curta e motivo), mantendo o
+// id da primeira e a contagem: páginas de vídeo repetem a mesma falha várias vezes.
+func BriefGroups(entries []Entry) []string {
+	var out []string
+	index := map[string]int{}
+	counts := map[string]int{}
+	for _, e := range entries {
+		line := Brief(e)
+		_, key, _ := strings.Cut(line, " ")
+		if i, seen := index[key]; seen {
+			counts[key]++
+			out[i] = groupLine(out[i], counts[key])
+			continue
+		}
+		index[key], counts[key] = len(out), 1
+		out = append(out, line)
+	}
+	return out
+}
+
+func groupLine(line string, n int) string {
+	if i := strings.LastIndex(line, " ×"); i >= 0 {
+		line = line[:i]
+	}
+	return fmt.Sprintf("%s ×%d", line, n)
+}
+
 // HumanSize formata bytes de forma curta.
 func HumanSize(n int64) string {
 	switch {

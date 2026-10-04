@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/png"
 	"math/rand/v2"
+	"regexp"
 	"testing"
 	"time"
 
@@ -73,7 +74,7 @@ func TestCursorPlaysAndStaysOutOfScreenshot(t *testing.T) {
 	if n := inkNear(shot, plan.End, 14); n > 0 {
 		t.Fatalf("cursor leaked into the AI screenshot (%d ink pixels)", n)
 	}
-	if snap := h.ok(t, "snapshot", map[string]any{"full": true}); bytes.Contains([]byte(snap), []byte("IA")) {
+	if snap := h.ok(t, "snapshot", map[string]any{"full": true}); regexp.MustCompile(`\bIA\b`).MatchString(snap) {
 		t.Fatalf("cursor label leaked into the snapshot:\n%s", snap)
 	}
 }

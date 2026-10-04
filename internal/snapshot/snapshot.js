@@ -52,7 +52,13 @@
   const ERROR_CLASS = /(^|[\s_-])(error|errors|invalid|danger)([\s_-]|$)/i;
 
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-  const cut = (s) => (s.length > NAME_MAX ? s.slice(0, NAME_MAX) : s);
+  // Corta em NAME_MAX caracteres (não unidades UTF-16) e marca o corte com "…": sem a marca, um texto
+  // cortado pareceria completo no snapshot com scope.
+  const cut = (s) => {
+    if (s.length <= NAME_MAX) return s;
+    const chars = Array.from(s);
+    return chars.length > NAME_MAX ? chars.slice(0, NAME_MAX - 1).join('') + '…' : s;
+  };
 
   function refFor(el) {
     const existing = el.getAttribute(REF_ATTR);

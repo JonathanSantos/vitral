@@ -14,7 +14,7 @@ type openInput struct {
 }
 
 type snapshotInput struct {
-	Scope    string `json:"scope,omitempty" jsonschema:"ref of an element to show only its subtree (shows all its items)"`
+	Scope    string `json:"scope,omitempty" jsonschema:"ref of an element to show only its subtree, with all its items and full texts"`
 	Full     bool   `json:"full,omitempty" jsonschema:"include elements outside the visible area"`
 	MaxLines int    `json:"maxLines,omitempty" jsonschema:"max lines in the output (default 300)"`
 }
@@ -36,7 +36,7 @@ func registerNavigation(s *mcp.Server, d Deps) {
 
 	addTool(s, d, &mcp.Tool{
 		Name:        "snapshot",
-		Description: "Show the current page as text with element refs. Call it when you need to see the page again or after an error.",
+		Description: "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=<ref> to read them in full.",
 	}, snapshotTool(d.Session))
 
 	addTool(s, d, &mcp.Tool{

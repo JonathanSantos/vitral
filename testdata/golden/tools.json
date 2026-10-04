@@ -94,7 +94,7 @@
   },
   {
     "name": "flow_save",
-    "description": "Save the actions done so far (each action shows 'step #N') as a reusable flow. Use params to turn typed values into placeholders.",
+    "description": "Save the actions done so far (each action ends with 'flow step #N') as a reusable flow. Use params to turn typed values into placeholders.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -380,7 +380,7 @@
   },
   {
     "name": "snapshot",
-    "description": "Show the current page as text with element refs. Call it when you need to see the page again or after an error.",
+    "description": "Show the current page as text with element refs. Call it when you need to see the page again or after an error. Shows the visible area (header scroll: Y/MAX); scroll or use full=true for the rest. Long texts are cut at 80 chars with …; use scope=\u003cref\u003e to read them in full.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -393,7 +393,7 @@
           "type": "integer"
         },
         "scope": {
-          "description": "ref of an element to show only its subtree (shows all its items)",
+          "description": "ref of an element to show only its subtree, with all its items and full texts",
           "type": "string"
         }
       },

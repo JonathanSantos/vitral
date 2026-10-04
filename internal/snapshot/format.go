@@ -17,6 +17,9 @@ type FormatOptions struct {
 }
 
 // DefaultFormat são os limites padrão da spec.
+// FullTextMax é o tamanho dos textos no snapshot com scope (o mesmo limite do script da página).
+const FullTextMax = 300
+
 func DefaultFormat() FormatOptions {
 	return FormatOptions{MaxLines: 300, TextMax: 80, ListMax: 5}
 }
