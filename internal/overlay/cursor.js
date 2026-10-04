@@ -8,6 +8,8 @@ const VITRAL_CURSOR_CSS = `
     transition: opacity 150ms ease; z-index: 2; }
   .vc.gone { opacity: 0; }
   .vc.dim { opacity: .7; transition: opacity 600ms ease; }
+  .vc.nav { opacity: .4; }
+  .vc.paused { opacity: 0; transition: opacity 200ms ease; }
   .vc-body { position: absolute; left: 0; top: 0; width: 20px; height: 24px;
     transform-origin: var(--hx) var(--hy); transition: transform 60ms ease;
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .25)); }
@@ -20,6 +22,13 @@ const VITRAL_CURSOR_CSS = `
     font: 600 10px/1 system-ui, sans-serif; white-space: nowrap; transition: opacity 400ms ease; }
   .vc-tag.off { opacity: 0; }
   .vc-tag svg { width: 12px; height: 12px; display: block; }
+  .vc-note { position: absolute; left: 16px; top: 42px; padding: 4px 9px; border-radius: 8px;
+    background: var(--vitral-ink); color: var(--vitral-paper); font: 500 12px/1.3 system-ui, sans-serif;
+    white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .2); transition: opacity 200ms ease; }
+  .vc-keycap { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); min-width: 28px;
+    padding: 8px 14px; border-radius: 10px; background: var(--vitral-ink); color: var(--vitral-paper);
+    border: 2px solid var(--vitral-paper); box-shadow: 0 4px 18px rgba(0, 0, 0, .28); text-align: center;
+    font: 600 15px/1 system-ui, sans-serif; pointer-events: none; transition: opacity 200ms ease; }
   .vc-ring { position: absolute; left: 0; top: 0; width: 56px; height: 56px; margin: -28px 0 0 -28px;
     border: 2px solid; border-radius: 50%; box-sizing: border-box; pointer-events: none; z-index: 1; }
 `;
@@ -31,11 +40,12 @@ const VITRAL_CURSOR_SHAPES = {
   text: { hx: 10, hy: 12, d: 'M6 2h3l1 1 1-1h3v1.6h-2.4c-.6 0-.9.3-.9.9v6.8h1.6v1.4h-1.6v6.8c0 .6.3.9.9.9H14V22h-3l-1-1-1 1H6v-1.6h2.4c.6 0 .9-.3.9-.9v-6.8H7.7v-1.4h1.6V4.5c0-.6-.3-.9-.9-.9H6Z' },
 };
 
-// Ícone pequeno do Vitral (icon-small.svg) para a etiqueta "IA", em fundo escuro.
-const VITRAL_CURSOR_ICON = `<svg viewBox="0 0 512 512" aria-hidden="true">
-  <defs><clipPath id="vc-glass"><path d="M124 436 V208 A132 132 0 0 1 388 208 V436 Z"/></clipPath></defs>
+// Ícone pequeno do Vitral (icon-small.svg) para fundo escuro: a moldura vira vidro claro. Usado no
+// selo e na etiqueta "IA" do cursor.
+const VITRAL_ICON = `<svg class="icon" viewBox="0 0 512 512" aria-hidden="true">
+  <defs><clipPath id="vitral-glass"><path d="M124 436 V208 A132 132 0 0 1 388 208 V436 Z"/></clipPath></defs>
   <path d="M96 464 V208 A160 160 0 0 1 416 208 V464 Z" style="fill: var(--vitral-paper); stroke: none"/>
-  <g clip-path="url(#vc-glass)" style="stroke: none">
+  <g clip-path="url(#vitral-glass)" style="stroke: none">
     <rect x="124" y="40" width="120" height="180" style="fill: var(--vitral-mark1)"/>
     <rect x="268" y="40" width="120" height="180" style="fill: var(--vitral-mark4)"/>
     <rect x="124" y="244" width="120" height="192" style="fill: var(--vitral-mark3)"/>
@@ -51,7 +61,7 @@ function vitralCursor(layer, label) {
   body.className = 'vc-body';
   const tag = document.createElement('div');
   tag.className = 'vc-tag off';
-  tag.innerHTML = VITRAL_CURSOR_ICON;
+  tag.innerHTML = VITRAL_ICON;
   tag.append(document.createTextNode(label));
   el.append(body, tag);
   layer.append(el);
@@ -127,11 +137,20 @@ function vitralCursor(layer, label) {
     },
     get position() { return { x, y }; },
     // play toca o plano. opts.ring é a cor do anel (null = sem clique); opts.reduced deixa o anel
-    // estático; done é chamado depois do release (ou na hora, se a aba ficar oculta).
+    // estático; opts.appear faz o cursor surgir com fade (primeira aparição, a partir do selo);
+    // opts.arrive é chamado no press (ou no fim do movimento, sem clique): é quando o Go dispara o
+    // evento real. done vem depois do release. Com a aba oculta, os dois vêm na hora.
     play(plan, opts, done) {
       if (current) finish(current.plan, current.done);
+      let arrived = false;
+      const arrive = () => {
+        if (!arrived) { arrived = true; opts.arrive && opts.arrive(); }
+      };
+      const userDone = done;
+      done = () => { arrive(); userDone && userDone(); };
       awake();
-      el.classList.remove('gone');
+      el.classList.remove('gone', 'nav');
+      if (opts.appear) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
       const f = plan.f;
       if (document.visibilityState !== 'visible') return finish(plan, done);
       current = { plan, done };
@@ -160,7 +179,9 @@ function vitralCursor(layer, label) {
           pressed = true;
           body.classList.add('down');
           ring(opts.ring, opts.reduced);
+          arrive();
         }
+        if (!opts.ring && t >= plan.move) arrive();
         if (t >= plan.release || (!opts.ring && t >= plan.move)) {
           document.removeEventListener('visibilitychange', onHide);
           return finish(plan, done);
@@ -171,5 +192,40 @@ function vitralCursor(layer, label) {
     },
     hide() { el.classList.add('gone'); },
     show() { el.classList.remove('gone'); },
+    // Pausa: a pessoa está no controle, o cursor some em 200 ms e volta ao retomar (6.2).
+    paused(on) { el.classList.toggle('paused', !!on); },
+    // Navegação (open/back): o cursor fica a 40% até a página carregar (5.6).
+    nav(on) { el.classList.toggle('nav', !!on); },
+    // note mostra uma etiqueta curta junto ao cursor ("Selecionado: …", "Botão desabilitado").
+    note(text, ms) {
+      el.querySelectorAll('.vc-note').forEach((n) => n.remove());
+      const n = document.createElement('div');
+      n.className = 'vc-note';
+      n.textContent = text;
+      el.append(n);
+      setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 200); }, ms);
+    },
+    // fail é o "não" com a cabeça: 3 oscilações de 6 px em 240 ms e a etiqueta por 1,2 s (6.4).
+    fail(text, reduced) {
+      awake();
+      el.classList.remove('gone');
+      if (!reduced) {
+        body.parentElement.animate(
+          [0, -6, 6, -6, 6, -6, 0].map((dx) => ({ transform: `${el.style.transform} translateX(${dx}px)` })),
+          { duration: 240, easing: 'ease-in-out' });
+      }
+      this.note(text, 1200);
+      idle();
+    },
   };
+}
+
+// vitralKeycap mostra a tecla pressionada no centro inferior, acima do selo, por 600 ms (5.5).
+function vitralKeycap(layer, text) {
+  layer.querySelectorAll('.vc-keycap').forEach((n) => n.remove());
+  const k = document.createElement('div');
+  k.className = 'vc-keycap';
+  k.textContent = text;
+  layer.append(k);
+  setTimeout(() => { k.style.opacity = '0'; setTimeout(() => k.remove(), 200); }, 600);
 }

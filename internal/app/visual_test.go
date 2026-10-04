@@ -100,16 +100,6 @@ func goldenDir(t *testing.T, p *rod.Page) string {
 	return filepath.Join("..", "..", "testdata", "visual", runtime.GOOS+"-chrome-"+version)
 }
 
-func viewport(t *testing.T, p *rod.Page) (int, int) {
-	t.Helper()
-	res, err := p.Eval(`() => [window.innerWidth, window.innerHeight]`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	arr := res.Value.Arr()
-	return arr[0].Int(), arr[1].Int()
-}
-
 // stable captura a região até dois quadros seguidos saírem iguais: o selo redesenha de forma
 // assíncrona depois do evento.
 func stable(t *testing.T, p *rod.Page, clip image.Rectangle) image.Image {

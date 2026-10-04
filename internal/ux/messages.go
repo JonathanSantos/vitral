@@ -15,6 +15,14 @@ const (
 	TextExpand      = "Vitral: mostrar o selo"
 	ReasonPassword  = "preencha a senha e clique em Retomar"
 	TextOverlayName = "Vitral"
+
+	// Cursor visual (docs/CURSOR.md).
+	TextCursorLabel = "IA"
+	TextSelected    = "Selecionado: %s"
+	TextCovered     = "Coberto por um diálogo"
+	TextDisabled    = "Botão desabilitado"
+	TextOpening     = "Abrindo %s"
+	TextGoingBack   = "Voltando"
 )
 
 // Mensagens para a IA (inglês, imperativo), devolvidas como resultado não-erro.

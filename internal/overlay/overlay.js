@@ -1,4 +1,5 @@
-// Overlay do Vitral: selo, pausa e destaque. Injetado em todo documento novo, só no frame principal.
+// Overlay do Vitral: selo, pausa, destaque e cursor visual. Injetado em todo documento novo, só no
+// frame principal.
 // Tudo fica num único <vitral-overlay> com shadow root fechado: a página e o snapshot não enxergam.
 // Textos e cores vêm do Go (estado renderizado e custom properties); nada é buscado na rede.
 (() => {
@@ -9,15 +10,18 @@
   const MINIMAL = __MINIMAL__;
   const BINDING = '__vitral_event';
 
+  // Tocador do cursor (cursor.js), no mesmo escopo: a página não alcança nada disso.
+  __CURSOR__
+
   let host = null;
   let root = null;
   let state = null;
   let hidden = false;
 
-  const send = (type) => {
+  const send = (type, id) => {
     try {
       const fn = window[BINDING];
-      if (typeof fn === 'function') fn(JSON.stringify({ token: TOKEN, type }));
+      if (typeof fn === 'function') fn(JSON.stringify({ token: TOKEN, type, id }));
     } catch (_) { /* sem binding: nada a fazer */ }
   };
 
@@ -45,18 +49,11 @@
     .ring.fade { opacity: 0; }
     .ring .tag { position: absolute; left: -3px; top: -14px; padding: 2px 7px; border-radius: 6px;
       font: 500 13px/1.2 ui-monospace, monospace; }
+    .cur { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+    ${VITRAL_CURSOR_CSS}
   `;
 
-  // Ícone pequeno (icon-small.svg) para fundo escuro: a moldura vira vidro claro.
-  const ICON = `<svg class="icon" viewBox="0 0 512 512" aria-hidden="true">
-    <defs><clipPath id="vitral-glass"><path d="M124 436 V208 A132 132 0 0 1 388 208 V436 Z"/></clipPath></defs>
-    <path d="M96 464 V208 A160 160 0 0 1 416 208 V464 Z" style="fill: var(--vitral-paper)"/>
-    <g clip-path="url(#vitral-glass)">
-      <rect x="124" y="40" width="120" height="180" style="fill: var(--vitral-mark1)"/>
-      <rect x="268" y="40" width="120" height="180" style="fill: var(--vitral-mark4)"/>
-      <rect x="124" y="244" width="120" height="192" style="fill: var(--vitral-mark3)"/>
-      <rect x="268" y="244" width="120" height="192" style="fill: var(--vitral-mark2)"/>
-    </g></svg>`;
+  const ICON = VITRAL_ICON;
 
   const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -81,7 +78,7 @@
       root = host.attachShadow({ mode: 'closed' });
       const style = el('style');
       style.textContent = CSS;
-      root.append(style, el('div', 'hl'), el('div', 'dock'));
+      root.append(style, el('div', 'hl'), el('div', 'cur'), el('div', 'dock'));
       // Botões não roubam o foco da página nem deixam o clique vazar para os listeners dela.
       root.addEventListener('mousedown', (e) => e.preventDefault());
       root.addEventListener('click', (e) => {
@@ -136,6 +133,36 @@
     const hl = root.querySelector('.hl');
     hl.querySelectorAll('.ring.hold').forEach((n) => n.remove());
     if (s.hold && !MINIMAL) hl.append(ring(s.hold, true));
+    if (cur) cur.paused(s.blocked);
+  }
+
+  // Cursor visual (docs/CURSOR.md). Criado na primeira ordem do Go; nunca no modo mínimo.
+  let cur = null;
+  const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function cursor(c) {
+    if (!root || MINIMAL) {
+      if (c.op === 'play') send('cursor_done', c.id);
+      return;
+    }
+    const layer = root.querySelector('.cur');
+    if (!cur) {
+      cur = vitralCursor(layer, c.label || 'IA');
+      if (state) cur.paused(state.blocked);
+    }
+    switch (c.op) {
+      case 'play':
+        cur.play(c.plan, {
+          ring: c.ring, reduced: reducedMotion(), appear: c.appear,
+          arrive: () => send('cursor_done', c.id),
+        });
+        break;
+      case 'place': cur.place(c.x, c.y, c.visible !== false); break;
+      case 'nav': cur.nav(c.on); break;
+      case 'hide': cur.hide(); break;
+      case 'note': cur.note(c.text, c.ms); break;
+      case 'fail': cur.fail(c.text, reducedMotion()); break;
+      case 'keycap': vitralKeycap(layer, c.text); break;
+    }
   }
 
   // ring desenha o contorno 6 px fora da caixa, como no screenshot (docs/BRAND.md, seção 5.1).
@@ -171,7 +198,7 @@
   }
 
   Object.defineProperty(window, '__vitralOverlay', {
-    value: Object.freeze({ render, highlight, hidden: setHidden }),
+    value: Object.freeze({ render, highlight, hidden: setHidden, cursor }),
     enumerable: false,
   });
 

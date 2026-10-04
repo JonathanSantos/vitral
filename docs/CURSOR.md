@@ -224,6 +224,12 @@ planos com o mesmo `cursor.js` do overlay, inclusive uma sequência que sai de o
    pela forma fechada do pico (`τ^k = (3k−1)/(5k−1)`), sorteando o alvo em 36–44% para a amostragem em
    keyframes não sair de 35–45%.
 8. **"Abrindo {host}" e "Voltando"** entram na máquina de estados pura do `ux` como rótulo temporário.
+9. **`cursor_done` no press.** O overlay avisa a chegada no instante do press (ou no fim do movimento,
+   quando não há clique) e termina press, anel e release sozinho. O Go dispara `mousePressed` ao
+   receber, espera o tempo de press do plano e dispara `mouseReleased`: o evento real sai no press
+   visual (5.1) e a espera continua sendo "duração do plano + 300 ms" (2.1), contada até o press.
+10. **Um só ícone.** O `cursor.js` define o ícone pequeno (`VITRAL_ICON`) usado pelo selo e pela
+    etiqueta "IA"; o overlay injeta o `cursor.js` no mesmo escopo, dentro do shadow root fechado.
 
 ### Ajustes da etapa 1 (achados pelos testes)
 

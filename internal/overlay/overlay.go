@@ -62,6 +62,10 @@ type Manager struct {
 	page  *rod.Page
 
 	renderMu sync.Mutex
+
+	// Cursor visual: quem espera o cursor_done de cada plano tocado.
+	cursorSeq uint64
+	waiters   map[string]chan struct{}
 }
 
 // New cria o gerenciador. O token impede que scripts da página acionem a pausa pela binding.
@@ -93,6 +97,7 @@ func Script(token string, minimal bool) string {
 		"__TOKEN__", q(token),
 		"__CSS_VARS__", q(brand.CSSVars()),
 		"__MINIMAL__", strconv.FormatBool(minimal),
+		"__CURSOR__", CursorScript,
 	)
 	return r.Replace(scriptTemplate)
 }
@@ -120,6 +125,7 @@ func (m *Manager) Attach(p *rod.Page) error {
 type pageEvent struct {
 	Token string `json:"token"`
 	Type  string `json:"type"`
+	ID    string `json:"id"`
 }
 
 // onPageEvent valida o que veio da página. Só o botão do selo pausa, retoma ou recolhe.
@@ -134,6 +140,8 @@ func (m *Manager) onPageEvent(payload string) {
 		m.Apply(ux.Event{Kind: ux.EventKind(e.Type)})
 	case "ready":
 		m.render()
+	case "cursor_done":
+		m.cursorDone(e.ID)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/goleak"
@@ -224,4 +225,15 @@ func golden(t *testing.T, name, got string) {
 	if got != string(want) {
 		t.Fatalf("snapshot differs from %s (run with -update to accept)\ngot:\n%s\nwant:\n%s", path, got, want)
 	}
+}
+
+// viewport é o tamanho da área visível em CSS px.
+func viewport(t *testing.T, p *rod.Page) (int, int) {
+	t.Helper()
+	res, err := p.Eval(`() => [window.innerWidth, window.innerHeight]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	arr := res.Value.Arr()
+	return arr[0].Int(), arr[1].Int()
 }
