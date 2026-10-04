@@ -24,6 +24,12 @@ type ScrollProfile struct {
 	TargetMin, TargetMax float64 // faixa da viewport onde o topo do alvo termina
 	Frame                float64
 	Still                float64 // px: abaixo disso, vai direto (não vale um gesto)
+	// Natural troca o fim suave em DecayTaus·τ pelo decaimento exponencial puro até 1% do pico
+	// (para comparar no cursorlab).
+	Natural bool
+	// MaxStep é o deslocamento máximo por frame, em fração da viewport (0 = sem teto). Se caber no
+	// teto de tempo exigir passar disso, o plano usa o salto em vez de comprimir mais.
+	MaxStep float64
 }
 
 // DefaultScrollProfile é o ponto de partida da velocidade normal.
@@ -33,27 +39,29 @@ func DefaultScrollProfile() ScrollProfile {
 		SmallFlick: 1.2, MinTauScale: 0.5, SingleFlick: 1.2,
 		FirstMin: 0.75, FirstMax: 0.90, MaxFlicks: 3, PauseMin: 120, PauseMax: 250,
 		JumpBeyond: 6, JumpLeave: 1, Cap: 1200, MinCompress: 0.6,
-		TargetMin: 0.30, TargetMax: 0.40, Frame: 16, Still: 4,
+		TargetMin: 0.30, TargetMax: 0.40, Frame: 16, Still: 4, MaxStep: 0.12,
 	}
 }
 
 // ScrollPlan é a rolagem de um container: deslocamentos acumulados a partir da posição inicial.
 type ScrollPlan struct {
-	Frames   []float64 // t, deslocamento, t, deslocamento… a cada Frame ms; o último é exatamente Distance
-	Distance float64
-	Duration float64
-	Jump     float64 // salto instantâneo no começo (0 se não houve)
-	Flicks   int
-	Peaks    []float64 // instante do pico de velocidade de cada flick (ms, para testes e cursorlab)
-	Starts   []float64 // início de cada flick (ms)
-	Ends     []float64 // fim de cada flick (ms)
-	Compress float64   // fator aplicado ao tempo para caber no teto (1 = nenhum)
+	Frames    []float64 // t, deslocamento, t, deslocamento… a cada Frame ms; o último é exatamente Distance
+	Distance  float64
+	Duration  float64
+	Jump      float64 // salto instantâneo no começo (0 se não houve)
+	Flicks    int
+	Peaks     []float64 // instante do pico de velocidade de cada flick (ms, para testes e cursorlab)
+	Starts    []float64 // início de cada flick (ms)
+	Ends      []float64 // fim de cada flick (ms)
+	TimeScale float64   // fator aplicado ao tempo: < 1 comprime para caber no teto, > 1 estica para respeitar MaxStep
+	PeakStep  float64   // maior deslocamento por frame planejado (px, sem contar o salto)
 }
 
 // flick é um gesto: sobe rápido até o pico e decai por atrito até parar.
 type flick struct {
-	start, rise, decay, dist float64
-	norm                     float64 // integral da forma de velocidade, para escalar até dist
+	start, rise, decay, dist, tau float64
+	natural                       bool
+	norm                          float64 // integral da forma de velocidade, para escalar até dist
 }
 
 // velocity é a forma da velocidade (sem escala) em t ms desde o início do flick.
@@ -65,10 +73,22 @@ func (f flick) velocity(t float64) float64 {
 		x := t / f.rise
 		return x * x * (3 - 2*x) // smoothstep até o pico
 	}
-	// Decaimento exponencial deslocado para chegar a zero exatamente no fim (parada sem tranco).
-	tau := f.decay / 2.2
-	end := math.Exp(-f.decay / tau)
-	return (math.Exp(-(t-f.rise)/tau) - end) / (1 - end)
+	x := t - f.rise
+	if f.natural {
+		return math.Exp(-x / f.tau) // até 1% do pico, onde o flick termina
+	}
+	// Atrito exponencial com um termo linear que leva a velocidade E a aceleração a zero no fim:
+	// v(T) = 0 e v'(T) = 0, então a parada não tem tranco nem degrau na derivada.
+	g := func(x float64) float64 { return math.Exp(-x / f.tau) }
+	end := g(f.decay) * (1 + (f.decay-x)/f.tau)
+	start := g(f.decay) * (1 + f.decay/f.tau)
+	return (g(x) - end) / (1 - start)
+}
+
+// peakStep é o deslocamento no frame de maior velocidade (px): a forma tem pico 1, então a velocidade
+// máxima é dist/norm.
+func (f flick) peakStep(frame float64) float64 {
+	return math.Abs(f.dist) / f.norm * frame
 }
 
 // progress é a fração da distância percorrida em t, pela integral numérica da velocidade.
@@ -98,7 +118,11 @@ func newFlick(dist, viewport float64, p ScrollProfile, k float64, rng *rand.Rand
 	tau := uniform(rng, p.TauMin, p.TauMax) * k
 	size := math.Abs(dist) / math.Max(viewport, 1)
 	tau *= clamp(size/p.SmallFlick, p.MinTauScale, 1)
-	f := flick{rise: rise, decay: p.DecayTaus * tau, dist: dist}
+	decay := p.DecayTaus * tau
+	if p.Natural {
+		decay = tau * math.Log(100) // até 1% do pico
+	}
+	f := flick{rise: rise, decay: decay, dist: dist, tau: tau, natural: p.Natural}
 	f.norm = integrate(f.velocity, f.rise+f.decay)
 	return f
 }
@@ -107,7 +131,7 @@ func newFlick(dist, viewport float64, p ScrollProfile, k float64, rng *rand.Rand
 // Com speed instant (ou motion diferente de Animated), vai direto: um só keyframe no destino.
 func Scroll(distance, viewport float64, speed Speed, motion Motion, p ScrollProfile, rng *rand.Rand) ScrollPlan {
 	distance, viewport = finite(distance), math.Max(finite(viewport), 1)
-	plan := ScrollPlan{Distance: distance, Compress: 1}
+	plan := ScrollPlan{Distance: distance, TimeScale: 1}
 	k := speed.Factor()
 	if math.Abs(distance) < p.Still || speed == Instant || motion != Animated {
 		plan.Frames = []float64{0, distance}
@@ -152,26 +176,42 @@ func Scroll(distance, viewport float64, speed Speed, motion Motion, p ScrollProf
 		}
 		return d
 	}
-	// Teto de tempo: comprime até MinCompress; se ainda não cabe, salto + flick final.
-	if cap := p.Cap * k; total() > cap {
-		if c := cap / total(); c >= p.MinCompress && jump == 0 {
-			plan.Compress = c
-		} else {
-			flicks, pauses = nil, nil
-			jump = math.Max(abs-p.JumpLeave*viewport, 0)
-			build(abs - jump)
-			if t := total(); t > cap {
-				plan.Compress = cap / t
+	// Tempo e velocidade: comprime para caber no teto (até MinCompress), mas nunca a ponto de passar
+	// de MaxStep por frame; flicks rápidos demais são esticados. Se não fecha, salto + flick final.
+	timeCap := p.Cap * k
+	maxStep := p.MaxStep * viewport
+	scaleFor := func() (float64, bool) {
+		c := math.Min(1, timeCap/total())
+		if maxStep > 0 {
+			peak := 0.0
+			for _, f := range flicks {
+				peak = math.Max(peak, f.peakStep(p.Frame))
 			}
+			c = math.Max(c, peak/maxStep) // mais tempo = menos px por frame
 		}
+		return c, c >= p.MinCompress && total()*c <= timeCap+0.5
 	}
+	scale, ok := scaleFor()
+	if !ok && jump == 0 {
+		flicks, pauses = nil, nil
+		jump = math.Max(abs-p.JumpLeave*viewport, 0)
+		build(abs - jump)
+		scale, ok = scaleFor()
+	}
+	if !ok {
+		// Mesmo o flick final não fecha os dois tetos: o de tempo manda (a ação não pode demorar).
+		scale = math.Min(scale, timeCap/total())
+	}
+	plan.TimeScale = scale
 	for i := range flicks {
-		flicks[i].rise *= plan.Compress
-		flicks[i].decay *= plan.Compress
+		flicks[i].rise *= scale
+		flicks[i].decay *= scale
+		flicks[i].tau *= scale
 		flicks[i].norm = integrate(flicks[i].velocity, flicks[i].rise+flicks[i].decay)
+		plan.PeakStep = math.Max(plan.PeakStep, flicks[i].peakStep(p.Frame))
 	}
 	for i := range pauses {
-		pauses[i] *= plan.Compress
+		pauses[i] *= scale
 	}
 
 	// Linha do tempo: flick, pausa, flick… Com salto, ele acontece no segundo frame: o plano sempre

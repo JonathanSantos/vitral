@@ -40,6 +40,21 @@ func checkScroll(plan ScrollPlan, distance, viewport float64, speed Speed, p Scr
 	if k := speed.Factor(); speed != Instant && plan.Duration > p.Cap*k+p.Frame+1 {
 		return "over the time cap"
 	}
+	// Teto de velocidade: o passo planejado (PeakStep) bate com os keyframes, e só passa de MaxStep
+	// quando nem o flick final depois do salto cabe nos dois tetos (aí o de tempo manda).
+	measured := 0.0
+	for i := 2; i < len(f); i += 2 {
+		if i == 2 && plan.Jump != 0 {
+			continue
+		}
+		measured = math.Max(measured, math.Abs(f[i+1]-f[i-1]))
+	}
+	if measured > plan.PeakStep*1.1+1 {
+		return "PeakStep underestimates the real step"
+	}
+	if p.MaxStep > 0 && plan.PeakStep > p.MaxStep*viewport*1.001 && !(plan.Jump != 0 && plan.Duration >= p.Cap*speed.Factor()-p.Frame) {
+		return "over the speed cap without falling back to the jump"
+	}
 	// Pico de velocidade nos primeiros 30% de cada flick (com a folga de um frame da amostragem).
 	for i := range plan.Starts {
 		start, end := plan.Starts[i], plan.Ends[i]
@@ -83,6 +98,7 @@ func TestPropertyScroll(t *testing.T) {
 
 func TestScrollShapes(t *testing.T) {
 	p := DefaultScrollProfile()
+	p.MaxStep = 0 // a forma dos flicks sem o teto de velocidade (ele tem teste próprio)
 	vh := 700.0
 	tests := []struct {
 		views        float64
@@ -109,6 +125,61 @@ func TestScrollShapes(t *testing.T) {
 	}
 	if plan := Scroll(5.5*vh, vh, Normal, Animated, p, newRand(2)); plan.Duration > p.Cap || plan.Flicks > p.MaxFlicks {
 		t.Errorf("5.5 viewports must fit the cap: %+v", plan)
+	}
+}
+
+// O teto de velocidade troca a compressão pelo salto: com 12% da viewport por frame e 1,2 s, a partir
+// de duas telas o plano salta até uma tela antes e faz um flick só.
+func TestScrollSpeedCap(t *testing.T) {
+	p := DefaultScrollProfile()
+	vh := 700.0
+	for _, views := range []float64{2, 3, 5} {
+		plan := Scroll(views*vh, vh, Normal, Animated, p, newRand(7))
+		if plan.Jump == 0 || plan.Flicks != 1 || plan.PeakStep > p.MaxStep*vh {
+			t.Errorf("%.0f viewports with the cap: jump %.0f, %d flicks, peak %.0f px/frame", views, plan.Jump, plan.Flicks, plan.PeakStep)
+		}
+	}
+	slow := p
+	slow.MaxStep = 0.3 // teto alto: 3 telas cabem em dois flicks
+	if plan := Scroll(3*vh, vh, Normal, Animated, slow, newRand(7)); plan.Jump != 0 || plan.Flicks != 2 {
+		t.Errorf("a higher cap keeps two flicks: %+v", plan)
+	}
+	// Um flick rápido demais é esticado (se ainda couber no teto de tempo).
+	tight := p
+	tight.MaxStep = 0.05
+	if plan := Scroll(0.6*vh, vh, Normal, Animated, tight, newRand(8)); plan.TimeScale <= 1 || plan.PeakStep > 0.05*vh*1.001 {
+		t.Errorf("fast flick should be stretched: scale %.2f, peak %.1f", plan.TimeScale, plan.PeakStep)
+	}
+}
+
+// Fim do flick: a velocidade e a aceleração chegam a zero juntas (sem tranco); no modo natural, o
+// flick termina em 1% do pico.
+func TestFlickEnds(t *testing.T) {
+	p := DefaultScrollProfile()
+	f := newFlick(700, 700, p, 1, newRand(9))
+	T := f.rise + f.decay
+	slope := func(t float64) float64 { return (f.velocity(t+0.01) - f.velocity(t-0.01)) / 0.02 }
+	maxSlope := 0.0
+	for t := f.rise + 1; t < T-1; t++ {
+		maxSlope = math.Max(maxSlope, math.Abs(slope(t)))
+	}
+	if v := f.velocity(T - 0.5); v > 1e-4 {
+		t.Fatalf("velocity just before the end: %v", v)
+	}
+	if s := math.Abs(slope(T - 0.5)); s > maxSlope*0.01 {
+		t.Fatalf("acceleration jumps at the end: %.5f vs max %.5f", s, maxSlope)
+	}
+	if math.Abs(f.velocity(f.rise)-1) > 1e-9 || math.Abs(f.velocity(f.rise-1e-9)-1) > 1e-6 {
+		t.Fatal("velocity is continuous at the peak")
+	}
+	n := p
+	n.Natural, n.TauMin, n.TauMax = true, 140, 200
+	nf := newFlick(700, 700, n, 1, newRand(9))
+	if v := nf.velocity(nf.rise + nf.decay - 0.01); math.Abs(v-0.01) > 1e-3 {
+		t.Fatalf("natural decay ends at 1%% of the peak, got %v", v)
+	}
+	if nf.tau < 140*0.5 || nf.tau > 200 {
+		t.Fatalf("natural tau %v", nf.tau)
 	}
 }
 
