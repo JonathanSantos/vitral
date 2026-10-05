@@ -4,6 +4,25 @@ Especificação para aprovação. Complementa o `UX-TASKS.md` (selo e pausa), se
 `docs/BRAND.md` e o padrão de testes do `docs/TESTING.md`. Medições que decidem um método (como a do
 `session_save`) vêm antes do código (seção 9).
 
+## Resumo visual
+
+<p align="center">
+  <img src="img/retoque-antes-depois.png" alt="A lista de pedidos do mini ERP antes (fundo branco) e depois do retoque (tema escuro, título amarelo, menu azul)" width="760">
+  <br><sub>O antes e o depois que a IA mostra antes de salvar (<code>retouch_save</code> com prévia).</sub>
+</p>
+
+<p align="center">
+  <img src="img/retoque.gif" alt="A prévia do tema escuro e o botão Ver original do selo alternando" width="640">
+</p>
+
+```bash
+vitral open                       # o navegador do Vitral, com os retoques e os logins do perfil
+vitral open sistema.empresa.com   # já abre nesse endereço
+vitral open --sem-retoques        # tudo desligado nesta janela
+vitral retoque list               # os retoques salvos e onde valem
+vitral retoque delete tema-escuro
+```
+
 ## 1. Objetivo e princípios
 
 Hoje o Vitral serve para a IA **usar** sites. Com os Retoques, ela também **retoca** sites: muda o visual,

@@ -131,7 +131,38 @@ func TestReadmeShots(t *testing.T) {
 	save("retoque-antes-depois", sideBySide(pair[0], pair[1]))
 	h.ok(t, "retouch_discard", nil)
 
-	// 6. O cursorlab (make cursorlab antes): trajetórias e o perfil da rolagem.
+	// 6. O diagrama da arquitetura (docs/diagram/arquitetura.html), claro e escuro, para o <picture>.
+	diagram, err := filepath.Abs(filepath.Join("..", "..", "docs", "diagram", "arquitetura.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for tema, name := range map[string]string{"claro": "arquitetura-claro", "escuro": "arquitetura-escuro"} {
+		dp, err := p.Browser().Page(proto.TargetCreateTarget{URL: "file://" + diagram + "?tema=" + tema})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = dp.SetViewport(&proto.EmulationSetDeviceMetricsOverride{Width: 1280, Height: 1600, DeviceScaleFactor: 1})
+		_ = dp.WaitLoad()
+		res, err := dp.Timeout(time.Minute).Eval(`() => { const r = document.getElementById('diagrama').getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := res.Value.Arr()
+		// Escala 2 na captura: o texto fica nítido nas telas de alta densidade do GitHub.
+		data, err := dp.Screenshot(false, &proto.PageCaptureScreenshot{
+			Format: proto.PageCaptureScreenshotFormatPng,
+			Clip:   &proto.PageViewport{X: r[0].Num(), Y: r[1].Num(), Width: r[2].Num(), Height: r[3].Num(), Scale: 2},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(out, name+".png"), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_ = dp.Close()
+	}
+
+	// 7. O cursorlab (make cursorlab antes): trajetórias e o perfil da rolagem.
 	lab := filepath.Join("..", "..", ".quality", "out", "cursorlab", "index.html")
 	abs, err := filepath.Abs(lab)
 	if err != nil {

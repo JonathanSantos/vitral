@@ -5,6 +5,59 @@ Regras do projeto: Go puro e testável onde der, overlay no isolated world, test
 `docs/TESTING.md`. Números que parecerem ruins na prática são ajustados e justificados com o
 `cursorlab` (seção 10). As decisões tomadas na aprovação do plano estão na seção 12.
 
+## Resumo visual
+
+Com a janela visível, o cursor da IA se move como uma pessoa moveria, para você conseguir acompanhar
+com os olhos. O cursor é **só visual**. O clique de verdade é um evento simples no ponto onde o cursor
+parou, sem passar por cima de nada no caminho. Ele não disfarça automação: o navegador continua
+identificado como Chrome for Testing e o selo continua na tela. A física fica em Go puro
+(`internal/cursor`), determinística pela semente e coberta por testes de propriedade, fuzz e mutação. O
+overlay só desenha. Detalhes em [`docs/CURSOR.md`](#1-objetivo-e-princípios).
+
+<p align="center">
+  <img src="img/cursor.gif" alt="Playground do cursor: o cursor IA clica no botão grande Continuar, numa caixinha de 16 px, num link no meio do texto, digita 'Olá! Aqui é o Vitral.' tecla a tecla e abre um card que tem um botão Excluir dentro, sem tocar no Excluir" width="760">
+  <br><sub>Alvo grande, caixinha de 16 px (repare na correção no fim), link no meio do texto, digitação tecla a tecla e um card com "Excluir" dentro: o clique nunca cai no Excluir.</sub>
+</p>
+
+<p align="center">
+  <img src="img/cursor-trajetorias.png" alt="Cursorlab: 50 trajetórias até uma caixa de 14 px a ~1000 px de distância, todas em arco leve, e o gráfico de velocidade com pico entre 35% e 44% da duração e um segundo pico pequeno do movimento corretivo" width="760">
+  <br><sub>50 movimentos até uma caixa de 14 px, a quase 1.000 px de distância (<code>make cursorlab</code>).</sub>
+</p>
+
+O que entra em cada movimento, e de onde vem:
+
+| Ingrediente | Modelo | No Vitral |
+|---|---|---|
+| Quanto tempo leva | Lei de Fitts: alvo longe e pequeno demora mais | `T = 100 + 110·log2(D/W + 1)` ms, entre 250 e 900 ms |
+| Que caminho faz | Mão não anda em linha reta | Curva de Bézier com arco de 4% a 12% da distância, lado sorteado (65% de chance de repetir) |
+| Como acelera | Jerk mínimo (Flash e Hogan) | `s(τ) = 10τ³ − 15τ⁴ + 6τ⁵`, com o pico de velocidade entre 35% e 45% do tempo |
+| Alvo difícil | Submovimentos | Com ID ≥ 3,5 bits: para antes (70%) ou passa do ponto (30%) e corrige |
+| Mão de gente | Tremor | 0,4 px a 8–12 Hz, zerado nas pontas para nunca recuar |
+| Onde clica | Ninguém clica no centro exato | Ponto sorteado em volta do centro, validado com `elementFromPoint`: nunca cai na lixeira dentro de um card nem na seta de um botão dividido |
+
+A rolagem começou com um diagnóstico. A roda pelo CDP saltava 100 px por vez e deixava 78% dos frames
+parados, e o `scrollIntoView` suave do Chrome levava ~630 ms em qualquer distância, com até 2.537 px num
+único frame. O modelo novo é um "flick" com atrito, como o de um trackpad:
+
+<p align="center">
+  <img src="img/rolagem.gif" alt="Playground de rolagem: a página rola suavemente três telas até o alvo, depois bem mais longe, e volta ao topo, sempre parando com o alvo abaixo do cabeçalho fixo" width="760">
+  <br><sub>Três telas para baixo, bem longe e de volta ao topo. O alvo sempre para entre 30% e 40% da altura visível, abaixo do cabeçalho fixo.</sub>
+</p>
+
+<p align="center">
+  <img src="img/rolagem-perfil.png" alt="Cursorlab de rolagem: posição subindo rápido e assentando suavemente em 648 px, e velocidade com pico no começo e queda exponencial até zero" width="760">
+  <br><sub>Rolar uma tela: pico de velocidade nos primeiros 15% e parada sem tranco.</sub>
+</p>
+
+- pico em 60–90 ms e atrito exponencial que termina com velocidade **e** aceleração zero;
+- teto de 12% da janela por frame (nada de saltos de 2.500 px) e de 1,2 s por rolagem;
+- distâncias longas em vários flicks com pausa, e acima de 6 telas um salto até perto do alvo;
+- o alvo para entre 30% e 40% da área visível, descontando cabeçalhos fixos;
+- se você rolar com o seu mouse no meio, a animação para e respeita você.
+
+`make demo-cursor` abre uma janela com um roteiro de cliques, digitação e rolagens em câmera lenta.
+`--cursor-speed instant` (ou `--cursor off`) desliga a coreografia para quem só quer velocidade.
+
 ## 1. Objetivo e princípios
 
 Com o navegador visível, quem olha vê **um cursor da IA se movendo como uma pessoa moveria**: sai de

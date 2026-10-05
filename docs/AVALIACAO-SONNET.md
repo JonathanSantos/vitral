@@ -268,3 +268,9 @@ e os modelos pararam sem contornar. O caminho do `ignoreWarnings` está coberto 
 
 **Achado da ponte de avaliação (corrigido):** respostas com duas imagens (antes e depois) gravavam as
 duas no mesmo arquivo; agora cada imagem tem o seu.
+
+## Nota atual (depois dos Retoques)
+
+**8,7 de 10**, com o detalhe por parte no [README](../README.md#veredito-do-claude). Caiu de 9,0 porque
+o projeto ganhou retoques, `vitral open` e o cofre de senhas mais rápido do que ganhou uso de verdade:
+nada disso rodou ainda no Copilot de verdade, em Linux ou Windows, nem no CI do GitHub.

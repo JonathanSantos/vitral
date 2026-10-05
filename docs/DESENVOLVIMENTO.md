@@ -1,0 +1,297 @@
+# Vitral para desenvolvedores
+
+> A parte para pessoas está no [README](../README.md). Aqui ficam as ferramentas MCP, as flags, o
+> navegador, as sessões, a autocura, os retoques, o mapa de telas, a arquitetura e os testes.
+
+
+Servidor MCP (stdio) em Go, binário único, que controla um Chromium via [rod](https://github.com/go-rod/rod).
+Especificação em [`docs/SPEC.md`](SPEC.md), identidade em [`docs/BRAND.md`](BRAND.md), experiência
+de uso em [`docs/UX-TASKS.md`](UX-TASKS.md) e roteiro de validação manual em
+[`examples/vscode/CHECKLIST.md`](../examples/vscode/CHECKLIST.md).
+
+## Ferramentas MCP
+
+| Grupo | Ferramentas |
+|---|---|
+| Navegação e ações | `open`, `snapshot`, `click`, `type`, `select`, `press`, `scroll`, `wait_for`, `back` |
+| Visão | `screenshot` (com marcações por ref), `inspect` |
+| Rede e console | `network_list`, `network_get`, `console_list` |
+| Simulação | `mock_add`, `mock_list`, `mock_clear`, `emulate` |
+| Fluxos | `flow_save`, `flow_list`, `flow_run`, `flow_update` |
+| Sessões | `session_save` |
+| Mapa de telas | `goto`, `map_find` (desligados com `--no-map`) |
+| Retoques | `retouch_preview`, `retouch_discard`, `retouch_save`, `retouch_list`, `retouch_toggle` (desligados com `--no-retouches`) |
+| Opcional | `eval_js` (só com `--allow-eval`) |
+
+As ações devolvem só o que mudou na tela. Enquanto a pessoa pausa, as ferramentas que agem respondem
+(sem erro) que estão pausadas, e as de leitura continuam funcionando.
+
+## Comandos e configuração
+
+```bash
+vitral                   # no terminal: ajuda; sem terminal (VS Code): servidor MCP
+vitral setup [--global] [--yes]
+vitral status
+vitral disable [--workspace|--global]
+vitral enable [--workspace|--global]
+vitral session save <nome> [--profile p] | list | delete <nome>
+vitral map list | show <site> | export <site> --to arquivo.json | import arquivo.json | clear <site>
+vitral open [endereço] [--profile p] [--sem-retoques]
+vitral retoque list | delete <nome>
+vitral doctor
+vitral install-browser [--from chrome.zip]
+vitral version
+```
+
+Cursor visual da IA ([`docs/CURSOR.md`](CURSOR.md)), com janela visível:
+
+| Flag | Valores | Padrão |
+|---|---|---|
+| `--cursor` | `on`, `off`, `force` (liga mesmo sem janela visível: testes e gravação de demos) | `on` |
+| `--cursor-speed` | `slow`, `normal`, `fast`, `instant` | `normal` |
+| `--flow-cursor-speed` | idem, durante `flow_run` | `fast` |
+| `--cursor-seed` | inteiro (0 = aleatória por sessão) | `0` |
+| `--type-pacing` | `on`, `off` (digitação tecla a tecla, só com janela visível) | `on` |
+
+## Navegador
+
+O Vitral usa o próprio Chrome for Testing, em versão fixada (`install.PinnedVersion`), instalado em
+`~/.vitral/browsers/<versão>` (mantém só a atual e a anterior). A escolha segue esta ordem, e o motivo
+aparece no log (stderr) e no `vitral doctor`:
+
+1. `--browser-path` ou `VITRAL_BROWSER_PATH`;
+2. Chrome for Testing gerenciado (baixa se faltar, validando com `--version` antes de instalar);
+3. se o download falhar ou não houver build para a plataforma: o Chromium mais novo do cache do
+   Puppeteer ou do Playwright (só o executável; nada de Node);
+4. Chrome ou Edge do sistema, **só com `--allow-system-browser`**, sempre com o perfil do Vitral.
+
+Redes corporativas: `VITRAL_BROWSER_MIRROR` (ou `--browser-mirror`) aponta para um mirror com o mesmo layout
+de paths do Chrome for Testing, `HTTPS_PROXY`/`HTTP_PROXY` são respeitados, e
+`vitral install-browser --from chrome.zip` instala um zip baixado à mão.
+
+O `setup` instala o binário em `~/.vitral/bin` e grava a configuração no formato portável, que vale
+para o VS Code (todos os perfis), o Copilot CLI e o Agent Host: `.mcp.json` na raiz do projeto, ou
+`~/.copilot/mcp-config.json` (`$COPILOT_HOME/mcp-config.json`) com `--global`, na chave `mcpServers`,
+preservando comentários e com `.bak` do arquivo anterior. Se o Vitral estiver no formato antigo do VS Code
+(`.vscode/mcp.json` ou o `mcp.json` de um perfil, deprecados), o setup oferece tirá-lo de lá: com ele em
+dois lugares, o VS Code sobe dois servidores. Rodar de novo com um binário novo é a forma de atualizar.
+
+Não existe campo oficial de "desligado" no arquivo (o VS Code e o Copilot CLI guardam esse estado à
+parte). Por isso o `vitral disable` move a entrada de `mcpServers` para a chave de topo `_disabled`: o
+arquivo continua JSON válido para todas as ferramentas e o `enable` só a devolve. Os dois são
+idempotentes, mostram cada arquivo alterado e guardam `.bak`.
+
+Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
+
+| Flag | Padrão | Descrição |
+|---|---|---|
+| `--headless` | `false` | Navegador sem janela. |
+| `--attach ws://…` / `--attach-port 9222` | | Conecta num Chrome aberto com `--remote-debugging-port` e um `--user-data-dir` separado. Nunca o fecha. |
+| `--profile` | `default` | Perfil nomeado em `~/.vitral/profiles/<nome>` (contas diferentes, homologação e produção). |
+| `--profile-dir` | | Pasta de perfil explícita (vence `--profile`). |
+| `--session` | | Começa com um perfil temporário e o login salvo por `session_save`. |
+| `--sessions-dir` | `~/.vitral/sessions` | Onde ficam as sessões salvas. |
+| `--no-map` | `false` | Não aprende o mapa de telas. |
+| `--no-retouches` | `false` | Não carrega nem cria retoques (as ferramentas `retouch_*` somem). |
+| `--retouches-dir` | `~/.vitral/retoques` | Onde ficam os retoques (uma pasta cada). |
+| `--password-store` | `system` | Onde o navegador guarda a chave de cookies e senhas: `system` (Keychain, DPAPI, libsecret) ou `mock` (chave fixa, só para testes). |
+| `--maps-dir` | `~/.vitral/maps` | Onde fica o mapa de cada host (privado, por usuário). |
+| `--browser-path` | | Usa este executável (env `VITRAL_BROWSER_PATH`). |
+| `--browser-mirror` | | Mirror do Chrome for Testing (env `VITRAL_BROWSER_MIRROR`). |
+| `--allow-system-browser` | `false` | Permite o Chrome/Edge instalado como último recurso. |
+| `--browsers-dir` | `~/.vitral/browsers` | Onde ficam os Chrome for Testing baixados. |
+| `--allowed-hosts` | | Hosts permitidos para navegação e mock (globs, separados por vírgula). |
+| `--allow-eval` | `false` | Registra `eval_js`. |
+| `--disable-mock` | `false` | Remove as ferramentas de mock. |
+| `--highlight-ms` | `350` (0 em headless) | Tempo do destaque antes de cada ação; `0` desliga. |
+| `--no-overlay` | `false` | Sem destaque e sem texto no selo; o botão de pausa continua. |
+| `--stability-timeout` | `10s` | Espera máxima para a página assentar depois de cada ação. |
+| `--nav-timeout` | `15s` | Tempo máximo de navegação. |
+| `--flows-dir` | `.vitral/flows` | Onde os fluxos são salvos. |
+| `--log-level` | `info` | Logs sempre em stderr; stdout é só do protocolo MCP. |
+
+## Perfis e sessões
+
+- **Perfis nomeados:** `--profile hml` usa `~/.vitral/profiles/hml`; o selo e o `vitral status` mostram o
+  perfil quando não é o `default`. O perfil antigo (`~/.vitral/profile`) vira o `default` na primeira
+  execução (só se o destino não existir).
+- **Sessões:** o Chrome não abre o mesmo perfil duas vezes. Para rodar fluxos sem janela (ou em outra
+  máquina) com o login feito à mão, salve o estado: a ferramenta `session_save` na conversa, ou
+  `vitral session save <nome>` com o Vitral fechado. Ficam salvos os **cookies e o localStorage das origens
+  visitadas**, em `~/.vitral/sessions/<nome>.json`, com permissão 0600. `--session <nome>` usa um perfil
+  temporário e restaura o estado **antes da primeira navegação**: o localStorage já existe quando o
+  primeiro script da página roda. A IA nunca vê o conteúdo, só o nome, as origens, a data e a quantidade
+  de cookies.
+- **Riscos:** o arquivo dá acesso às contas. Não compartilhe, nunca coloque no git (o `setup` não cria
+  nada disso no projeto) e apague com `vitral session delete <nome>` quando não precisar mais.
+- **Limites:** IndexedDB e sessionStorage não entram; alguns sites guardam o login ali e vão pedir login de
+  novo. Sessão expirada: o fluxo falha normalmente; faça o login de novo com a janela aberta e salve outra
+  vez. Medição que decidiu o método (o DOMStorage do CDP não alcança uma origem fechada; uma aba temporária
+  na própria origem, com a requisição interceptada e sem rede, leva ~90 ms por origem) em
+  `internal/browser/state.go`.
+
+## Autocura dos fluxos
+
+Cada passo gravado guarda, além do seletor (papel + nome), uma assinatura do elemento: label,
+placeholder, `data-testid`, `id` (só se não parecer gerado), `name`, caminho do `href`, tipo do campo e o
+contexto (região, dialog, título acima, cabeçalhos da tabela, posição entre iguais e na página). Quando o
+seletor não acha exatamente o elemento, o `flow_run` pontua os candidatos (`internal/heal`, puro) e só
+aceita com nota ≥ 0,75, margem ≥ 0,15 sobre o segundo e papel compatível (botão ↔ link; o tipo do campo
+nunca troca). O relatório lista os passos curados, e `flow_update` com `applyHealing=true` regrava o
+fluxo, com a versão anterior em `.vitral/flows/.history/`.
+
+**Quando pede confirmação:** num passo sensível (o nome antigo ou o novo tem uma palavra do léxico em
+`internal/heal/sensitive.txt`, como confirmar, pagar, excluir ou enviar, ou é o último clique do fluxo) a
+autocura nunca é automática: o `flow_run` para e pede para perguntar à pessoa; para seguir,
+`resumeFrom=N` e `acceptHealing=true`. Por fluxo, `heal: ask` pergunta sempre e `heal: off` desliga.
+
+## Retoques
+
+Especificação, medições e decisões em [`docs/RETOQUES.md`](RETOQUES.md).
+
+- **Formato:** `~/.vitral/retoques/<nome>/retoque.yaml` (nome, descrição, escopo, padrões de URL do
+  Chrome) e `style.css`, com 0700/0600 e versões anteriores em `.history/`. Só código, nunca dados da
+  página. Escopo `page`, `site` (padrão) ou `all`; padrões sem porta valem em todas as portas do host.
+- **Extensão gerada:** todos os retoques viram a extensão MV3 "Vitral Retoques" em `.build/`, com um
+  content script por retoque em `document_start` (o `<style>` já vale no primeiro script da página),
+  o painel e o número no ícone. Entra no lançamento com `--load-extension` (só se houver retoque) e é
+  recarregada sem reiniciar com `Extensions.loadUnpacked` a cada save (~33 ms medidos). Precisa do
+  Chrome for Testing: o Chrome comum ignora essas duas formas de carregar extensão.
+- **Prévia:** um `<style>` no mundo isolado do Vitral, só na aba, com a contagem do que cada regra pegou.
+  "Ver original" é um atributo no `<html>`, o ponto em comum entre o mundo do Vitral e o da extensão.
+- **Conferência:** o save recusa CSS com `url()`, `@import`, `image-set()` ou `@font-face` de outro host
+  (com os escapes do CSS desfeitos antes), salvo com `ignoreWarnings=true`.
+- **`vitral open`:** monta o comando do Chrome à mão, só com `--user-data-dir`, as extensões e a chave do
+  perfil: sem as bandeiras de automação e sem porta nem pipe de depuração (qualquer um dos dois já faz
+  `navigator.webdriver = true` em todas as abas, medido). Solto do terminal (`setsid` /
+  `DETACHED_PROCESS`).
+- **Cofre de senhas:** a sessão da IA e o `vitral open` decidem a chave do perfil pela mesma regra
+  (`--password-store system` por padrão). No macOS, perfis antigos (criados com `use-mock-keychain`)
+  migram uma vez: cookies lidos com a chave antiga, só em memória, e regravados com a do Keychain; a
+  marca só é gravada depois do sucesso. No Windows e no Linux nada muda.
+
+## Mapa de telas
+
+O Vitral aprende a estrutura de cada site com as ações que de fato aconteceram (nada de crawler, sem
+LLM): telas (padrão de URL + impressão estrutural, Jaccard ≥ 0,7), transições (com sucessos, falhas e
+último uso) e os elementos usados em cada tela. O snapshot de uma tela conhecida ganha a linha
+`screen: "Lista de pedidos" (known) · exits: "Novo pedido" → "Cadastro de pedido"`; `goto` vai até uma
+tela pelo caminho mais confiável (executado como fluxo, com autocura, sem atravessar passo sensível sem
+pedir), e `map_find` procura telas e elementos já vistos. O mapa nunca substitui a leitura da página.
+A linha `screen:` aparece no `open`, no `snapshot` e em toda ação que leva a uma tela conhecida.
+
+**Menus globais:** um link aprendido numa tela vale nas outras quando está num landmark de navegação
+(`navigation`, `banner` ou `contentinfo`) e a outra tela tem esse landmark com o mesmo item. Essas
+arestas são calculadas na hora da busca (nunca gravadas), custam +0,15 a mais que uma aresta já
+percorrida ali, e uma aresta observada com a mesma ação sempre vence. Links do conteúdo não viram globais.
+
+- **Guarda só:** papéis, nomes de controles, títulos, regiões, cabeçalhos de tabela e padrões de URL
+  (segmentos de ID viram `:id`; da query, só as chaves). Sequências de 4 ou mais dígitos, e-mails, CPF,
+  CNPJ e telefones viram marcadores (`<num>`, `<email>`…).
+- **Nunca guarda:** valores de campos, conteúdo de células, parágrafos, nem valores de query.
+- **Onde:** `~/.vitral/maps/<site>.json` (0600, por usuário). Arestas que falham 3 vezes seguidas saem
+  das sugestões; telas e arestas não vistas há 90 dias somem. `vitral map export/import` compartilha com
+  a equipe; `--no-map` desliga.
+- **Ganho medido** no mini-sistema de teste (`TestScreenMapMiniSystem`): ir de Clientes até o detalhe de
+  um pedido leva 4 chamadas e ~663 tokens à mão (ler a tela e clicar) e 1 chamada e ~149 tokens com `goto`.
+
+## Verificação humana: CAPTCHA e 2FA
+
+O Vitral não resolve nem contorna verificações. Com a janela visível, ele pausa e mostra "Sua vez":
+"resolva a verificação" para CAPTCHAs visíveis (reCAPTCHA, hCaptcha, Cloudflare Turnstile; os invisíveis
+não contam) e "digite o código" para campos `autocomplete="one-time-code"`, nos quais a IA nunca digita.
+Sem janela (`--headless`), a resposta é `verification required: run with the browser window visible`. A
+lista de detectores fica versionada em `internal/session/verification.json`, com fixtures que imitam a
+estrutura de cada serviço em `testdata/pages/verify`.
+
+## Arquitetura
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="img/arquitetura-escuro.png">
+    <img src="img/arquitetura-claro.png" alt="Diagrama da arquitetura do Vitral" width="900">
+  </picture>
+</p>
+
+O diagrama é gerado de [`diagram/arquitetura.html`](diagram/arquitetura.html) pelo `make readme-shots`.
+
+```
+cmd/vitral          entrada: comandos para pessoas ou servidor MCP
+internal/cli        setup, doctor, version e mensagens em PT-BR
+internal/app        monta o servidor
+internal/tools      ferramentas MCP (guard: pausa, selo "trabalhando", proteção contra panic)
+internal/session    ações, espera por estabilidade, diff, gravação e replay de fluxos
+internal/snapshot   JS embutido que lê a página + formatação e diff em Go
+internal/overlay    selo, destaque, pausa e cursor visual injetados na página (shadow root fechado)
+internal/cursor     física do cursor visual (pura, determinística pela semente)
+internal/ux         máquina de estados do selo (pura)
+internal/screenshot marcações desenhadas em Go
+internal/heal       autocura dos fluxos: assinatura, nota e decisão (pura)
+internal/storagestate sessões salvas (cookies e localStorage, arquivos 0600)
+internal/sitemap    mapa de telas: grafo, caminho e privacidade (puro)
+internal/retouch    Retoques: armazenamento, escopo, conferência do CSS e a extensão gerada (puro)
+internal/mapstore   gravação dos mapas (atômica, com debounce)
+internal/network, console, mock, flow, browser, security, brand, config, ring
+tools/brandgen      gera os PNGs da marca (não entra no binário)
+tools/cursorlab     laboratório do movimento do cursor (make cursorlab)
+```
+
+## Limitações conhecidas
+
+- **Uma aba ativa e só o frame principal.** Conteúdo dentro de iframes não aparece no snapshot.
+- **Só Chromium** (Chrome for Testing; Chrome ou Edge do sistema com `--allow-system-browser`).
+- **Linux e Windows só compilados** (`make matrix`): os testes de integração e e2e rodaram no macOS.
+- **Os tetos de tempo** do `.quality/thresholds.yaml` foram medidos num Mac; outra máquina (inclusive o
+  runner do GitHub) pode precisar de ajuste.
+- **O clique comum** em "Enviar", "Salvar" ou "Excluir" pede o "sim" pela skill, não pelo servidor; o
+  servidor barra senhas, códigos, CAPTCHAs, passos sensíveis de fluxos e do `goto`, e CSS que busca em
+  outro host.
+
+- **Pausar só com o teclado não funciona na v1.** Os botões do selo têm `tabindex="-1"` para que um
+  `press Tab` da IA não caia neles e mude o foco da página. Quem usa apenas o teclado ainda não consegue
+  pausar.
+
+## Próxima versão
+
+- Atalho de teclado para pausar e retomar, resolvendo a limitação acima sem expor os botões do selo
+  à navegação por Tab da página.
+
+## Testes e build
+
+A estratégia completa está em [`docs/TESTING.md`](TESTING.md) e os números do gate em
+[`.quality/thresholds.yaml`](../.quality/thresholds.yaml).
+
+```bash
+make check-fast    # lint + unitários com race + cobertura unitária (o mesmo do pre-push)
+make check         # gate de PR: check-fast + govulncheck + integração + e2e + mutação + qualitygate
+make integration   # integração com Chromium headless e páginas de testdata/
+make visual        # regressão visual com navegador (make visual-update aceita as mudanças)
+make matrix        # compila e checa os testes para Linux, macOS e Windows
+make install-test  # instalação e atualização com binários reais
+make nightly       # check + mutação completa + fuzz + download real + visual + matriz
+make release-check # nightly + install-test (rodar em cada sistema)
+make network       # download real do Chrome for Testing (≈150 MB, fora do gate)
+make cursorlab     # laboratório do cursor: trajetórias, velocidade e palco
+make readme-shots  # regrava os prints e GIFs do README (docs/img) com o navegador de verdade
+make demo-cursor   # janela visível com o roteiro do cursor em slow (para o GIF)
+make build         # bin/vitral
+make dist          # binários para Windows, macOS e Linux em dist/
+make brand         # regenera os PNGs de assets/brand
+```
+
+Para um agente que não tem o Vitral como servidor MCP (simulações e avaliação com modelo real), a
+ponte `tools/mcpbridge` sobe o binário real e expõe as ferramentas por HTTP local
+(`GET /tools`, `POST /call`), com o registro de cada chamada:
+
+```bash
+go run ./tools/mcpbridge -log transcript.md -- bin/vitral --cursor-speed normal
+```
+
+Para rodar o gate rápido antes de cada push, ative o hook uma vez por clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+O CI (`.github/workflows/pr.yml`) só chama `make check`. Releases com `goreleaser release --clean` a
+partir de uma tag.

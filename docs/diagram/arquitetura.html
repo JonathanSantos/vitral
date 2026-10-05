@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Arquitetura do Vitral</title>
+<!-- Diagrama do README (docs/img/arquitetura-*.png), renderizado pelo make readme-shots com os tokens
+     do docs/BRAND.md. ?tema=escuro gera a versão para fundo escuro. As setas seguem os imports reais
+     (go list -f '{{.Imports}}' ./internal/...). Sem fontes da rede: Space Grotesk e Inter se estiverem
+     instaladas, senão a fonte do sistema. -->
+<style>
+  :root {
+    --ink: #1E1B2E; --paper: #F7F5F0; --muted: #5B5770; --line: #DDD8CC; --card: #FFFFFF;
+    --safira: #3E63DD; --rubi: #E5484D; --esmeralda: #30A46C; --ambar: #F5A524; --ametista: #8E4EC6;
+  }
+  body.escuro { --ink: #F7F5F0; --paper: #1E1B2E; --muted: #B9B4CC; --line: #3A3550; --card: #262238; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+    font: 15px/1.35 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #diagrama { width: 1200px; padding: 36px 40px 32px; }
+  h1 { margin: 0 0 4px; font: 700 28px/1.1 "Space Grotesk", Inter, system-ui, sans-serif; letter-spacing: -0.02em; }
+  .sub { margin: 0 0 24px; color: var(--muted); }
+  .grade { display: grid; grid-template-columns: 1fr 250px; gap: 22px; }
+  .camadas { display: flex; flex-direction: column; gap: 10px; }
+  .linha { display: flex; gap: 10px; }
+  .caixa { flex: 1; background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 12px 14px 12px 18px; position: relative; overflow: hidden; }
+  .caixa::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--cor); }
+  .caixa b { display: block; font: 600 15px/1.2 "JetBrains Mono", ui-monospace, monospace; }
+  .caixa span { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; }
+  .etiqueta { display: inline-block; font: 600 11px/1 Inter, system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase;
+    padding: 4px 7px; border-radius: 6px; margin-bottom: 6px; }
+  /* Contraste da seção 5.1: texto branco sobre Safira e Ametista; Chumbo sobre Rubi, Esmeralda e Âmbar. */
+  .safira { --cor: var(--safira); } .safira .etiqueta { background: var(--safira); color: #fff; }
+  .rubi { --cor: var(--rubi); } .rubi .etiqueta { background: var(--rubi); color: #1E1B2E; }
+  .esmeralda { --cor: var(--esmeralda); } .esmeralda .etiqueta { background: var(--esmeralda); color: #1E1B2E; }
+  .ambar { --cor: var(--ambar); } .ambar .etiqueta { background: var(--ambar); color: #1E1B2E; }
+  .ametista { --cor: var(--ametista); } .ametista .etiqueta { background: var(--ametista); color: #fff; }
+  .camadas > .caixa { flex: none; } /* na coluna, cada caixa tem só a altura do conteúdo */
+  .seta { text-align: center; color: var(--muted); font: 13px/1 "JetBrains Mono", ui-monospace, monospace; }
+  .puros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
+  .puros div { background: var(--card); border: 1.5px dashed var(--line); border-radius: 10px; padding: 8px 10px; }
+  .puros b { font: 600 13px/1.2 "JetBrains Mono", ui-monospace, monospace; }
+  .puros span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .lado { display: flex; flex-direction: column; gap: 12px; }
+  .lado .caixa { flex: none; }
+  .lado ul { margin: 6px 0 0; padding-left: 16px; color: var(--muted); font-size: 13px; }
+  .rodape { margin-top: 18px; color: var(--muted); font-size: 12.5px; }
+  .rodape code { font: 12px "JetBrains Mono", ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<div id="diagrama">
+  <h1>Como o Vitral é feito</h1>
+  <p class="sub">Um binário em Go. O Copilot fala com ele por MCP (stdio); ele fala com o Chrome for Testing pelo CDP; a pessoa acompanha na janela.</p>
+  <div class="grade">
+    <div class="camadas">
+      <div class="linha">
+        <div class="caixa rubi"><div class="etiqueta">Quem usa</div><b>GitHub Copilot</b><span>VS Code, Copilot CLI · a skill do Vitral diz quando perguntar</span></div>
+        <div class="caixa rubi"><div class="etiqueta">Quem usa</div><b>Você, no terminal</b><span>setup · open · session · map · retoque · doctor</span></div>
+      </div>
+      <div class="linha"><div class="seta" style="flex:1">↓ MCP por stdio</div><div class="seta" style="flex:1">↓ comandos</div></div>
+      <div class="linha">
+        <div class="caixa safira"><div class="etiqueta">Entrada</div><b>cmd/vitral → internal/app</b><span>monta o servidor e liga as peças</span></div>
+        <div class="caixa safira"><div class="etiqueta">Entrada</div><b>internal/cli</b><span>comandos para pessoas, em português</span></div>
+      </div>
+      <div class="caixa safira"><div class="etiqueta">Ferramentas</div><b>internal/tools</b><span>30 ferramentas MCP · guard: pausa, selo "trabalhando", proteção contra panic</span></div>
+      <div class="seta">↓</div>
+      <div class="caixa esmeralda"><div class="etiqueta">Coração</div><b>internal/session</b><span>ações com espera por estabilidade e diff · gravação e replay de fluxos com autocura · mapa de telas · retoques · verificação humana</span></div>
+      <div class="seta">↓ ↓ ↓</div>
+      <div class="linha">
+        <div class="caixa ambar"><div class="etiqueta">Navegador</div><b>browser</b><span>lançar, conectar, perfis, vitral open, cofre de senhas</span></div>
+        <div class="caixa ambar"><div class="etiqueta">Navegador</div><b>world · overlay</b><span>mundo isolado · selo, destaque, cursor, rolagem</span></div>
+        <div class="caixa ambar"><div class="etiqueta">Navegador</div><b>network · console · mock</b><span>o que a página pediu e reclamou · respostas falsas</span></div>
+      </div>
+      <div class="caixa ametista"><div class="etiqueta">Lógica pura, sem navegador</div><span>testada só com unitários, propriedades, fuzz e mutação</span>
+        <div class="puros">
+          <div><b>snapshot</b><span>árvore de acessibilidade, formato, diff</span></div>
+          <div><b>flow · heal</b><span>fluxos e a nota da autocura</span></div>
+          <div><b>sitemap · mapstore</b><span>grafo de telas, caminho, privacidade</span></div>
+          <div><b>cursor</b><span>Fitts, jerk mínimo, flick da rolagem</span></div>
+          <div><b>retouch</b><span>escopo, conferência do CSS, extensão</span></div>
+          <div><b>storagestate</b><span>sessões salvas (0600)</span></div>
+          <div><b>screenshot · brand</b><span>marcações nas cores da marca</span></div>
+          <div><b>ux · security · ring</b><span>estados do selo, hosts, buffers</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="lado">
+      <div class="caixa ambar"><div class="etiqueta">Fora do binário</div><b>Chrome for Testing</b><span>versão fixada, baixado na primeira vez</span>
+        <ul><li>CDP pela porta local</li><li>extensão "Vitral Retoques"</li><li>no vitral open: sem automação</li></ul></div>
+      <div class="caixa ametista"><div class="etiqueta">No seu disco</div><b>~/.vitral</b>
+        <ul><li>profiles/ (logins)</li><li>sessions/ (0600)</li><li>maps/ (só estrutura)</li><li>retoques/ (CSS)</li><li>browsers/</li></ul>
+        <span style="margin-top:8px">e <b style="display:inline">.vitral/flows</b> no projeto</span></div>
+      <div class="caixa rubi"><div class="etiqueta">Na janela</div><b>A pessoa</b>
+        <ul><li>vê o selo e o cursor "IA"</li><li>pausa a qualquer momento</li><li>digita senhas e códigos</li><li>"Ver original"</li></ul></div>
+    </div>
+  </div>
+  <p class="rodape">Setas: dependências reais entre pacotes (<code>go list</code>). Os pacotes de lógica pura não importam nada do navegador, e é no <code>session</code> que todos se encontram.</p>
+</div>
+<script>
+  if (new URLSearchParams(location.search).get('tema') === 'escuro') document.body.classList.add('escuro');
+</script>
+</body>
+</html>
