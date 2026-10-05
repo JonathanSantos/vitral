@@ -12,6 +12,7 @@
   <img alt="MCP" src="https://img.shields.io/badge/MCP-stdio-3E63DD?style=flat-square">
   <img alt="macOS, Linux e Windows" src="https://img.shields.io/badge/macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-binário%20único-30A46C?style=flat-square">
   <img alt="Chrome for Testing" src="https://img.shields.io/badge/navegador-Chrome%20for%20Testing-F5A524?style=flat-square">
+  <img alt="Licença MIT" src="https://img.shields.io/badge/licença-MIT-8E4EC6?style=flat-square">
 </p>
 
 O Vitral deixa o GitHub Copilot usar um navegador de verdade **enquanto você acompanha**: abrir telas,
@@ -215,7 +216,7 @@ make readme-shots  # regrava os prints, GIFs e o diagrama deste README
 - [Especificação](docs/SPEC.md) · [Testes](docs/TESTING.md) · [Identidade](docs/BRAND.md) ·
   [Cursor e rolagem](docs/CURSOR.md) · [Retoques](docs/RETOQUES.md) · [Snapshot](docs/SNAPSHOT-V2.md)
 - [Avaliações com modelo real](docs/AVALIACAO-SONNET.md) · [Roteiro de validação manual](examples/vscode/CHECKLIST.md)
-- [Como contribuir](CONTRIBUTING.md) · [Segurança](SECURITY.md)
+- [Como contribuir](CONTRIBUTING.md) · [Segurança](SECURITY.md) · [Licença MIT](LICENSE)
 
 ---
 
