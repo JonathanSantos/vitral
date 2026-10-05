@@ -9,6 +9,8 @@ O Vitral deixa o GitHub Copilot usar um navegador de verdade enquanto você acom
 Você não precisa deixar este comando aberto: o VS Code inicia o Vitral sozinho.
 
 Comandos:
+  vitral open [endereço]   abre o navegador do Vitral para você usar, com os retoques e os logins
+                           do perfil (--profile p, --sem-retoques)
   vitral setup             configura o Vitral nesta pasta (.mcp.json)
   vitral setup --global    configura o Vitral para todos os projetos (~/.copilot/mcp-config.json)
   vitral status            mostra onde o Vitral está configurado e o que ele vai usar
@@ -99,16 +101,27 @@ const (
 	msgMapImported = "✓ mapa de %s importado: %d telas, em %s\n"
 	msgMapCleared  = "✓ mapa de %s apagado\n"
 
-	msgSessionUsage       = "use: vitral session save <nome> | vitral session list | vitral session delete <nome>"
-	msgSessionBadName     = "nome de sessão inválido %q: use letras minúsculas, números, - e _"
-	msgSessionNone        = "Nenhuma sessão salva em %s.\n"
-	msgSessionBroken      = "  %s: arquivo ilegível (%s)\n"
-	msgSessionItem        = "  %s: perfil %s, salva em %s, %d cookies, localStorage de: %s\n"
-	msgSessionNoOrigins   = "nenhuma origem"
-	msgSessionNotFound    = "não há sessão %q em %s"
-	msgSessionDeleted     = "✓ sessão %s apagada\n"
-	msgSessionSaved       = "✓ sessão %s salva em %s: %d cookies, localStorage de: %s\n"
-	msgSessionWarning     = "  Atenção: este arquivo dá acesso às suas contas. Não compartilhe e nunca coloque no git.\n  IndexedDB e sessionStorage não entram: alguns sites podem pedir login de novo.\n  Para usar: inicie o Vitral com --session <nome>.\n"
+	msgSessionUsage     = "use: vitral session save <nome> | vitral session list | vitral session delete <nome>"
+	msgSessionBadName   = "nome de sessão inválido %q: use letras minúsculas, números, - e _"
+	msgSessionNone      = "Nenhuma sessão salva em %s.\n"
+	msgSessionBroken    = "  %s: arquivo ilegível (%s)\n"
+	msgSessionItem      = "  %s: perfil %s, salva em %s, %d cookies, localStorage de: %s\n"
+	msgSessionNoOrigins = "nenhuma origem"
+	msgSessionNotFound  = "não há sessão %q em %s"
+	msgSessionDeleted   = "✓ sessão %s apagada\n"
+	msgSessionSaved     = "✓ sessão %s salva em %s: %d cookies, localStorage de: %s\n"
+	msgSessionWarning   = "  Atenção: este arquivo dá acesso às suas contas. Não compartilhe e nunca coloque no git.\n  IndexedDB e sessionStorage não entram: alguns sites podem pedir login de novo.\n  Para usar: inicie o Vitral com --session <nome>.\n"
+	msgOpenUsage        = "uso: vitral open [endereço] [--profile p] [--sem-retoques]"
+	msgOpenStarted      = "✓ navegador do Vitral aberto (perfil %s)%s\n"
+	msgOpenOneRetouch   = ", com 1 retoque"
+	msgOpenRetouches    = ", com %d retoques"
+	msgOpenNoRetouches  = ", sem retoques"
+	msgOpenNewWindow    = "✓ a IA já está usando o perfil %s: abri uma janela nova no navegador dela\n"
+	msgOpenHandoff      = "✓ o navegador do Vitral já estava aberto no perfil %s: abri uma janela nova nele\n"
+	msgOpenHeadless     = "a IA está usando o perfil %s sem janela agora. Espere ela terminar e rode de novo, ou use outro perfil com --profile"
+	msgOpenBusy         = "o perfil %s já está aberto em outro navegador. Feche essa janela e rode de novo, ou use outro perfil com --profile"
+	msgOpenFailed       = "não consegui abrir o navegador: %v"
+
 	msgSessionProfileBusy = "não consegui abrir o perfil %s (%s): ele deve estar aberto em outro Vitral, como o do VS Code. Peça na conversa para salvar a sessão (ferramenta session_save) ou feche o Vitral e tente de novo"
 	msgUnknownCommand     = "comando desconhecido %q. Rode \"vitral\" para ver a ajuda"
 	msgUnknownFlag        = "opção desconhecida %q para %s"

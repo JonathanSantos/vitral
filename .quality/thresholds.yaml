@@ -75,6 +75,9 @@ tokens:
 timing:
   # Snapshot da área visível (o do diff depois de cada ação).
   - {match: "snapshot/large.html", maxMs: 120}
+  # big-table: mediana ~27 ms, com rodadas isoladas até ~34 ms na mesma máquina (4/10/2026); 30 ms
+  # dava só 11% de folga e o gate falhava por oscilação. 35 ms aprovado pela pessoa (até 36).
+  - {match: "snapshot/big-table.html", maxMs: 35}
   - {match: "snapshot/*", maxMs: 30}
   # Snapshot completo.
   - {match: "snapshot-full/large.html", maxMs: 400}

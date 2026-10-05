@@ -221,6 +221,9 @@ func (m *Manager) launch() (string, error) {
 	m.log.Info("launching browser", "bin", bin, "headless", m.cfg.Headless, "profile", profile)
 	u, err := l.Launch()
 	if err != nil {
+		if busyProfile(err.Error()) {
+			return "", ProfileBusyError(profile, err)
+		}
 		return "", fmt.Errorf("launch browser: %w. If another %s is using the profile %s, close it, use another --profile, or run with --session", err, config.Name, profile)
 	}
 	m.launched = l

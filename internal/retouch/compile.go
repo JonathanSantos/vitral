@@ -184,3 +184,15 @@ func (b Builder) Launch() ([]string, error) {
 	}
 	return []string{b.Dir()}, nil
 }
+
+// IconsFrom lê os ícones da extensão (icon-16/32/48/128.png em qualquer pasta do fsys); os que
+// faltarem ficam de fora.
+func IconsFrom(fsys fs.FS, dir string) map[int][]byte {
+	icons := map[int][]byte{}
+	for _, size := range []int{16, 32, 48, 128} {
+		if data, err := fs.ReadFile(fsys, fmt.Sprintf("%s/icon-%d.png", dir, size)); err == nil {
+			icons[size] = data
+		}
+	}
+	return icons
+}

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 )
 
@@ -450,5 +451,13 @@ func TestBuilder(t *testing.T) {
 	}
 	if _, err := (Builder{Store: Store{Dir: file}}).Launch(); err == nil {
 		t.Fatal("a file as the retouches dir should fail")
+	}
+}
+
+func TestIconsFrom(t *testing.T) {
+	fsys := fstest.MapFS{"brand/icon-16.png": {Data: []byte("a")}, "brand/icon-128.png": {Data: []byte("b")}}
+	got := IconsFrom(fsys, "brand")
+	if len(got) != 2 || string(got[16]) != "a" || string(got[128]) != "b" {
+		t.Fatalf("icons: %v", got)
 	}
 }
