@@ -16,3 +16,8 @@ const PromptsDir = "examples/vscode/.github/prompts"
 //
 //go:embed examples/vscode/.github/skills/vitral/SKILL.md
 var Skill string
+
+// ExtensionIcons são os ícones da extensão dos Retoques (a marca, nos tamanhos que o Chrome usa).
+//
+//go:embed assets/brand/icon-16.png assets/brand/icon-32.png assets/brand/icon-48.png assets/brand/icon-128.png
+var ExtensionIcons embed.FS

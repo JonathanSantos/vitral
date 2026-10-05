@@ -99,9 +99,10 @@ comportamento no selo e no painel.
 
 ### 3.2 Antes e depois
 
-`retouch_preview` e `retouch_save` com `preview=true` devolvem para a IA dois prints (sem selo nem
-cursor, como no `screenshot`) e um resumo do que pegou. A skill orienta a mostrar os dois à pessoa
-antes de perguntar se quer manter.
+`retouch_preview` devolve o resumo do que pegou (barato: a IA itera várias vezes). Os prints de antes e
+depois (sem selo nem cursor, como no `screenshot`, ~1.300 tokens cada) vêm no `retouch_save` com
+`preview=true`, que é o momento de mostrar à pessoa, ou no `retouch_preview` com `shots=true`. A skill
+orienta a mostrar os dois antes de perguntar se a pessoa quer manter.
 
 ### 3.3 JavaScript
 
@@ -121,6 +122,14 @@ pedido precisa de JavaScript (uma coluna calculada, um botão "copiar", um atalh
   Um save com aviso é recusado; a pessoa confirma com `ignoreWarnings=true`, como nos fluxos.
 - Por padrão o código roda no **mundo isolado** da extensão (lê e muda o DOM, mas não vê as variáveis
   da página). `world: page` só quando o retoque precisa de uma função da página, e isso aparece na prévia.
+
+### 3.3.1 CSS também é conferido
+
+CSS não é risco zero: um seletor de atributo (`input[value^="a"]`) com `url()` apontando para outro
+host manda para fora o que a pessoa digita, letra por letra. O Vitral confere o CSS antes de salvar e
+avisa (save recusado sem `ignoreWarnings=true`, como no JavaScript) quando há referência a outro host em
+`url()`, `@import`, `image-set()` ou `src` de `@font-face`. Referências ao próprio site e `data:` não
+avisam.
 
 ### 3.4 Quando o site muda
 
@@ -196,10 +205,13 @@ atual até o próximo lançamento, ou recarrega a extensão sem reiniciar se a m
 |---|---|---|
 | Bandeiras de automação (`enable-automation`, sem isolamento de sites, sem bloqueio de pop-ups…) | sim | **não** |
 | Extensões (`--load-extension`) | Retoques + as da pessoa | Retoques + as da pessoa |
-| Porta de depuração em 127.0.0.1 | sim | sim, para a IA poder entrar depois (6.3) |
-| Chave do perfil no macOS (`use-mock-keychain`) | igual nos dois (medição 9.3) | igual nos dois |
+| Porta ou pipe de depuração | sim | **não** (decisão 14.1: os sites veem um Chrome comum) |
+| Cofre de senhas | o mesmo nos dois, sempre (decisão 14.2) | o mesmo nos dois, sempre |
 
 ### 6.3 Mesmo perfil, um navegador só
+
+*Substituída pela decisão 14.1: o `vitral open` não tem depuração, então a IA não entra nele. O texto
+abaixo fica como registro do que foi medido e descartado.*
 
 O Chrome não abre o mesmo perfil duas vezes. Então:
 
@@ -272,8 +284,18 @@ Trechos novos da skill do Vitral:
 
 ## 11. Entrega
 
-1. Medições da seção 9; parar para validação.
-2. Retoques de CSS: prévia, antes e depois, fixar, extensão gerada, selo e painel, `vitral open`.
+1. Medições da seção 9; parar para validação. **Feito** (seções 13 e 14).
+2. Retoques de CSS, em fatias, cada uma com `make check` e commit:
+   1. pacote puro `internal/retouch`: modelo, armazenamento com `.history`, escopo → padrões de URL,
+      compilação para a extensão MV3, conferência do CSS (3.3.1);
+   2. sessão e ferramentas (`retouch_preview`, `retouch_discard`, `retouch_save`, `retouch_list`,
+      `retouch_toggle`), extensão carregada no lançamento e recarregada no save, `--no-retouches`;
+   3. o que roda na página: content script, painel da extensão, "Ver original" no painel e no selo;
+   4. `vitral open`, com o perfil ocupado nos dois sentidos (14.1);
+   5. cofre de senhas do sistema e a migração no macOS (14.2), por último e sozinho: até lá os dois
+      modos usam a mesma chave de hoje;
+   6. skill, README e avaliação com modelo.
+   A atualização diária do navegador (6.4) fica para uma fase própria, depois desta.
 3. Retoques com JavaScript: avisos, "sim" próprio, mundos.
 4. Extensões da pessoa: `extension_load`, `extension_list`, `extension_logs`, export.
 5. Retoques quebrados (3.4), export e import, avaliação com modelo e README.
@@ -304,20 +326,33 @@ O que muda na especificação: a seção 6.3 supunha que o `vitral open` poderia
 depuração aberta para a IA entrar depois. Com a 9.4, isso faria o navegador da pessoa se apresentar
 como automatizado para todos os sites (mais CAPTCHAs e bloqueios). Decisão 14.1.
 
-## 14. Decisões pendentes (das medições)
+## 14. Decisões das medições
 
-1. **O `vitral open` e a IA no mesmo navegador.**
-   - **(a) Navegador normal (recomendado):** o `vitral open` abre sem depuração, então os sites o veem como um
-     Chrome comum. O perfil é compartilhado no disco (logins e retoques), mas não ao mesmo tempo: se a
-     IA começar com o `vitral open` aberto no mesmo perfil, o Vitral responde "a pessoa está usando o
-     navegador do Vitral; peça para fechar a janela" (e a skill orienta a IA a pedir isso em uma frase).
-     Se o `vitral open` for chamado com a IA trabalhando, ele abre uma janela nova no navegador da IA
-     (que já tem a porta), e o selo continua lá.
-   - **(b) Navegador compartilhado:** o `vitral open` abre com a porta, a IA entra quando quiser, mas todos
-     os sites veem `navigator.webdriver = true` o tempo todo.
-2. **Chave do perfil no macOS.**
-   - **(a) Keychain de verdade nos dois modos (recomendado para o público geral):** cookies e senhas
-     cifrados com a chave do sistema; o macOS pergunta uma vez se o Chrome for Testing pode usar o
-     Keychain. Medir antes (9.3), com a sua permissão, porque cria esse item no seu Keychain.
-   - **(b) `use-mock-keychain` nos dois (como hoje):** sem pergunta, mas os logins ficam cifrados com uma
-     chave fixa, e quem tiver acesso ao disco consegue lê-los.
+1. **Navegador normal no `vitral open` (14.1 a).** Sem porta nem pipe de depuração: os sites o veem como
+   um Chrome comum (`navigator.webdriver = false`). Logins e retoques são do perfil, no disco, e valem
+   nos dois modos, mas não ao mesmo tempo:
+   - a IA começa com o `vitral open` aberto no mesmo perfil: o Vitral responde com um erro acionável
+     ("the person is using this profile in vitral open; ask them, in one sentence, to close that window,
+     then call again"), e a skill orienta a IA a pedir isso em uma frase;
+   - `vitral open` com a IA trabalhando no perfil: abre uma janela nova no navegador da IA (pela porta
+     que ele já tem) e termina.
+   A seção 6.3 (attach ao navegador do `vitral open`) fica descartada.
+2. **Cofre de senhas do sistema, igual nos dois modos (14.2, para Linux, macOS e Windows).**
+
+   | Sistema | Onde o Chrome guarda a chave dos cookies e senhas | O que o Vitral faz |
+   |---|---|---|
+   | macOS | Keychain | Perfis persistentes **sem** `use-mock-keychain`; o macOS pergunta uma vez se o Chrome for Testing pode usar o Keychain |
+   | Windows | DPAPI (ligada ao usuário do Windows) | Nada: já é assim, sem pergunta |
+   | Linux | libsecret/KWallet, ou "basic" sem chaveiro | Nada: o Chrome detecta sozinho, e lê os dois formatos |
+
+   - Controlado por uma configuração explícita (`--password-store system|mock`, padrão `system`), não
+     por "perfil persistente": os testes, o e2e, as pontes de avaliação e o `demo-cursor` usam
+     `mock` (eles também usam pastas de perfil próprias). Perfis temporários do `--session` usam `mock`.
+   - A primeira pergunta do macOS acontece onde a pessoa está olhando (`vitral setup` ou `vitral open`),
+     nunca no primeiro `open` da IA (que poderia ficar parado esperando o clique até estourar o tempo).
+   - **Migração no macOS**, uma vez por perfil (marca no próprio perfil): antes do primeiro lançamento
+     sem `use-mock-keychain`, o Vitral abre o perfil como antes (sem janela), lê os cookies pelo CDP
+     (só em memória), fecha, abre no modo novo e regrava os cookies; a marca de "migrado" só é gravada
+     depois que a regravação deu certo. Senhas salvas no gerenciador do Chrome não migram
+     (a pessoa digita as senhas; o Vitral não as salva).
+   - Assim a medição 9.3 deixa de ser necessária: os dois modos usam sempre o mesmo cofre.

@@ -19,6 +19,7 @@ coverage:
   internal/storagestate:    {criterion: unit, min: 85}
   internal/sitemap:         {criterion: unit, min: 85}
   internal/mapstore:        {criterion: unit, min: 85}
+  internal/retouch:         {criterion: unit, min: 85}
 
   # Demais pacotes sem browser.
   internal/config:     {criterion: unit, min: 70}
@@ -96,3 +97,4 @@ mutation:
     - internal/cursor
     - internal/heal
     - internal/sitemap
+    - internal/retouch
