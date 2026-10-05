@@ -94,12 +94,19 @@ func main() {
 			return
 		}
 		var parts []string
+		images := 0
 		for _, c := range res.Content {
 			switch v := c.(type) {
 			case *mcp.TextContent:
 				parts = append(parts, v.Text)
 			case *mcp.ImageContent:
-				path := filepath.Join(*shots, fmt.Sprintf("shot-%02d.png", step))
+				// Uma resposta pode ter várias imagens (antes e depois de um retoque): uma por arquivo.
+				images++
+				name := fmt.Sprintf("shot-%02d.png", step)
+				if images > 1 {
+					name = fmt.Sprintf("shot-%02d-%d.png", step, images)
+				}
+				path := filepath.Join(*shots, name)
 				if err := os.WriteFile(path, v.Data, 0o600); err == nil {
 					parts = append(parts, "[image saved to "+path+"]")
 				}

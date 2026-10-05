@@ -68,27 +68,32 @@ func OpenCommand(e Env, args []string, loadConfig func([]string) (config.Config,
 		return err
 	}
 	cfg.NoRetouches = cfg.NoRetouches || noRetouches
+	// Com --profile-dir, o nome do perfil não diz nada: a mensagem mostra a pasta.
+	profile := cfg.Profile
+	if cfg.ProfileDir != "" && cfg.ProfileDir != config.ProfilePath(e.Home, cfg.Profile) {
+		profile = cfg.ProfileDir
+	}
 	out, err := openBrowser(e, cfg, url)
 	var oerr *browser.OpenError
 	switch {
 	case errors.As(err, &oerr) && oerr.Busy:
-		return fmt.Errorf(msgOpenBusy, cfg.Profile)
+		return fmt.Errorf(msgOpenBusy, profile)
 	case err != nil:
 		return fmt.Errorf(msgOpenFailed, err)
 	case out.Headless:
-		return fmt.Errorf(msgOpenHeadless, cfg.Profile)
+		return fmt.Errorf(msgOpenHeadless, profile)
 	case out.NewWindow:
-		fmt.Fprintf(e.Stdout, msgOpenNewWindow, cfg.Profile)
+		fmt.Fprintf(e.Stdout, msgOpenNewWindow, profile)
 	case out.Handoff:
-		fmt.Fprintf(e.Stdout, msgOpenHandoff, cfg.Profile)
+		fmt.Fprintf(e.Stdout, msgOpenHandoff, profile)
 	case cfg.NoRetouches:
-		fmt.Fprintf(e.Stdout, msgOpenStarted, cfg.Profile, msgOpenNoRetouches)
+		fmt.Fprintf(e.Stdout, msgOpenStarted, profile, msgOpenNoRetouches)
 	case out.Retouches == 1:
-		fmt.Fprintf(e.Stdout, msgOpenStarted, cfg.Profile, msgOpenOneRetouch)
+		fmt.Fprintf(e.Stdout, msgOpenStarted, profile, msgOpenOneRetouch)
 	case out.Retouches > 1:
-		fmt.Fprintf(e.Stdout, msgOpenStarted, cfg.Profile, fmt.Sprintf(msgOpenRetouches, out.Retouches))
+		fmt.Fprintf(e.Stdout, msgOpenStarted, profile, fmt.Sprintf(msgOpenRetouches, out.Retouches))
 	default:
-		fmt.Fprintf(e.Stdout, msgOpenStarted, cfg.Profile, "")
+		fmt.Fprintf(e.Stdout, msgOpenStarted, profile, "")
 	}
 	return nil
 }
