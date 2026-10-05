@@ -20,6 +20,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/cursor"
 	"github.com/JonathanSantos/vitral/internal/flow"
 	"github.com/JonathanSantos/vitral/internal/network"
+	"github.com/JonathanSantos/vitral/internal/retouch"
 	"github.com/JonathanSantos/vitral/internal/snapshot"
 	"github.com/JonathanSantos/vitral/internal/storagestate"
 	"github.com/JonathanSantos/vitral/internal/ux"
@@ -81,6 +82,8 @@ type Session struct {
 	healed    map[string][]HealedStep // autocura da última execução de cada fluxo (flow_update)
 	smap      *screenMap              // mapa de telas (nil com --no-map)
 	stoppedAt map[string]string       // página onde cada fluxo parou (para o resumeFrom)
+	retouches *retouch.Builder        // Retoques (nil com --no-retouches)
+	retouch   *retouchState           // última prévia de retoque
 	axStats   AXStats
 
 	// AXFullTree faz o snapshot da área visível usar a árvore de acessibilidade inteira: só para os

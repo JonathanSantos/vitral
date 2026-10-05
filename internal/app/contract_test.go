@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -110,6 +111,14 @@ func TestToolListByFlags(t *testing.T) {
 	}
 	if off := names(listContract(t, func(c *config.Config) { c.NoMap = true })); off["goto"] || off["map_find"] {
 		t.Fatal("goto and map_find must not be listed with --no-map")
+	}
+	if all := names(listContract(t, nil)); !all["retouch_preview"] || !all["retouch_save"] || !all["retouch_toggle"] {
+		t.Fatal("retouch tools are listed by default")
+	}
+	for name := range names(listContract(t, func(c *config.Config) { c.NoRetouches = true })) {
+		if strings.HasPrefix(name, "retouch_") {
+			t.Fatalf("%s must not be listed with --no-retouches", name)
+		}
 	}
 	for name := range names(listContract(t, func(c *config.Config) { c.DisableMock = true })) {
 		if len(name) > 5 && name[:5] == "mock_" {

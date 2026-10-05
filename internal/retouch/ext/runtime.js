@@ -10,7 +10,10 @@
 
   let pending = false;
   const apply = () => {
-    for (const [name, el] of styles) el.media = original || disabled.has(name) ? 'not all' : 'all';
+    for (const [name, el] of styles) {
+      el.media = original || disabled.has(name) ? 'not all' : 'all';
+      el.toggleAttribute('data-vitral-off', disabled.has(name)); // desligado no painel (o Vitral lê)
+    }
     if (pending) return;
     pending = true;
     queueMicrotask(() => {
@@ -30,11 +33,25 @@
   // "Ver original" vem do painel (mensagem) ou do selo do Vitral, que roda em outro mundo isolado: o
   // ponto em comum é o atributo no <html>.
   const setOriginal = (on) => { original = on; if (root) root.toggleAttribute('data-vitral-original', on); apply(); };
+  // Ligar e desligar um retoque pelo Vitral (retouch_toggle): o pedido chega pelo atributo
+  // data-vitral-retouch-cmd e vira o mesmo estado do painel.
+  const command = async () => {
+    const raw = root.getAttribute('data-vitral-retouch-cmd');
+    if (raw === null) return;
+    root.removeAttribute('data-vitral-retouch-cmd');
+    let cmd;
+    try { cmd = JSON.parse(raw); } catch (_) { return; }
+    if (!cmd || !styles.has(cmd.name)) return;
+    const set = new Set((await chrome.storage.local.get('disabled')).disabled || []);
+    if (cmd.on) set.delete(cmd.name); else set.add(cmd.name);
+    await chrome.storage.local.set({ disabled: [...set] });
+  };
   if (root) {
     new MutationObserver(() => {
       const on = root.hasAttribute('data-vitral-original');
       if (on !== original) { original = on; apply(); }
-    }).observe(root, { attributes: true, attributeFilter: ['data-vitral-original'] });
+      command();
+    }).observe(root, { attributes: true, attributeFilter: ['data-vitral-original', 'data-vitral-retouch-cmd'] });
   }
   chrome.runtime.onMessage.addListener((m, _sender, reply) => {
     if (m.type === 'status') reply({ names: [...styles.keys()], disabled: [...disabled], original });

@@ -182,6 +182,12 @@ func TestProfilesAndSessions(t *testing.T) {
 	if c, err = load(); err != nil || c.NoMap || c.MapsDir != "/home/u/.vitral/maps" {
 		t.Fatalf("map defaults: %+v %v", c, err)
 	}
+	if c, err = load("--no-retouches", "--retouches-dir", "~/r"); err != nil || !c.NoRetouches || c.RetouchesDir != "/home/u/r" {
+		t.Fatalf("retouch flags: %+v %v", c, err)
+	}
+	if c, err = load(); err != nil || c.NoRetouches || c.RetouchesDir != "/home/u/.vitral/retoques" {
+		t.Fatalf("retouch defaults: %+v %v", c, err)
+	}
 	if c, err = load("--session", "portal", "--sessions-dir", "~/s"); err != nil || c.Session != "portal" || c.SessionsDir != "/home/u/s" {
 		t.Fatalf("%+v %v", c, err)
 	}

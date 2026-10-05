@@ -417,3 +417,38 @@ func TestCompile(t *testing.T) {
 		}
 	}
 }
+
+func TestBuilder(t *testing.T) {
+	store := Store{Dir: filepath.Join(t.TempDir(), "retoques")}
+	b := Builder{Store: store}
+	if b.Dir() != filepath.Join(store.Dir, ".build") {
+		t.Fatalf("dir %s", b.Dir())
+	}
+	dirs, err := b.Launch()
+	if err != nil || dirs != nil {
+		t.Fatalf("no retouches, nothing to load: %v %v", dirs, err)
+	}
+	if _, err := store.Save(Retouch{Name: "tema", Matches: []string{"*://a.com/*"}, CSS: "a{}"}); err != nil {
+		t.Fatal(err)
+	}
+	dirs, err = b.Launch()
+	if err != nil || !reflect.DeepEqual(dirs, []string{b.Dir()}) || !Ready(b.Dir()) {
+		t.Fatalf("launch: %v %v", dirs, err)
+	}
+	// A pasta gerada fica dentro da dos retoques e não aparece como retoque.
+	list, bad, err := store.List()
+	if err != nil || len(list) != 1 || len(bad) != 0 {
+		t.Fatalf("build dir must not show up as a retouch: %v %v %v", list, bad, err)
+	}
+	if n, err := b.Build(); err != nil || n != 1 {
+		t.Fatalf("build: %d %v", n, err)
+	}
+	// Pasta dos retoques ilegível: o erro sobe.
+	file := filepath.Join(t.TempDir(), "arquivo")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (Builder{Store: Store{Dir: file}}).Launch(); err == nil {
+		t.Fatal("a file as the retouches dir should fail")
+	}
+}

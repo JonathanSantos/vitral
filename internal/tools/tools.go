@@ -42,6 +42,9 @@ func Register(s *mcp.Server, d Deps) {
 	if !d.Config.NoMap {
 		registerMaps(s, d)
 	}
+	if !d.Config.NoRetouches {
+		registerRetouches(s, d)
+	}
 	if d.Config.AllowEval {
 		registerEval(s, d)
 	}
@@ -74,6 +77,7 @@ type UI interface {
 var acting = map[string]bool{
 	"open": true, "click": true, "type": true, "select": true, "press": true, "scroll": true, "back": true,
 	"emulate": true, "mock_add": true, "mock_clear": true, "flow_run": true, "eval_js": true,
+	"retouch_preview": true, "retouch_discard": true, "retouch_save": true, "retouch_toggle": true,
 }
 
 // IsActing indica se a ferramenta é bloqueada pela pausa.

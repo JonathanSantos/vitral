@@ -155,3 +155,32 @@ func Ready(dir string) bool {
 	var m manifest
 	return json.Unmarshal(data, &m) == nil && m.ManifestVersion == 3
 }
+
+// Builder compila os retoques de um Store na extensão gerada, que fica em .build dentro da pasta dos
+// retoques (o ponto no nome a deixa fora do Store.List).
+type Builder struct {
+	Store Store
+	Icons map[int][]byte
+}
+
+// Dir é a pasta da extensão gerada.
+func (b Builder) Dir() string { return filepath.Join(b.Store.Dir, ".build") }
+
+// Build compila e devolve quantos retoques entraram.
+func (b Builder) Build() (int, error) {
+	list, _, err := b.Store.List()
+	if err != nil {
+		return 0, err
+	}
+	return len(list), Compile(b.Dir(), list, b.Icons)
+}
+
+// Launch é o que vai para o --load-extension: a pasta da extensão, só se houver algum retoque (sem
+// retoques, o navegador abre sem extensão nenhuma).
+func (b Builder) Launch() ([]string, error) {
+	n, err := b.Build()
+	if err != nil || n == 0 || !Ready(b.Dir()) {
+		return nil, err
+	}
+	return []string{b.Dir()}, nil
+}

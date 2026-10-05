@@ -404,6 +404,98 @@
     }
   },
   {
+    "name": "retouch_discard",
+    "description": "Remove the retouch preview from the current tab.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  {
+    "name": "retouch_list",
+    "description": "List the saved retouches, where each applies and whether it is on in the current page.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  {
+    "name": "retouch_preview",
+    "description": "Change how the current page looks with CSS, only on this tab and only in this browser (the site itself is not changed; a reload removes it). Returns how many elements each rule matched. Use it when the person asks to change a site's look (theme, font size, hide or highlight something); iterate until it looks right, then show the person and ask whether to keep it (retouch_save).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "css": {
+          "description": "CSS rules to apply on the current page (for example body { background: #111; color: #eee })",
+          "type": "string"
+        },
+        "shots": {
+          "description": "also return before and after pictures (about 1300 tokens each)",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "css"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "retouch_save",
+    "description": "Keep the last retouch_preview: it then applies every time the site opens in this browser, also when the person uses it with vitral open. First call with preview=true: it returns where it applies, warnings and before and after pictures to show the person. Save only after a clear yes, calling again with only the name. Retouches change looks; they never send, save or delete anything (that is a flow).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "description": "what it changes, in the person's words (shown in the Vitral button)",
+          "type": "string"
+        },
+        "ignoreWarnings": {
+          "description": "save despite warnings, only when the person confirmed",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "short name: lowercase letters, digits, - and _ (for example tema-escuro)",
+          "type": "string"
+        },
+        "preview": {
+          "description": "only show what would be saved, with before and after pictures; nothing is saved",
+          "type": "boolean"
+        },
+        "scope": {
+          "description": "where it applies: page, site (default) or all",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "retouch_toggle",
+    "description": "Turn a saved retouch on or off (the same switch the person has in the Vitral button of the browser toolbar). Works from a page where it applies.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "retouch name (see retouch_list)",
+          "type": "string"
+        },
+        "on": {
+          "description": "true to turn it on, false to turn it off",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "on"
+      ],
+      "type": "object"
+    }
+  },
+  {
     "name": "screenshot",
     "description": "Take a picture of the page with element refs drawn on it. Use when layout, colors or images matter.",
     "inputSchema": {

@@ -37,6 +37,8 @@ type Manager struct {
 	progress install.Logger
 	// onNotFound mostra para a pessoa, em PT-BR, as saídas quando nenhum navegador serve.
 	onNotFound func(error)
+	// extensions devolve as pastas de extensão para carregar no lançamento (Retoques).
+	extensions func() []string
 
 	mu       sync.Mutex
 	launched *launcher.Launcher
@@ -57,6 +59,24 @@ func (m *Manager) SetDownloadLogger(l install.Logger) { m.progress = l }
 
 // SetNotFoundReporter define quem explica para a pessoa quando nenhum navegador foi encontrado.
 func (m *Manager) SetNotFoundReporter(fn func(error)) { m.onNotFound = fn }
+
+// SetExtensions define quem diz, a cada lançamento, quais extensões desempacotadas carregar. Só pastas
+// prontas: uma pasta que não existe faz o Chrome abrir um diálogo de erro.
+func (m *Manager) SetExtensions(fn func() []string) { m.extensions = fn }
+
+// LoadExtension carrega (ou recarrega, se o caminho já foi carregado) uma extensão desempacotada no
+// navegador aberto, sem reiniciar. Sem navegador aberto, não faz nada: o próximo lançamento carrega.
+func (m *Manager) LoadExtension(path string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.browser == nil {
+		return nil
+	}
+	if _, err := (proto.ExtensionsLoadUnpacked{Path: path}).Call(m.browser); err != nil {
+		return fmt.Errorf("load extension %s: %w", path, err)
+	}
+	return nil
+}
 
 // OnNewPage registra um preparo executado em toda página nova. Chamar antes do primeiro uso.
 func (m *Manager) OnNewPage(h PageHook) {
@@ -192,6 +212,11 @@ func (m *Manager) launch() (string, error) {
 		Logger(m.chromeLogWriter())
 	if m.cfg.Lang != "" {
 		l = l.Set("lang", m.cfg.Lang)
+	}
+	if m.extensions != nil {
+		if dirs := m.extensions(); len(dirs) > 0 {
+			l = l.Set("load-extension", strings.Join(dirs, ","))
+		}
 	}
 	m.log.Info("launching browser", "bin", bin, "headless", m.cfg.Headless, "profile", profile)
 	u, err := l.Launch()

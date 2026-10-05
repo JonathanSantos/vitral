@@ -2,10 +2,12 @@
 package app
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	vitral "github.com/JonathanSantos/vitral"
 	"github.com/JonathanSantos/vitral/internal/browser"
 	"github.com/JonathanSantos/vitral/internal/config"
 	"github.com/JonathanSantos/vitral/internal/console"
@@ -13,6 +15,7 @@ import (
 	"github.com/JonathanSantos/vitral/internal/mock"
 	"github.com/JonathanSantos/vitral/internal/network"
 	"github.com/JonathanSantos/vitral/internal/overlay"
+	"github.com/JonathanSantos/vitral/internal/retouch"
 	"github.com/JonathanSantos/vitral/internal/session"
 	"github.com/JonathanSantos/vitral/internal/tools"
 	"github.com/JonathanSantos/vitral/internal/ux"
@@ -50,6 +53,17 @@ func Build(cfg config.Config, logger *slog.Logger) *App {
 	mgr.OnNewPage(w.Attach)
 	ui := overlay.New(overlay.Options{Minimal: cfg.NoOverlay, Highlight: cfg.Highlight(), Tag: ux.Tag(cfg.Profile, cfg.Session)}, logger, w)
 	sess := session.New(cfg, logger, mgr, net, con, ui, w)
+	if !cfg.NoRetouches {
+		b := retouch.Builder{Store: retouch.Store{Dir: cfg.RetouchesDir}, Icons: extensionIcons(logger)}
+		sess.EnableRetouches(b)
+		mgr.SetExtensions(func() []string {
+			dirs, err := b.Launch()
+			if err != nil {
+				logger.Warn("retouches not loaded", "err", err)
+			}
+			return dirs
+		})
+	}
 	mgr.OnNewPage(ui.Attach)
 
 	var mocks *mock.Registry
@@ -70,4 +84,18 @@ func Build(cfg config.Config, logger *slog.Logger) *App {
 		Flows: flow.Store{Dir: cfg.FlowsDir}, UI: ui,
 	})
 	return &App{Server: server, Browser: mgr, Overlay: ui, World: w, Session: sess}
+}
+
+// extensionIcons lê os ícones da marca embutidos para a extensão dos Retoques.
+func extensionIcons(logger *slog.Logger) map[int][]byte {
+	icons := map[int][]byte{}
+	for _, size := range []int{16, 32, 48, 128} {
+		data, err := vitral.ExtensionIcons.ReadFile(fmt.Sprintf("assets/brand/icon-%d.png", size))
+		if err != nil {
+			logger.Warn("extension icon", "size", size, "err", err)
+			continue
+		}
+		icons[size] = data
+	}
+	return icons
 }
