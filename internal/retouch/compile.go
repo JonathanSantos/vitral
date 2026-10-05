@@ -175,11 +175,14 @@ func (b Builder) Build() (int, error) {
 	return len(list), Compile(b.Dir(), list, b.Icons)
 }
 
-// Launch é o que vai para o --load-extension: a pasta da extensão, só se houver algum retoque (sem
-// retoques, o navegador abre sem extensão nenhuma).
+// Launch é o que vai para o --load-extension: a pasta da extensão, só se houver algum retoque. Sem
+// retoques, o navegador abre sem extensão nenhuma e nada é criado no disco.
 func (b Builder) Launch() ([]string, error) {
-	n, err := b.Build()
-	if err != nil || n == 0 || !Ready(b.Dir()) {
+	list, _, err := b.Store.List()
+	if err != nil || len(list) == 0 {
+		return nil, err
+	}
+	if err := Compile(b.Dir(), list, b.Icons); err != nil || !Ready(b.Dir()) {
 		return nil, err
 	}
 	return []string{b.Dir()}, nil

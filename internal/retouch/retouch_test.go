@@ -429,6 +429,9 @@ func TestBuilder(t *testing.T) {
 	if err != nil || dirs != nil {
 		t.Fatalf("no retouches, nothing to load: %v %v", dirs, err)
 	}
+	if _, err := os.Stat(store.Dir); !os.IsNotExist(err) {
+		t.Fatalf("without retouches nothing is created on disk: %v", err)
+	}
 	if _, err := store.Save(Retouch{Name: "tema", Matches: []string{"*://a.com/*"}, CSS: "a{}"}); err != nil {
 		t.Fatal(err)
 	}

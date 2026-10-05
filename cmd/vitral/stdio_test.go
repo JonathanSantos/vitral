@@ -35,7 +35,10 @@ func TestStdioServer(t *testing.T) {
 	if browserPath == "" {
 		browserPath, _ = launcher.LookPath()
 	}
-	cmd := exec.Command(bin, "--headless", "--profile-dir", profile, "--browser-path", browserPath)
+	cmd := exec.Command(bin, "--headless", "--profile-dir", profile, "--browser-path", browserPath, "--password-store", "mock")
+	// HOME próprio: mapas, sessões e retoques nunca vão para a pasta de quem roda os testes.
+	home := t.TempDir()
+	cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home)
 	client := mcp.NewClient(&mcp.Implementation{Name: "stdio-test"}, nil)
 	cs, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
 	if err != nil {
@@ -82,6 +85,7 @@ func TestStdioNoBrowserFound(t *testing.T) {
 	defer cancel()
 	cmd := exec.Command(bin, "--headless", "--profile-dir", filepath.Join(empty, "p"), "--browsers-dir", filepath.Join(empty, "b"))
 	cmd.Env = append(os.Environ(),
+		"HOME="+empty, "USERPROFILE="+empty,
 		"VITRAL_BROWSER_PATH=",
 		"VITRAL_BROWSER_MIRROR=http://127.0.0.1:1/cft",
 		"PUPPETEER_CACHE_DIR="+filepath.Join(empty, "pp"),
