@@ -27,6 +27,12 @@ const (
 	TextDisabled    = "Botão desabilitado"
 	TextOpening     = "Abrindo %s"
 	TextGoingBack   = "Voltando"
+
+	// Retoques (docs/RETOQUES.md): o botão do selo quando a página tem retoque ligado ou prévia.
+	TextShowOriginal  = "Ver original"
+	TextShowRetouched = "Ver retocado"
+	TextRetouchesOne  = "1 retoque nesta página"
+	TextRetouchesMany = "%d retoques nesta página"
 )
 
 // Mensagens para a IA (inglês, imperativo), devolvidas como resultado não-erro.

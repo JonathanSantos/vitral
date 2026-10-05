@@ -41,6 +41,9 @@
     button:focus-visible { outline: 3px solid var(--vitral-primary); outline-offset: 2px; }
     .pause { padding: 0 16px; background: var(--vitral-paper); color: var(--vitral-ink); }
     .collapse { color: var(--vitral-paper); font-size: 20px; }
+    .original { padding: 0 14px; background: transparent; color: var(--vitral-paper);
+      box-shadow: inset 0 0 0 1.5px var(--vitral-paper); }
+    .original[hidden] { display: none; }
     .fab { width: 52px; height: 52px; background: var(--vitral-ink);
       box-shadow: 0 4px 18px rgba(0, 0, 0, .28); }
     .icon { width: 22px; height: 22px; flex: none; display: block; }
@@ -88,11 +91,13 @@
         const target = e.target.closest && e.target.closest('[data-action]');
         if (!target) return;
         e.stopPropagation();
+        if (target.dataset.action === 'toggle_original') { toggleOriginal(); return; } // só na página
         send(target.dataset.action);
       });
     }
     host.setAttribute('style', hostStyle());
     de.appendChild(host);
+    watchRetouches(de);
     if (state) render(state);
     send('ready');
   }
@@ -128,13 +133,49 @@
       collapse.dataset.action = 'collapse';
       collapse.tabIndex = -1;
       collapse.setAttribute('aria-label', s.collapseLabel);
-      pill.append(pause, collapse);
+      const original = el('button', 'original');
+      original.dataset.action = 'toggle_original';
+      original.tabIndex = -1;
+      pill.append(original, pause, collapse);
       dock.append(pill);
     }
     const hl = root.querySelector('.hl');
     hl.querySelectorAll('.ring.hold').forEach((n) => n.remove());
     if (s.hold && !MINIMAL) hl.append(ring(s.hold, true));
     if (cur) cur.paused(s.blocked);
+    paintOriginal();
+  }
+
+  // Retoques (docs/RETOQUES.md, 3.1): "Ver original" aparece quando a página tem retoque ligado (o
+  // <style> da extensão) ou a prévia do Vitral. O estado é o atributo no <html>, o mesmo que a
+  // extensão e a prévia observam; o botão nem passa pelo Go.
+  const retouchCount = () => {
+    const n = document.querySelectorAll('style[data-vitral-retoque]:not([data-vitral-off])').length;
+    return n + (window.__vitralPreview && window.__vitralPreview.active() ? 1 : 0);
+  };
+  function paintOriginal() {
+    const b = root && root.querySelector('.original');
+    if (!b || !state) return;
+    const n = retouchCount();
+    const on = document.documentElement.hasAttribute('data-vitral-original');
+    b.hidden = n === 0 && !on;
+    b.textContent = b.hidden ? '' : on ? state.showRetouched : state.showOriginal;
+    b.title = n === 1 ? state.retouchesOne : state.retouchesMany.replace('%d', n);
+  }
+  function toggleOriginal() {
+    document.documentElement.toggleAttribute('data-vitral-original');
+    paintOriginal();
+  }
+  let watching = false;
+  function watchRetouches(de) {
+    if (watching) return;
+    watching = true;
+    const mo = new MutationObserver(paintOriginal);
+    // Só o que interessa: <style> entrando ou saindo do <html> e do <head>, e os dois atributos.
+    mo.observe(de, { attributes: true, subtree: true, attributeFilter: ['data-vitral-original', 'data-vitral-off'] });
+    mo.observe(de, { childList: true });
+    const head = () => { if (document.head) new MutationObserver(paintOriginal).observe(document.head, { childList: true }); };
+    if (document.head) head(); else document.addEventListener('DOMContentLoaded', head, { once: true });
   }
 
   // Rolagem humana: toca o plano do Go no container ('page' ou a chave dada pelo scrollChain) e avisa

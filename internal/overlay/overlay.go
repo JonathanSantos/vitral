@@ -227,6 +227,11 @@ type View struct {
 	CollapseLabel string    `json:"collapseLabel"`
 	ExpandLabel   string    `json:"expandLabel"`
 	Hold          *markView `json:"hold,omitempty"`
+	// Retoques: o JS conta o que está ligado na página e escolhe o texto.
+	ShowOriginal  string `json:"showOriginal"`
+	ShowRetouched string `json:"showRetouched"`
+	RetouchesOne  string `json:"retouchesOne"`
+	RetouchesMany string `json:"retouchesMany"`
 }
 
 // ViewOf converte o estado no que o JS desenha.
@@ -234,6 +239,8 @@ func ViewOf(s ux.State) View {
 	v := View{
 		Mode: s.Mode, Blocked: s.Blocked(), Label: ux.Label(s), Button: ux.ButtonLabel(s),
 		Collapsed: s.Collapsed, CollapseLabel: ux.TextCollapse, ExpandLabel: ux.TextExpand,
+		ShowOriginal: ux.TextShowOriginal, ShowRetouched: ux.TextShowRetouched,
+		RetouchesOne: ux.TextRetouchesOne, RetouchesMany: ux.TextRetouchesMany,
 	}
 	if s.Hold != nil {
 		mark := newMark(s.Hold.Ref, s.Hold.Box, 0)
