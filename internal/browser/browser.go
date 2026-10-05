@@ -213,6 +213,10 @@ func (m *Manager) launch() (string, error) {
 	if m.cfg.Lang != "" {
 		l = l.Set("lang", m.cfg.Lang)
 	}
+	// Perfil temporário do --session: chave fixa (ele é jogado fora). Os outros seguem a regra do perfil.
+	if m.cfg.Session == "" && !UseMockKeychain(m.cfg, bin, profile, func(msg string, args ...any) { m.log.Warn(msg, args...) }) {
+		l = systemStore(l)
+	}
 	if m.extensions != nil {
 		if dirs := m.extensions(); len(dirs) > 0 {
 			l = l.Set("load-extension", strings.Join(dirs, ","))

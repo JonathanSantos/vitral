@@ -71,6 +71,8 @@ func newHarness(tweak func(*config.Config)) (*harness, func()) {
 	cfg.ProfileDir = profile
 	cfg.StabilityTimeout = 5 * time.Second
 	cfg.FlowsDir = filepath.Join(profile, "flows")
+	// Testes nunca tocam o Keychain (nem criam item nele): chave fixa, como antes da decisão 14.2.
+	cfg.PasswordStore = "mock"
 	// Testes usam um navegador explícito para o CI padrão não baixar o Chrome for Testing.
 	cfg.BrowserPath = testBrowserPath()
 	if tweak != nil {

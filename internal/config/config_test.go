@@ -185,8 +185,14 @@ func TestProfilesAndSessions(t *testing.T) {
 	if c, err = load("--no-retouches", "--retouches-dir", "~/r"); err != nil || !c.NoRetouches || c.RetouchesDir != "/home/u/r" {
 		t.Fatalf("retouch flags: %+v %v", c, err)
 	}
-	if c, err = load(); err != nil || c.NoRetouches || c.RetouchesDir != "/home/u/.vitral/retoques" {
+	if c, err = load(); err != nil || c.NoRetouches || c.RetouchesDir != "/home/u/.vitral/retoques" || c.PasswordStore != "system" {
 		t.Fatalf("retouch defaults: %+v %v", c, err)
+	}
+	if c, err = load("--password-store", "mock"); err != nil || c.PasswordStore != "mock" {
+		t.Fatalf("password store: %+v %v", c, err)
+	}
+	if _, err = load("--password-store", "basic"); err == nil || !strings.Contains(err.Error(), "--password-store must be system or mock") {
+		t.Fatalf("bad password store: %v", err)
 	}
 	if c, err = load("--session", "portal", "--sessions-dir", "~/s"); err != nil || c.Session != "portal" || c.SessionsDir != "/home/u/s" {
 		t.Fatalf("%+v %v", c, err)

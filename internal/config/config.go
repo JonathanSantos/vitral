@@ -41,6 +41,10 @@ type Config struct {
 	// NoRetouches desliga os Retoques (docs/RETOQUES.md); RetouchesDir guarda um retoque por pasta.
 	NoRetouches  bool   `yaml:"noRetouches"`
 	RetouchesDir string `yaml:"retouchesDir"`
+	// PasswordStore é onde o Chrome guarda a chave dos cookies e senhas do perfil (decisão 14.2 de
+	// docs/RETOQUES.md): "system" (Keychain, DPAPI, libsecret) ou "mock" (chave fixa: só testes e
+	// perfis temporários). Igual na sessão da IA e no vitral open, sempre.
+	PasswordStore string `yaml:"passwordStore"`
 	// BrowserPath força um executável específico (--browser-path / VITRAL_BROWSER_PATH).
 	BrowserPath string `yaml:"browserPath"`
 	// AllowSystemBrowser permite usar o Chrome/Edge do sistema como último recurso (sempre com o perfil do Vitral).
@@ -91,6 +95,7 @@ func Defaults(homeDir string) Config {
 		SessionsDir:      filepath.Join(homeDir, "."+Name, "sessions"),
 		MapsDir:          filepath.Join(homeDir, "."+Name, "maps"),
 		RetouchesDir:     filepath.Join(homeDir, "."+Name, "retoques"),
+		PasswordStore:    "system",
 		BrowsersDir:      filepath.Join(homeDir, "."+Name, "browsers"),
 		WindowSize:       "1280,800",
 		NavTimeout:       15 * time.Second,
@@ -192,6 +197,7 @@ func parseFlags(cfg *Config, args []string) error {
 	fset.StringVar(&cfg.MapsDir, "maps-dir", cfg.MapsDir, "where screen maps are kept (one per host)")
 	fset.BoolVar(&cfg.NoRetouches, "no-retouches", cfg.NoRetouches, "do not load or create retouches (CSS changes kept for a site)")
 	fset.StringVar(&cfg.RetouchesDir, "retouches-dir", cfg.RetouchesDir, "where retouches are kept (one folder each)")
+	fset.StringVar(&cfg.PasswordStore, "password-store", cfg.PasswordStore, "where the browser keeps the key of cookies and passwords: system (OS keychain) or mock (fixed key, for tests)")
 	fset.StringVar(&cfg.BrowserPath, "browser-path", cfg.BrowserPath, "use this Chrome/Chromium executable (env "+EnvBrowserPath+")")
 	fset.BoolVar(&cfg.AllowSystemBrowser, "allow-system-browser", cfg.AllowSystemBrowser, "allow the installed Chrome/Edge as a last resort (always with the Vitral profile)")
 	fset.StringVar(&cfg.BrowserMirror, "browser-mirror", cfg.BrowserMirror, "base URL of a Chrome for Testing mirror (env "+EnvBrowserMirror+")")
@@ -263,6 +269,9 @@ func validate(cfg Config) error {
 	}
 	if _, _, err := ParseWindowSize(cfg.WindowSize); err != nil {
 		return err
+	}
+	if !oneOf(cfg.PasswordStore, "system", "mock") {
+		return fmt.Errorf("--password-store must be system or mock, got %q", cfg.PasswordStore)
 	}
 	if !oneOf(cfg.Cursor, "on", "off", "force") {
 		return fmt.Errorf("--cursor must be on, off or force, got %q", cfg.Cursor)

@@ -59,7 +59,8 @@ func OpenForPerson(cfg config.Config, bin, url string, extDirs []string) (OpenRe
 		return OpenResult{}, err
 	}
 	defer logFile.Close()
-	cmd := exec.Command(bin, OpenArgs(cfg, profile, url, extDirs)...)
+	mock := UseMockKeychain(cfg, bin, profile, nil)
+	cmd := exec.Command(bin, OpenArgs(cfg, profile, url, extDirs, mock)...)
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	detach(cmd)
 	if err := cmd.Start(); err != nil {
@@ -81,14 +82,16 @@ func OpenForPerson(cfg config.Config, bin, url string, extDirs []string) (OpenRe
 }
 
 // OpenArgs são as bandeiras do vitral open: o mínimo, sem as de automação que o rod põe por padrão.
-// use-mock-keychain fica igual ao da sessão da IA até a troca para o cofre do sistema (decisão 14.2):
-// os dois modos precisam da mesma chave, ou os logins de um não abrem no outro.
-func OpenArgs(cfg config.Config, profile, url string, extDirs []string) []string {
+// mockKeychain vem de UseMockKeychain, a mesma regra da sessão da IA (decisão 14.2): os dois modos
+// precisam da mesma chave, ou os logins de um não abrem no outro.
+func OpenArgs(cfg config.Config, profile, url string, extDirs []string, mockKeychain bool) []string {
 	args := []string{
 		"--user-data-dir=" + profile,
 		"--no-first-run",
 		"--no-default-browser-check",
-		"--use-mock-keychain",
+	}
+	if mockKeychain {
+		args = append(args, "--use-mock-keychain")
 	}
 	if len(extDirs) > 0 {
 		args = append(args, "--load-extension="+strings.Join(extDirs, ","))

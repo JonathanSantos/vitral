@@ -51,6 +51,7 @@ func TestVitralOpen(t *testing.T) {
 	cfg := config.Defaults(home)
 	cfg.Headless = true // a pessoa sempre tem janela; aqui, só para o teste não abrir janelas
 	cfg.ProfileDir = filepath.Join(home, "profile")
+	cfg.PasswordStore = "mock" // testes nunca tocam o Keychain
 	store := retouch.Store{Dir: cfg.RetouchesDir}
 	if _, err := store.Save(retouch.Retouch{Name: "fundo", Matches: []string{"*://127.0.0.1/*"}, CSS: "body { background: rgb(1, 2, 3) }"}); err != nil {
 		t.Fatal(err)

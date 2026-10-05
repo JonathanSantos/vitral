@@ -73,7 +73,7 @@ func sessionSave(e Env, cfg config.Config, name string) error {
 	defer m.Close()
 	sum, err := m.SaveState(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "launch browser") {
+		if strings.Contains(err.Error(), "launch browser") || strings.Contains(err.Error(), "in vitral open") {
 			return fmt.Errorf(msgSessionProfileBusy, cfg.Profile, cfg.ProfileDir)
 		}
 		return err

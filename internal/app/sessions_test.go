@@ -73,7 +73,7 @@ func TestSessionSaveAndRestore(t *testing.T) {
 	env := cli.Env{Stdout: &out2, Stderr: &out2}
 	load := func(args []string) (config.Config, error) {
 		cfg := config.Defaults(t.TempDir())
-		cfg.ProfileDir, cfg.SessionsDir, cfg.BrowserPath = profileA, dir, testBrowserPath()
+		cfg.ProfileDir, cfg.SessionsDir, cfg.BrowserPath, cfg.PasswordStore = profileA, dir, testBrowserPath(), "mock"
 		return cfg, nil
 	}
 	if err := cli.SessionCommand(env, []string{"save", "cli"}, load); err == nil || !strings.Contains(err.Error(), "ferramenta session_save") {

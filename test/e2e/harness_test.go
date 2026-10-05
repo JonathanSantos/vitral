@@ -132,7 +132,7 @@ func startBin(t *testing.T, bin string, extraArgs ...string) *Session {
 	s := &Session{t: t, home: home, debugInfo: filepath.Join(home, "debug.json"), stderr: &bytes.Buffer{}}
 	args := append([]string{
 		"--headless", "--profile-dir", filepath.Join(home, "profile"), "--flows-dir", filepath.Join(home, "flows"),
-		"--lang", "pt-BR", "--window-size", "1280,800", "--debug-info", s.debugInfo,
+		"--lang", "pt-BR", "--window-size", "1280,800", "--debug-info", s.debugInfo, "--password-store", "mock",
 	}, browserArgs...)
 	args = append(args, extraArgs...)
 	// make demo-cursor: janela visível para uma pessoa acompanhar (e gravar o GIF).
