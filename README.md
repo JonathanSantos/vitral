@@ -148,6 +148,47 @@ done: 1/1 steps passed.
 O mapa guarda só estrutura: papéis, nomes de botões e títulos. Nada de valores de campos, conteúdo de
 tabelas, e-mails ou CPFs (números longos viram `<num>`).
 
+### Retoques: o site do seu jeito
+
+Peça para mudar como um site se parece, e a IA faz isso só no seu navegador: *"deixa esse sistema com
+tema escuro"*, *"aumenta a fonte da tabela"*, *"esconde esse banner"*, *"destaca os pedidos
+atrasados"*. O site, o servidor e as outras pessoas não mudam nada.
+
+<p align="center">
+  <img src="docs/img/retoque-antes-depois.png" alt="A lista de pedidos do mini ERP antes (fundo branco) e depois do retoque (tema escuro, título amarelo, menu azul)" width="760">
+  <br><sub>O antes e o depois que a IA mostra antes de salvar (<code>retouch_save</code> com prévia).</sub>
+</p>
+
+1. **Experimente:** a IA aplica só na aba atual e diz o que cada regra pegou. Nada fica valendo ainda.
+2. **Veja o antes e o depois:** o selo ganha **"Ver original"**, que alterna na hora, sem recarregar.
+3. **Fixe com um "sim":** a IA mostra onde vai valer (esta página, o site todo ou todos os sites) e só
+   salva depois da sua confirmação. Daí em diante, o retoque aparece sempre que o site abrir, já no
+   carregamento, sem piscar o original.
+4. **Ligue e desligue quando quiser:** o botão do Vitral na barra do navegador lista os retoques da aba,
+   cada um com um interruptor, mais "Ver original" e "Desligar todos neste site".
+
+<p align="center">
+  <img src="docs/img/retoque.gif" alt="A prévia do tema escuro entrando na lista de pedidos e o botão Ver original do selo alternando entre o original e o retocado" width="640">
+</p>
+
+**Use o navegador retocado no dia a dia** com `vitral open`: ele abre o navegador do Vitral com os seus
+retoques e os logins do perfil, sem a IA, como um Chrome comum (os sites não o veem como automatizado).
+
+```bash
+vitral open                     # o navegador do Vitral, com os retoques
+vitral open sistema.empresa.com # já abre nesse endereço
+vitral open --sem-retoques      # tudo desligado nesta janela
+```
+
+Os logins valem nos dois: o que você fizer no `vitral open` vale quando a IA abrir o mesmo perfil, e vice-versa.
+Os dois só não abrem o perfil ao mesmo tempo. Se a IA precisar do navegador enquanto o `vitral open`
+estiver aberto, ela pede para você fechar a janela; se você rodar o `vitral open` com a IA trabalhando,
+abre uma janela nova no navegador dela.
+
+Retoques mudam a aparência; as tarefas (enviar, salvar, excluir) continuam com os fluxos, sempre com
+o seu "sim". Um retoque que tente buscar algo em outro site é barrado até você confirmar (CSS também
+consegue mandar para fora o que você digita), e a IA não retoca para contornar paywall ou verificação.
+
 ### E mais
 
 - **API fora do ar sem tocar no servidor:** `mock_add` faz uma rota responder 500, demorar ou cair, só
@@ -261,6 +302,7 @@ de uso em [`docs/UX-TASKS.md`](docs/UX-TASKS.md) e roteiro de validação manual
 | Fluxos | `flow_save`, `flow_list`, `flow_run`, `flow_update` |
 | Sessões | `session_save` |
 | Mapa de telas | `goto`, `map_find` (desligados com `--no-map`) |
+| Retoques | `retouch_preview`, `retouch_discard`, `retouch_save`, `retouch_list`, `retouch_toggle` (desligados com `--no-retouches`) |
 | Opcional | `eval_js` (só com `--allow-eval`) |
 
 As ações devolvem só o que mudou na tela. Enquanto a pessoa pausa, as ferramentas que agem respondem
@@ -276,6 +318,7 @@ vitral disable [--workspace|--global]
 vitral enable [--workspace|--global]
 vitral session save <nome> [--profile p] | list | delete <nome>
 vitral map list | show <site> | export <site> --to arquivo.json | import arquivo.json | clear <site>
+vitral open [endereço] [--profile p] [--sem-retoques]
 vitral doctor
 vitral install-browser [--from chrome.zip]
 vitral version
@@ -330,6 +373,9 @@ Flags do servidor (também aceitas em `vitral.yaml` no diretório de trabalho):
 | `--session` | | Começa com um perfil temporário e o login salvo por `session_save`. |
 | `--sessions-dir` | `~/.vitral/sessions` | Onde ficam as sessões salvas. |
 | `--no-map` | `false` | Não aprende o mapa de telas. |
+| `--no-retouches` | `false` | Não carrega nem cria retoques (as ferramentas `retouch_*` somem). |
+| `--retouches-dir` | `~/.vitral/retoques` | Onde ficam os retoques (uma pasta cada). |
+| `--password-store` | `system` | Onde o navegador guarda a chave de cookies e senhas: `system` (Keychain, DPAPI, libsecret) ou `mock` (chave fixa, só para testes). |
 | `--maps-dir` | `~/.vitral/maps` | Onde fica o mapa de cada host (privado, por usuário). |
 | `--browser-path` | | Usa este executável (env `VITRAL_BROWSER_PATH`). |
 | `--browser-mirror` | | Mirror do Chrome for Testing (env `VITRAL_BROWSER_MIRROR`). |
@@ -379,6 +425,31 @@ fluxo, com a versão anterior em `.vitral/flows/.history/`.
 `internal/heal/sensitive.txt`, como confirmar, pagar, excluir ou enviar, ou é o último clique do fluxo) a
 autocura nunca é automática: o `flow_run` para e pede para perguntar à pessoa; para seguir,
 `resumeFrom=N` e `acceptHealing=true`. Por fluxo, `heal: ask` pergunta sempre e `heal: off` desliga.
+
+### Retoques
+
+Especificação, medições e decisões em [`docs/RETOQUES.md`](docs/RETOQUES.md).
+
+- **Formato:** `~/.vitral/retoques/<nome>/retoque.yaml` (nome, descrição, escopo, padrões de URL do
+  Chrome) e `style.css`, com 0700/0600 e versões anteriores em `.history/`. Só código, nunca dados da
+  página. Escopo `page`, `site` (padrão) ou `all`; padrões sem porta valem em todas as portas do host.
+- **Extensão gerada:** todos os retoques viram a extensão MV3 "Vitral Retoques" em `.build/`, com um
+  content script por retoque em `document_start` (o `<style>` já vale no primeiro script da página),
+  o painel e o número no ícone. Entra no lançamento com `--load-extension` (só se houver retoque) e é
+  recarregada sem reiniciar com `Extensions.loadUnpacked` a cada save (~33 ms medidos). Precisa do
+  Chrome for Testing: o Chrome comum ignora essas duas formas de carregar extensão.
+- **Prévia:** um `<style>` no mundo isolado do Vitral, só na aba, com a contagem do que cada regra pegou.
+  "Ver original" é um atributo no `<html>`, o ponto em comum entre o mundo do Vitral e o da extensão.
+- **Conferência:** o save recusa CSS com `url()`, `@import`, `image-set()` ou `@font-face` de outro host
+  (com os escapes do CSS desfeitos antes), salvo com `ignoreWarnings=true`.
+- **`vitral open`:** monta o comando do Chrome à mão, só com `--user-data-dir`, as extensões e a chave do
+  perfil: sem as bandeiras de automação e sem porta nem pipe de depuração (qualquer um dos dois já faz
+  `navigator.webdriver = true` em todas as abas, medido). Solto do terminal (`setsid` /
+  `DETACHED_PROCESS`).
+- **Cofre de senhas:** a sessão da IA e o `vitral open` decidem a chave do perfil pela mesma regra
+  (`--password-store system` por padrão). No macOS, perfis antigos (criados com `use-mock-keychain`)
+  migram uma vez: cookies lidos com a chave antiga, só em memória, e regravados com a do Keychain; a
+  marca só é gravada depois do sucesso. No Windows e no Linux nada muda.
 
 ### Mapa de telas
 
@@ -430,6 +501,7 @@ internal/screenshot marcações desenhadas em Go
 internal/heal       autocura dos fluxos: assinatura, nota e decisão (pura)
 internal/storagestate sessões salvas (cookies e localStorage, arquivos 0600)
 internal/sitemap    mapa de telas: grafo, caminho e privacidade (puro)
+internal/retouch    Retoques: armazenamento, escopo, conferência do CSS e a extensão gerada (puro)
 internal/mapstore   gravação dos mapas (atômica, com debounce)
 internal/network, console, mock, flow, browser, security, brand, config, ring
 tools/brandgen      gera os PNGs da marca (não entra no binário)
@@ -547,7 +619,10 @@ não confiar no que está acontecendo. O Vitral ataca a confiança, não só a c
    eu continuo de onde ela parou.
 4. **Tarefas repetidas de back-office em ambiente de teste** ("toda semana eu confiro…"), salvas como
    fluxos com parâmetros e conferência no fim, que se ajustam sozinhos quando o texto de um botão muda.
-5. **Demonstrações e integração de gente nova:** o cursor legível e o selo explicam o sistema
+5. **Retocar o que eu uso todo dia:** um sistema interno ilegível com tema escuro e fonte maior, as
+   linhas atrasadas em vermelho, um banner que não some. O "Ver original" a um clique e o `vitral open`
+   fazem disso uma coisa que eu deixaria ligada, não só um experimento.
+6. **Demonstrações e integração de gente nova:** o cursor legível e o selo explicam o sistema
    melhor do que um vídeo gravado.
 
 **Não**, nestes:

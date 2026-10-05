@@ -52,12 +52,15 @@ func TestScreenMapMiniSystem(t *testing.T) {
 	if info, _ := os.Stat(file); info.Mode().Perm() != 0o600 {
 		t.Fatalf("map file mode %v", info.Mode().Perm())
 	}
-	// Privacidade: nada da tela que seja dado pessoal, nem o que foi digitado, nem valores de query.
+	// Privacidade: nada da tela que seja dado pessoal, nem o que foi digitado, nem valores de query. O
+	// host (porta aleatória) e as datas (frações de segundo) saem antes: "350" aparecia neles por acaso.
+	content := strings.ReplaceAll(string(data), host, "")
+	content = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T[0-9:.]+(Z|[+-]\d{2}:\d{2})`).ReplaceAllString(content, "")
 	for _, secret := range []string{
 		"Maria Silva", "João Souza", "123.456.789-09", "987.654.321-00", "maria.silva@exemplo.com",
 		"joao@exemplo.com", "98765-4321", "3456-7890", "suporte@miniERP", "10234", "10235", "Ana Prado", "350", "Bem-vinda",
 	} {
-		if strings.Contains(string(data), secret) {
+		if strings.Contains(content, secret) {
 			t.Errorf("the map file has %q", secret)
 		}
 	}

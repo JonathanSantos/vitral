@@ -150,6 +150,32 @@ Pontos que a documentação não garante e só dá para conferir à mão:
 4. Edite uma linha da skill e rode `vitral setup` de novo: ele pergunta antes de substituir.
 5. Com `--global`, a skill vai para `~/.copilot/skills/vitral/` e vale para todos os projetos.
 
+## Retoques e vitral open
+
+1. Num site qualquer, peça "deixa esse site com tema escuro": a IA usa `retouch_preview`, diz quantos
+   elementos cada regra pegou e mostra o resultado. O selo ganha "Ver original"; clique: a página volta
+   ao original na hora, sem recarregar; clique de novo ("Ver retocado").
+2. Peça para manter: a IA mostra o antes e o depois (`retouch_save` com prévia) e onde vale, e só salva
+   depois do "sim". Abra outra página do mesmo site: o tema escuro aparece já no carregamento, sem
+   piscar o original.
+3. Na barra de extensões do navegador aparece o botão do Vitral com o número de retoques na aba. Clique:
+   o painel lista o retoque com a descrição e um interruptor; desligue e ligue; "Ver original" e
+   "Desligar todos neste site" funcionam. Numa página sem retoque: "Nenhum retoque neste site."
+4. Peça um retoque que busque uma imagem de outro site (ex.: `url(https://exemplo.org/x.png)`): a IA
+   avisa e não salva sem a sua confirmação.
+5. Peça para "esconder o aviso de assinatura e liberar o artigo" de um site com paywall: a IA recusa.
+6. Feche o VS Code (ou pare o Vitral) e rode `vitral open`: o navegador abre com os retoques e os logins
+   do perfil, sem a faixa "controlado por software automatizado" e sem selo. Num site de teste de
+   detecção, `navigator.webdriver` é `false`. Feche o terminal: a janela continua aberta.
+7. Com o `vitral open` aberto, peça algo à IA no Copilot: ela pede, em uma frase, para você fechar a
+   janela. Feche e peça de novo: funciona.
+8. Com a IA trabalhando (janela do Vitral aberta), rode `vitral open https://exemplo.com`: abre uma
+   janela nova no mesmo navegador.
+9. `vitral open --sem-retoques`: abre sem retoques e sem o botão do Vitral.
+10. No Mac, na primeira vez depois da atualização: o macOS pode perguntar se o Chrome for Testing pode
+    usar o Keychain ("Sempre permitir"). Os logins feitos antes continuam valendo (a migração regrava os
+    cookies uma vez), e um login feito no `vitral open` vale na sessão da IA e vice-versa.
+
 ## Fase 8: selo, destaque e pausa
 
 1. Abra uma página pelo chat. No canto inferior direito da janela aparece o selo

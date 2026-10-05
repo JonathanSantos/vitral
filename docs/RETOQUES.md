@@ -296,6 +296,8 @@ Trechos novos da skill do Vitral:
       modos usam a mesma chave de hoje;
    6. skill, README e avaliação com modelo.
    A atualização diária do navegador (6.4) fica para uma fase própria, depois desta.
+   **Fatias 1 a 6 feitas** (commits "Retoques, fatia N"); a avaliação com modelo está em
+   `docs/AVALIACAO-SONNET.md`.
 3. Retoques com JavaScript: avisos, "sim" próprio, mundos.
 4. Extensões da pessoa: `extension_load`, `extension_list`, `extension_logs`, export.
 5. Retoques quebrados (3.4), export e import, avaliação com modelo e README.

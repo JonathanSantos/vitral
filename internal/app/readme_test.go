@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/JonathanSantos/vitral/internal/config"
 	"github.com/JonathanSantos/vitral/internal/cursor"
@@ -109,7 +110,28 @@ func TestReadmeShots(t *testing.T) {
 	save("sua-vez", stable(t, p, full))
 	ov.Apply(ux.Event{Kind: ux.UserResume})
 
-	// 5. O cursorlab (make cursorlab antes): trajetórias e o perfil da rolagem.
+	// 5. Um retoque (docs/RETOQUES.md): antes e depois do tema escuro no mini ERP, lado a lado, com as
+	// mesmas imagens que a IA recebe na prévia do retouch_save.
+	h.ok(t, "open", map[string]any{"url": h.url("/pages/mini/pedidos.html")})
+	h.ok(t, "retouch_preview", map[string]any{"css": readmeRetouch})
+	ctxShot, cancelShot := context.WithTimeout(ctx, time.Minute)
+	res, err := h.session.CallTool(ctxShot, &mcp.CallToolParams{Name: "retouch_save", Arguments: map[string]any{"name": "tema-escuro", "preview": true}})
+	cancelShot()
+	if err != nil || res.IsError || len(res.Content) != 5 {
+		t.Fatalf("retouch save preview: %v %+v", err, res)
+	}
+	var pair []image.Image
+	for _, i := range []int{2, 4} {
+		im, err := png.Decode(bytes.NewReader(res.Content[i].(*mcp.ImageContent).Data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		pair = append(pair, im)
+	}
+	save("retoque-antes-depois", sideBySide(pair[0], pair[1]))
+	h.ok(t, "retouch_discard", nil)
+
+	// 6. O cursorlab (make cursorlab antes): trajetórias e o perfil da rolagem.
 	lab := filepath.Join("..", "..", ".quality", "out", "cursorlab", "index.html")
 	abs, err := filepath.Abs(lab)
 	if err != nil {
@@ -159,6 +181,26 @@ func TestReadmeShots(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// readmeRetouch é o tema escuro do print do README.
+const readmeRetouch = `body { background: #1e1b2e; color: #f7f5f0; }
+header { background: #3e63dd; }
+h1 { color: #f5c46b; }
+table { border-color: #5b5770; } td, th { border-color: #5b5770 !important; }
+tr:nth-child(even) td { background: #2a2640; }
+a { color: #9ab8ff; }
+input, button { background: #2a2640; color: #f7f5f0; border: 1px solid #5b5770; border-radius: 6px; }`
+
+// sideBySide junta o antes e o depois com uma faixa entre eles.
+func sideBySide(a, b image.Image) image.Image {
+	const gap = 16
+	w, hgt := a.Bounds().Dx()+gap+b.Bounds().Dx(), max(a.Bounds().Dy(), b.Bounds().Dy())
+	out := image.NewRGBA(image.Rect(0, 0, w, hgt))
+	draw.Draw(out, out.Bounds(), &image.Uniform{color.RGBA{0xF7, 0xF5, 0xF0, 0xFF}}, image.Point{}, draw.Src)
+	draw.Draw(out, a.Bounds(), a, a.Bounds().Min, draw.Src)
+	draw.Draw(out, image.Rect(a.Bounds().Dx()+gap, 0, w, b.Bounds().Dy()), b, b.Bounds().Min, draw.Src)
+	return out
 }
 
 // stack empilha imagens de mesma largura com um respiro claro entre elas.
@@ -218,6 +260,19 @@ func TestReadmeGIFs(t *testing.T) {
 		click("button", "Exportar CSV")
 		click("link", "Clientes")
 	}))
+
+	// Um retoque: a prévia do tema escuro e o "Ver original" do selo alternando.
+	hh.ok(t, "open", map[string]any{"url": hh.url("/pages/mini/pedidos.html")})
+	writeGIF(t, filepath.Join(out, "retoque.gif"), record(t, p, func() {
+		think()
+		hh.ok(t, "retouch_preview", map[string]any{"css": readmeRetouch})
+		for range 4 {
+			time.Sleep(900 * time.Millisecond)
+			hh.clickOverlay(t, "toggle_original")
+		}
+		think()
+	}))
+	hh.ok(t, "retouch_discard", nil)
 
 	// O cursor: alvo grande, caixinha pequena, link no meio do texto, campo, card com ação dentro.
 	hh.ok(t, "open", map[string]any{"url": hh.url("/pages/cursor-playground.html")})
