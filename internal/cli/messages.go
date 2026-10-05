@@ -11,6 +11,9 @@ Você não precisa deixar este comando aberto: o VS Code inicia o Vitral sozinho
 Comandos:
   vitral open [endereço]   abre o navegador do Vitral para você usar, com os retoques e os logins
                            do perfil (--profile p, --sem-retoques)
+  vitral retoque list      lista os retoques salvos (onde valem)
+  vitral retoque delete <nome>
+                           apaga um retoque
   vitral setup             configura o Vitral nesta pasta (.mcp.json)
   vitral setup --global    configura o Vitral para todos os projetos (~/.copilot/mcp-config.json)
   vitral status            mostra onde o Vitral está configurado e o que ele vai usar
@@ -121,6 +124,13 @@ const (
 	msgOpenHeadless     = "a IA está usando o perfil %s sem janela agora. Espere ela terminar e rode de novo, ou use outro perfil com --profile"
 	msgOpenBusy         = "o perfil %s já está aberto em outro navegador. Feche essa janela e rode de novo, ou use outro perfil com --profile"
 	msgOpenFailed       = "não consegui abrir o navegador: %v"
+
+	msgRetouchUsage    = "uso: vitral retoque list | vitral retoque delete <nome>"
+	msgRetouchNone     = "Nenhum retoque salvo em %s\n"
+	msgRetouchItem     = "- %s: %s%s\n"
+	msgRetouchBroken   = "- %s: com problema, não é carregado (%v)\n"
+	msgRetouchNotFound = "não há retoque chamado %q em %s"
+	msgRetouchDeleted  = "✓ retoque %s apagado (sai do navegador na próxima vez que ele abrir)\n"
 
 	msgSessionProfileBusy = "não consegui abrir o perfil %s (%s): ele deve estar aberto em outro Vitral, como o do VS Code. Peça na conversa para salvar a sessão (ferramenta session_save) ou feche o Vitral e tente de novo"
 	msgUnknownCommand     = "comando desconhecido %q. Rode \"vitral\" para ver a ajuda"

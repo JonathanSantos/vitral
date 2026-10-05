@@ -178,6 +178,8 @@ retoques e os logins do perfil, sem a IA, como um Chrome comum (os sites não o 
 vitral open                     # o navegador do Vitral, com os retoques
 vitral open sistema.empresa.com # já abre nesse endereço
 vitral open --sem-retoques      # tudo desligado nesta janela
+vitral retoque list             # os retoques salvos e onde valem
+vitral retoque delete tema-escuro
 ```
 
 Os logins valem nos dois: o que você fizer no `vitral open` vale quando a IA abrir o mesmo perfil, e vice-versa.
@@ -319,6 +321,7 @@ vitral enable [--workspace|--global]
 vitral session save <nome> [--profile p] | list | delete <nome>
 vitral map list | show <site> | export <site> --to arquivo.json | import arquivo.json | clear <site>
 vitral open [endereço] [--profile p] [--sem-retoques]
+vitral retoque list | delete <nome>
 vitral doctor
 vitral install-browser [--from chrome.zip]
 vitral version

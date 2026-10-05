@@ -53,6 +53,8 @@ func Main(args []string, e Env, loadConfig func([]string) (config.Config, error)
 		return true, report(e, MapCommand(e, args[1:], loadConfig))
 	case "session":
 		return true, report(e, SessionCommand(e, args[1:], loadConfig))
+	case "retoque":
+		return true, report(e, RetouchCommand(e, args[1:], loadConfig))
 	case "open":
 		return true, report(e, OpenCommand(e, args[1:], loadConfig))
 	case "status":

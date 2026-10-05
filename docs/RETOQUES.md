@@ -94,7 +94,8 @@ vitral open --sem-retoques       # saída de emergência: tudo desligado nesta j
 | `vitral open` | Botão Vitral na barra de extensões, com o número de retoques ativos no site; painel com interruptores |
 | Retoque quebrado | Ícone com um ponto âmbar e "Tema escuro não encontrou nada nesta página" no painel (3.4) |
 
-"Ver original" desliga todos os retoques da aba enquanto estiver ligado, sem recarregar. É o mesmo
+"Ver original" desliga todos os retoques da página enquanto estiver ligado, sem recarregar (ao navegar
+para outra página, os retoques voltam). É o mesmo
 comportamento no selo e no painel.
 
 ### 3.2 Antes e depois
@@ -350,8 +351,10 @@ como automatizado para todos os sites (mais CAPTCHAs e bloqueios). Decisão 14.1
    - Controlado por uma configuração explícita (`--password-store system|mock`, padrão `system`), não
      por "perfil persistente": os testes, o e2e, as pontes de avaliação e o `demo-cursor` usam
      `mock` (eles também usam pastas de perfil próprias). Perfis temporários do `--session` usam `mock`.
-   - A primeira pergunta do macOS acontece onde a pessoa está olhando (`vitral setup` ou `vitral open`),
-     nunca no primeiro `open` da IA (que poderia ficar parado esperando o clique até estourar o tempo).
+   - A primeira pergunta do macOS (se houver) acontece no primeiro lançamento com a chave do sistema,
+     seja ele o `vitral open` ou o primeiro `open` da IA. **Pendente:** fazer esse primeiro lançamento no
+     `vitral setup` ou no `vitral open`, onde a pessoa está olhando, para a pergunta nunca cair no meio de
+     uma tarefa da IA (que poderia ficar esperando o clique até estourar o tempo).
    - **Migração no macOS**, uma vez por perfil (marca no próprio perfil): antes do primeiro lançamento
      sem `use-mock-keychain`, o Vitral abre o perfil como antes (sem janela), lê os cookies pelo CDP
      (só em memória), fecha, abre no modo novo e regrava os cookies; a marca de "migrado" só é gravada
